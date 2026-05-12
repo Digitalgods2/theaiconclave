@@ -198,3 +198,7 @@ Current "Next" items (see [`docs/ROADMAP.md`](docs/ROADMAP.md)): crash-safe work
 ## Note on this repo
 
 This is a single-user, local-only project. The runtime database (`data/switchboard.db`) — which contains the full text of every deliberation, including any source code copied into per-task sandboxes — is **not** committed. Neither are `data/sandboxes/`, `data/uploads/`, or a local `config.yaml`. See `.gitignore`.
+
+---
+
+Copyright © 2026 digitalgods.ai. All rights reserved.
