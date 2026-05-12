@@ -31,7 +31,8 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 | DB concurrency hardening | `busy_timeout=30s` on every connection + `with_retry()` decorator on the worker's claim and retention's VACUUM. |
 | Codex + Gemini slash-command parity | `clients/` source-of-truth dir; 8 slash commands in Codex (via `~/.codex/skills/switchboard-conclave/SKILL.md`) and Gemini (via `gemini extensions link` of the `switchboard-conclave` extension). Provenance: every call passes `--invoked-by <tool>`. See decision 0007. |
 | Detail export (PDF / DOCX / MD / TXT) | `GET /api/tasks/{id}/download?format=...` streams the full task detail; dashboard "Export detail as…" control uses the browser Save dialog (`showSaveFilePicker` where available). `app/services/doc_export.py`. See decision 0008. |
-| Test suite | 121 tests across protocol, modes, threading, retention, attachments, sandbox, judge, db concurrency, export tracking, exporter, provenance, doc export |
+| Ollama Cloud council seats | `OllamaCloudAdapter` — pluggable, config-driven open-weight seats (deepseek / glm / qwen by default) that appear in the dashboard checkbox list alongside the CLI agents. Auth via `OLLAMA_API_KEY`; `ollama_cloud:` section in config. See decision 0009. |
+| Test suite | 137 tests across protocol, modes, threading, retention, attachments, sandbox, judge, db concurrency, export tracking, exporter, provenance, doc export, ollama adapter |
 
 ## Next (in priority order)
 

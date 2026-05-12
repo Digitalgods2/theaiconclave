@@ -83,6 +83,32 @@ class AgentConfig(BaseModel):
     timeout_seconds: int = 180
 
 
+class OllamaCloudModel(BaseModel):
+    """One open-weight model exposed as a council seat via Ollama Cloud.
+
+    `name` is the friendly council/checkbox name (e.g. "deepseek") and must be
+    what the orchestrator puts in task.consultants. `model_id` is the Ollama
+    Cloud model identifier (e.g. "deepseek-v3.1:671b-cloud").
+    """
+    name: str
+    model_id: str
+    max_context_chars: int = 400_000
+
+
+class OllamaCloudConfig(BaseModel):
+    """Pluggable Ollama-Cloud-backed council seats.
+
+    Auth is via the OLLAMA_API_KEY env var (created at ollama.com settings) —
+    not stored in this file. If the key is unset, the seats register but report
+    unavailable, exactly like a CLI adapter whose binary isn't on PATH.
+    Model ids change as Ollama's catalog evolves; verify against
+    https://ollama.com/search?c=cloud and edit `models` below.
+    """
+    enabled: bool = True
+    endpoint: str = "https://ollama.com"
+    models: list[OllamaCloudModel] = Field(default_factory=list)
+
+
 class Config(BaseModel):
     protocol_version: str = "1.0"
     server: ServerConfig = Field(default_factory=ServerConfig)
@@ -95,6 +121,7 @@ class Config(BaseModel):
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
     agents: dict[str, AgentConfig] = Field(default_factory=dict)
+    ollama_cloud: OllamaCloudConfig = Field(default_factory=OllamaCloudConfig)
 
 
 def load_config(path: str | Path | None = None) -> Config:

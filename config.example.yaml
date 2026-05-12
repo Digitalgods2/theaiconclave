@@ -127,15 +127,13 @@ agents:
     supported_task_types: []
     timeout_seconds: 180
 
-  ollama:
+  openclaw:
     enabled: false
-    command: ollama
-    args: ["run"]
-    model: "qwen2.5-coder:7b"
-    endpoint: "http://127.0.0.1:11434"
+    command: openclaw
+    args: []
     supported_modes: []
     supported_task_types: []
-    timeout_seconds: 300
+    timeout_seconds: 180
 
   fake:
     enabled: true                   # used by tests; safe to leave on
@@ -151,3 +149,36 @@ agents:
       - documentation
       - general_consultation
     timeout_seconds: 5
+
+# -----------------------------------------------------------------------------
+# Ollama Cloud — pluggable open-weight council seats.
+#
+# Each entry below registers an extra agent that shows up in the dashboard's
+# "New Task" checkbox list, alongside codex / gemini / claude-code. Tick the
+# ones you want for a given task. These are *cloud-hosted* open-weight models
+# (DeepSeek, GLM, Qwen, …) reached over HTTP — no local GPU needed.
+#
+# Auth: set the OLLAMA_API_KEY environment variable (create one at
+# https://ollama.com — Settings → API keys). It is NOT stored in this file.
+# If the key is unset, these seats still appear but report "unavailable" — the
+# orchestrator surfaces agent_unavailable if you try to use one, same as a CLI
+# adapter whose binary isn't on PATH.
+#
+# Model ids change as Ollama's catalog evolves — verify against
+# https://ollama.com/search?c=cloud and edit the list below. The `name` is the
+# friendly council label (keep it short and stable); `model_id` is what Ollama
+# actually serves.
+# -----------------------------------------------------------------------------
+ollama_cloud:
+  enabled: true
+  endpoint: "https://ollama.com"
+  models:
+    - name: deepseek
+      model_id: "deepseek-v3.1:671b-cloud"     # frontier-class MoE reasoner; verify exact tag
+      max_context_chars: 800000
+    - name: glm
+      model_id: "glm-5:cloud"                  # Z.ai GLM-5, reasoning + agentic; verify exact tag
+      max_context_chars: 400000
+    - name: qwen
+      model_id: "qwen3-coder:480b-cloud"       # Alibaba Qwen3 flagship; verify exact tag
+      max_context_chars: 400000
