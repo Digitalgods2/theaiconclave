@@ -2945,125 +2945,141 @@ async function onDownloadDetail() {
 }
 
 // ------------------------------------------------------------
-// Settings view — API keys
+// Settings view — API keys (parameterized by key name)
 // ------------------------------------------------------------
-// Tracks whether the Ollama key field currently holds a real (revealed or typed)
-// value vs. just a masked placeholder, so the eyeball knows whether to fetch.
-const SettingsState = { ollamaRevealed: false, ollamaSource: "none" };
+// Each entry: the DOM ids for that key's row + its env-var name + a label.
+const API_KEY_FIELDS = {
+  openrouter: {
+    label: "OpenRouter", envName: "OPENROUTER_API_KEY",
+    input: "#openrouter-key-input", eyeball: "#openrouter-key-eyeball",
+    status: "#openrouter-key-status", feedback: "#openrouter-key-feedback",
+    save: "#openrouter-key-save", clear: "#openrouter-key-clear",
+  },
+  ollama: {
+    label: "Ollama Cloud", envName: "OLLAMA_API_KEY",
+    input: "#ollama-key-input", eyeball: "#ollama-key-eyeball",
+    status: "#ollama-key-status", feedback: "#ollama-key-feedback",
+    save: "#ollama-key-save", clear: "#ollama-key-clear",
+  },
+};
+// Per-key transient state: where the current value comes from, and whether the
+// field already holds a revealed value (so the eyeball doesn't re-fetch).
+const ApiKeyState = {};  // name -> { source: "env"|"db"|"none", revealed: bool }
 
-function _ollamaKeyFeedback(msg, kind) {
-  const fb = $("#ollama-key-feedback");
-  if (!fb) return;
+function _kf(name) { return API_KEY_FIELDS[name]; }
+
+function _keyFeedback(name, msg, kind) {
+  const cfg = _kf(name); if (!cfg) return;
+  const fb = $(cfg.feedback); if (!fb) return;
   fb.hidden = false;
   fb.className = "api-key-feedback " + (kind || "ok");
   fb.textContent = msg;
 }
-function _clearOllamaKeyFeedback() {
-  const fb = $("#ollama-key-feedback");
+function _clearKeyFeedback(name) {
+  const cfg = _kf(name); if (!cfg) return;
+  const fb = $(cfg.feedback);
   if (fb) { fb.hidden = true; fb.textContent = ""; }
 }
 
 async function loadApiKeysSettings() {
-  const statusEl = $("#ollama-key-status");
-  const input = $("#ollama-key-input");
-  const eyeball = $("#ollama-key-eyeball");
-  _clearOllamaKeyFeedback();
-  if (input) { input.value = ""; input.type = "password"; }
-  if (eyeball) eyeball.classList.remove("revealed");
-  SettingsState.ollamaRevealed = false;
-  if (statusEl) { statusEl.textContent = "Loading…"; statusEl.className = "api-key-status"; }
-  try {
-    const data = await Api.getApiKeys();
-    const o = (data && data.ollama) || { set: false, source: "none", masked: null };
-    SettingsState.ollamaSource = o.source || "none";
+  // Reset all rows to a clean state, then populate from one GET.
+  for (const name of Object.keys(API_KEY_FIELDS)) {
+    const cfg = _kf(name);
+    _clearKeyFeedback(name);
+    const input = $(cfg.input), eyeball = $(cfg.eyeball), statusEl = $(cfg.status);
+    if (input) { input.value = ""; input.type = "password"; }
+    if (eyeball) eyeball.classList.remove("revealed");
+    ApiKeyState[name] = { source: "none", revealed: false };
+    if (statusEl) { statusEl.textContent = "Loading…"; statusEl.className = "api-key-status"; }
+  }
+  let data = null;
+  try { data = await Api.getApiKeys(); }
+  catch (e) {
+    for (const name of Object.keys(API_KEY_FIELDS)) {
+      const statusEl = $(_kf(name).status);
+      if (statusEl) { statusEl.textContent = "Could not load settings: " + (e && e.message ? e.message : e); statusEl.className = "api-key-status"; }
+    }
+    return;
+  }
+  for (const name of Object.keys(API_KEY_FIELDS)) {
+    const cfg = _kf(name);
+    const o = (data && data[name]) || { set: false, source: "none", masked: null };
+    ApiKeyState[name] = { source: o.source || "none", revealed: false };
+    const input = $(cfg.input), statusEl = $(cfg.status);
     if (input) input.placeholder = o.masked ? o.masked : "(not set)";
-    if (!statusEl) return;
+    if (!statusEl) continue;
     if (o.source === "env") {
-      statusEl.textContent = "Currently set via the OLLAMA_API_KEY environment variable — the stored key is ignored. (Saving here changes the stored key but won't take effect until the env var is unset.)";
+      statusEl.textContent = `Currently set via the ${cfg.envName} environment variable — the stored key is ignored. (Saving here changes the stored key but won't take effect until the env var is unset.)`;
       statusEl.className = "api-key-status is-env";
     } else if (o.source === "db") {
       statusEl.textContent = `Currently using the stored database key (${o.masked || "set"}). Click the eyeball to reveal it.`;
       statusEl.className = "api-key-status is-set";
     } else {
-      statusEl.textContent = "Not set. Paste an Ollama Cloud API key and click Save, or export OLLAMA_API_KEY in the environment.";
+      statusEl.textContent = `Not set. Paste a ${cfg.label} API key and click Save, or export ${cfg.envName} in the environment.`;
       statusEl.className = "api-key-status";
     }
-  } catch (e) {
-    if (statusEl) { statusEl.textContent = "Could not load settings: " + (e && e.message ? e.message : e); statusEl.className = "api-key-status"; }
   }
 }
 
-async function onToggleOllamaKeyVisibility() {
-  const input = $("#ollama-key-input");
-  const eyeball = $("#ollama-key-eyeball");
+async function onToggleKeyVisibility(name) {
+  const cfg = _kf(name); if (!cfg) return;
+  const input = $(cfg.input), eyeball = $(cfg.eyeball);
   if (!input) return;
-  // Toggle off if already showing.
+  const st = ApiKeyState[name] || { source: "none", revealed: false };
   if (input.type === "text") {
     input.type = "password";
     if (eyeball) eyeball.classList.remove("revealed");
     return;
   }
-  // Showing: if the field is empty and the key lives in the DB, fetch the plaintext.
-  if (!input.value && SettingsState.ollamaSource === "db" && !SettingsState.ollamaRevealed) {
+  if (!input.value && st.source === "db" && !st.revealed) {
     try {
-      const r = await Api.revealApiKey("ollama");
-      if (r && typeof r.value === "string") {
-        input.value = r.value;
-        SettingsState.ollamaRevealed = true;
-      } else if (r && r.note) {
-        _ollamaKeyFeedback(r.note, "ok");
-      }
+      const r = await Api.revealApiKey(name);
+      if (r && typeof r.value === "string") { input.value = r.value; st.revealed = true; ApiKeyState[name] = st; }
+      else if (r && r.note) { _keyFeedback(name, r.note, "ok"); }
     } catch (e) {
-      _ollamaKeyFeedback("Could not reveal: " + (e && e.message ? e.message : e), "error");
+      _keyFeedback(name, "Could not reveal: " + (e && e.message ? e.message : e), "error");
       return;
     }
-  } else if (!input.value && SettingsState.ollamaSource === "env") {
-    _ollamaKeyFeedback("This key is set via the OLLAMA_API_KEY environment variable; its value isn't stored here and can't be shown.", "ok");
+  } else if (!input.value && st.source === "env") {
+    _keyFeedback(name, `This key is set via the ${cfg.envName} environment variable; its value isn't stored here and can't be shown.`, "ok");
     return;
   }
   input.type = "text";
   if (eyeball) eyeball.classList.add("revealed");
 }
 
-async function onSaveOllamaKey() {
-  const input = $("#ollama-key-input");
-  const btn = $("#ollama-key-save");
+async function onSaveKey(name) {
+  const cfg = _kf(name); if (!cfg) return;
+  const input = $(cfg.input), btn = $(cfg.save);
   if (!input) return;
   const value = input.value.trim();
   if (!value) {
-    _ollamaKeyFeedback("Nothing to save — the field is empty. Use “Clear stored key” to remove a stored key.", "error");
+    _keyFeedback(name, "Nothing to save — the field is empty. Use “Clear stored key” to remove a stored key.", "error");
     return;
   }
   if (btn) { btn.disabled = true; btn.dataset.originalText = btn.dataset.originalText || btn.textContent; btn.textContent = "Saving…"; }
   try {
-    const r = await Api.setApiKey("ollama", value);
-    if (r && r.ok) {
-      _ollamaKeyFeedback("Saved to the database.", "ok");
-      await loadApiKeysSettings();
-    } else {
-      _ollamaKeyFeedback("Save failed: " + (r && r.error ? r.error : "unknown error"), "error");
-    }
+    const r = await Api.setApiKey(name, value);
+    if (r && r.ok) { _keyFeedback(name, "Saved to the database.", "ok"); await loadApiKeysSettings(); }
+    else { _keyFeedback(name, "Save failed: " + (r && r.error ? r.error : "unknown error"), "error"); }
   } catch (e) {
-    _ollamaKeyFeedback("Save failed: " + (e && e.message ? e.message : e), "error");
+    _keyFeedback(name, "Save failed: " + (e && e.message ? e.message : e), "error");
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = btn.dataset.originalText || "Save"; }
   }
 }
 
-async function onClearOllamaKey() {
-  const btn = $("#ollama-key-clear");
-  if (!confirm("Remove the stored Ollama Cloud API key from the database?")) return;
+async function onClearKey(name) {
+  const cfg = _kf(name); if (!cfg) return;
+  if (!confirm(`Remove the stored ${cfg.label} API key from the database?`)) return;
+  const btn = $(cfg.clear);
   if (btn) { btn.disabled = true; }
   try {
-    const r = await Api.setApiKey("ollama", "");
-    if (r && r.ok) {
-      _ollamaKeyFeedback("Stored key cleared.", "ok");
-      await loadApiKeysSettings();
-    } else {
-      _ollamaKeyFeedback("Clear failed: " + (r && r.error ? r.error : "unknown error"), "error");
-    }
+    const r = await Api.setApiKey(name, "");
+    if (r && r.ok) { _keyFeedback(name, "Stored key cleared.", "ok"); await loadApiKeysSettings(); }
+    else { _keyFeedback(name, "Clear failed: " + (r && r.error ? r.error : "unknown error"), "error"); }
   } catch (e) {
-    _ollamaKeyFeedback("Clear failed: " + (e && e.message ? e.message : e), "error");
+    _keyFeedback(name, "Clear failed: " + (e && e.message ? e.message : e), "error");
   } finally {
     if (btn) { btn.disabled = false; }
   }
@@ -3079,12 +3095,13 @@ function init() {
 
   const settingsToggle = $("#settings-toggle");
   if (settingsToggle) settingsToggle.addEventListener("click", () => switchView("settings"));
-  const ollamaSaveBtn = $("#ollama-key-save");
-  if (ollamaSaveBtn) ollamaSaveBtn.addEventListener("click", onSaveOllamaKey);
-  const ollamaClearBtn = $("#ollama-key-clear");
-  if (ollamaClearBtn) ollamaClearBtn.addEventListener("click", onClearOllamaKey);
-  const ollamaEyeball = $("#ollama-key-eyeball");
-  if (ollamaEyeball) ollamaEyeball.addEventListener("click", onToggleOllamaKeyVisibility);
+  for (const name of Object.keys(API_KEY_FIELDS)) {
+    const cfg = _kf(name);
+    const saveBtn = $(cfg.save), clearBtn = $(cfg.clear), eyeball = $(cfg.eyeball);
+    if (saveBtn) saveBtn.addEventListener("click", () => onSaveKey(name));
+    if (clearBtn) clearBtn.addEventListener("click", () => onClearKey(name));
+    if (eyeball) eyeball.addEventListener("click", () => onToggleKeyVisibility(name));
+  }
 
   $("#mode").addEventListener("change", () => {
     updateModeHint();

@@ -6,6 +6,7 @@ Every ratified decision lives in this directory. The keeper (`claude-code`) main
 
 | # | Date | Title | Mode | Outcome |
 |---|---|---|---|---|
+| **[0011](0011_openrouter_council_seats.md)** | 2026-05-12 | OpenRouter council seats (pay-per-token open-weight models) | Glen-directed | `deepseek` / `glm` / `qwen` seats now OpenRouter-backed (no subscription); Ollama Cloud adapter kept but disabled by default; `OPENROUTER_API_KEY` added to the Settings panel |
 | **[0010](0010_settings_panel_and_db_api_keys.md)** | 2026-05-12 | Left-rail Settings panel + DB-stored API keys (env-fallback) | Glen-directed | Dashboard left rail → gear → Settings → API Keys; Ollama key stored in DB with eyeball reveal; rule: env var wins, else DB |
 | **[0009](0009_ollama_cloud_council_seats.md)** | 2026-05-12 | Ollama Cloud council seats (open-weight models: deepseek / glm / qwen) | Glen-directed | New `OllamaCloudAdapter` (pluggable, config-driven); seats appear in the dashboard checkbox list; auth via `OLLAMA_API_KEY` |
 | **[0008](0008_export_detail_pdf_docx_text.md)** | 2026-05-12 | Export task detail as PDF / DOCX / Markdown / Text from the dashboard | Glen-directed | New `GET /api/tasks/{id}/download?format=...` endpoint + dashboard control; browser Save dialog for destination; `reportlab` + `python-docx` added |
@@ -35,4 +36,4 @@ Decisions are append-only. Earlier decisions can be superseded by later ones (e.
 
 ## The conclave's own dogfooding
 
-Four of these ten decision records came out of the conclave deliberating about its own design (charter adoption, multimodal disagreement, retention, charter v1.2). The other six (sandbox, db concurrency + Tier 2 export, slash-command parity, detail export, Ollama Cloud seats, settings panel) were Glen-directed. The Switchboard product is, in part, a tool for designing itself. This index is part of the audit trail of that process.
+Four of these eleven decision records came out of the conclave deliberating about its own design (charter adoption, multimodal disagreement, retention, charter v1.2). The other seven (sandbox, db concurrency + Tier 2 export, slash-command parity, detail export, Ollama Cloud seats, settings panel, OpenRouter seats) were Glen-directed. The Switchboard product is, in part, a tool for designing itself. This index is part of the audit trail of that process.

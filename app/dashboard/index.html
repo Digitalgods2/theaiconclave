@@ -373,6 +373,33 @@
 
         <section class="settings-section">
           <h3>API Keys</h3>
+          <p class="hint" style="margin-top:0">
+            Stored keys live in the local database (<code>data/switchboard.db</code>), not in any config file.
+            The corresponding environment variable, if set, always takes precedence over the stored value.
+          </p>
+
+          <div class="api-key-row">
+            <label for="openrouter-key-input">OpenRouter API key</label>
+            <div class="api-key-input-group">
+              <input type="password" id="openrouter-key-input" autocomplete="off" spellcheck="false"
+                placeholder="(not set)" />
+              <button type="button" class="eyeball-btn" id="openrouter-key-eyeball"
+                title="Show / hide" aria-label="Show or hide the API key">👁</button>
+            </div>
+            <p class="api-key-status" id="openrouter-key-status">Loading…</p>
+            <div class="api-key-actions">
+              <button type="button" class="btn btn-primary" id="openrouter-key-save">Save</button>
+              <button type="button" class="btn btn-secondary" id="openrouter-key-clear">Clear stored key</button>
+            </div>
+            <p class="hint">
+              Used by the OpenRouter council seats (<code>deepseek</code> / <code>glm</code> / <code>qwen</code> by
+              default). Pay-per-token, no subscription — a conclave turn costs about $0.001–$0.02. Env var:
+              <code>OPENROUTER_API_KEY</code>. Create a key at <em>openrouter.ai → Keys</em>.
+            </p>
+            <div class="api-key-feedback" id="openrouter-key-feedback" hidden></div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid #eef0f5;margin:18px 0" />
 
           <div class="api-key-row">
             <label for="ollama-key-input">Ollama Cloud API key</label>
@@ -388,10 +415,9 @@
               <button type="button" class="btn btn-secondary" id="ollama-key-clear">Clear stored key</button>
             </div>
             <p class="hint">
-              Used by the Ollama Cloud council seats (<code>deepseek</code> / <code>glm</code> / <code>qwen</code>).
-              If the <code>OLLAMA_API_KEY</code> environment variable is set it takes precedence and this stored key
-              is ignored. The stored key lives in the local database (<code>data/switchboard.db</code>), not in any
-              config file. Create a key at <em>ollama.com → Settings → API keys</em>.
+              Only needed if you enable the Ollama Cloud seats in <code>config.yaml</code> (disabled by default — the
+              big models there require an Ollama Cloud paid subscription; OpenRouter above carries the same models
+              pay-per-token). Env var: <code>OLLAMA_API_KEY</code>. Create a key at <em>ollama.com → Settings → API keys</em>.
             </p>
             <div class="api-key-feedback" id="ollama-key-feedback" hidden></div>
           </div>

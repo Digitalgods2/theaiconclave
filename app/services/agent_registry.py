@@ -66,3 +66,28 @@ def register_ollama_cloud_models(config) -> None:
             max_context_chars=getattr(m, "max_context_chars", 400_000),
             endpoint=endpoint,
         ))
+
+
+def register_openrouter_models(config) -> None:
+    """Register one OpenRouterAdapter per enabled model in config.openrouter.
+
+    No-op if the section is disabled or empty. Imported lazily so the adapter
+    module (and httpx) isn't a hard import for code paths that don't use it.
+    """
+    orc = getattr(config, "openrouter", None)
+    if orc is None or not getattr(orc, "enabled", False):
+        return
+    models = getattr(orc, "models", None) or []
+    if not models:
+        return
+    from app.agents.openrouter_adapter import OpenRouterAdapter
+    endpoint = getattr(orc, "endpoint", "https://openrouter.ai/api/v1")
+    data_collection = getattr(orc, "data_collection", "deny")
+    for m in models:
+        register(OpenRouterAdapter(
+            name=m.name,
+            model_slug=m.model_slug,
+            max_context_chars=getattr(m, "max_context_chars", 400_000),
+            endpoint=endpoint,
+            data_collection=data_collection,
+        ))

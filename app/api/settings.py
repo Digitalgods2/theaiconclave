@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 # Maps a settings-API key name to (db_settings_key, env_var_name).
 _API_KEYS = {
     "ollama": ("ollama_api_key", "OLLAMA_API_KEY"),
+    "openrouter": ("openrouter_api_key", "OPENROUTER_API_KEY"),
 }
 
 

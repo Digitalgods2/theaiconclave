@@ -174,10 +174,18 @@ class OllamaCloudAdapter(BaseAdapter):
             )
 
         if resp.status_code != 200:
+            body_low = (resp.text or "").lower()
+            if resp.status_code == 403 and "subscription" in body_low:
+                msg = (f"ollama-cloud[{self.model_id}] requires an Ollama Cloud paid plan "
+                       f"(see https://ollama.com/upgrade). Tip: OpenRouter carries the same "
+                       f"models pay-per-token with no subscription.")
+            elif resp.status_code == 401:
+                msg = f"ollama-cloud[{self.model_id}]: unauthorized (bad or missing API key)"
+            else:
+                msg = f"ollama-cloud[{self.model_id}] returned HTTP {resp.status_code}"
             raise AdapterError(
-                ErrorCode.AGENT_ERROR,
-                f"ollama-cloud[{self.model_id}] returned HTTP {resp.status_code}",
-                details={"body_tail": resp.text[-2000:]},
+                ErrorCode.AGENT_ERROR, msg,
+                details={"status_code": resp.status_code, "body_tail": resp.text[-2000:]},
             )
 
         try:

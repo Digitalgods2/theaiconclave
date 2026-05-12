@@ -39,6 +39,7 @@ async def lifespan(app: FastAPI):
     agent_registry.clear()
     agent_registry.init_registry()
     agent_registry.register_ollama_cloud_models(config)
+    agent_registry.register_openrouter_models(config)
 
     # Sweep orphan sandboxes left over from crashed/aborted tasks.
     from app.database import connect

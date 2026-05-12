@@ -102,11 +102,43 @@ class OllamaCloudConfig(BaseModel):
     not stored in this file. If the key is unset, the seats register but report
     unavailable, exactly like a CLI adapter whose binary isn't on PATH.
     Model ids change as Ollama's catalog evolves; verify against
-    https://ollama.com/search?c=cloud and edit `models` below.
+    https://ollama.com/search?c=cloud and edit `models` below. Note that the
+    biggest models (DeepSeek 671B, GLM-5, …) require an Ollama Cloud paid
+    subscription; OpenRouter (below) carries the same models pay-per-token with
+    no subscription. Disabled by default.
     """
-    enabled: bool = True
+    enabled: bool = False
     endpoint: str = "https://ollama.com"
     models: list[OllamaCloudModel] = Field(default_factory=list)
+
+
+class OpenRouterModel(BaseModel):
+    """One model exposed as a council seat via OpenRouter (pay-per-token gateway).
+
+    `name` is the friendly council/checkbox name (e.g. "deepseek"); `model_slug`
+    is the OpenRouter model id (e.g. "deepseek/deepseek-chat").
+    """
+    name: str
+    model_slug: str
+    max_context_chars: int = 400_000
+
+
+class OpenRouterConfig(BaseModel):
+    """Pluggable OpenRouter-backed council seats — pay-per-token, no subscription.
+
+    Auth is via the OPENROUTER_API_KEY env var, or the database-stored key set
+    through the dashboard's Settings → API Keys panel (env wins). If neither,
+    the seats register but report unavailable. Model slugs change as the catalog
+    evolves; verify against https://openrouter.ai/models.
+
+    data_collection: "deny" (default) sends provider.data_collection=deny so
+    OpenRouter won't route through providers that retain/train on the prompt —
+    appropriate for code review. Set "allow" to opt back in.
+    """
+    enabled: bool = True
+    endpoint: str = "https://openrouter.ai/api/v1"
+    data_collection: str = "deny"
+    models: list[OpenRouterModel] = Field(default_factory=list)
 
 
 class Config(BaseModel):
@@ -122,6 +154,7 @@ class Config(BaseModel):
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
     agents: dict[str, AgentConfig] = Field(default_factory=dict)
     ollama_cloud: OllamaCloudConfig = Field(default_factory=OllamaCloudConfig)
+    openrouter: OpenRouterConfig = Field(default_factory=OpenRouterConfig)
 
 
 def load_config(path: str | Path | None = None) -> Config:

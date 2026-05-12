@@ -151,34 +151,50 @@ agents:
     timeout_seconds: 5
 
 # -----------------------------------------------------------------------------
-# Ollama Cloud — pluggable open-weight council seats.
+# OpenRouter — pluggable open-weight council seats (pay-per-token, no subscription).
 #
-# Each entry below registers an extra agent that shows up in the dashboard's
-# "New Task" checkbox list, alongside codex / gemini / claude-code. Tick the
-# ones you want for a given task. These are *cloud-hosted* open-weight models
-# (DeepSeek, GLM, Qwen, …) reached over HTTP — no local GPU needed.
+# Each entry registers an extra agent in the dashboard's "New Task" checkbox
+# list, alongside codex / gemini / claude-code. These are non-frontier (well,
+# somewhat) open-weight models — a different pair of eyes trained on different
+# data. Pricing is metered but tiny: a conclave turn costs about $0.001–$0.02.
 #
-# Auth: set the OLLAMA_API_KEY environment variable (create one at
-# https://ollama.com — Settings → API keys). It is NOT stored in this file.
-# If the key is unset, these seats still appear but report "unavailable" — the
-# orchestrator surfaces agent_unavailable if you try to use one, same as a CLI
-# adapter whose binary isn't on PATH.
+# Auth: set the OPENROUTER_API_KEY environment variable, OR store a key via the
+# dashboard's Settings → API Keys panel (the env var wins; the stored key is the
+# fallback). If neither, these seats appear but report "unavailable".
 #
-# Model ids change as Ollama's catalog evolves — verify against
-# https://ollama.com/search?c=cloud and edit the list below. The `name` is the
-# friendly council label (keep it short and stable); `model_id` is what Ollama
-# actually serves.
+# Model slugs change as the catalog evolves — verify at https://openrouter.ai/models.
+# `name` is the friendly council label; `model_slug` is the OpenRouter model id.
+# data_collection: "deny" (default) keeps prompts off providers that retain/train
+# on them — appropriate for code review. Set "allow" to opt back in.
 # -----------------------------------------------------------------------------
-ollama_cloud:
+openrouter:
   enabled: true
-  endpoint: "https://ollama.com"
+  endpoint: "https://openrouter.ai/api/v1"
+  data_collection: deny
   models:
     - name: deepseek
-      model_id: "deepseek-v3.1:671b-cloud"     # frontier-class MoE reasoner; verify exact tag
+      model_slug: "deepseek/deepseek-chat"     # DeepSeek V3.x — strongest open reasoner; verify slug
       max_context_chars: 800000
     - name: glm
-      model_id: "glm-5:cloud"                  # Z.ai GLM-5, reasoning + agentic; verify exact tag
+      model_slug: "z-ai/glm-4.6"               # Z.ai GLM — reasoning + agentic; verify slug
       max_context_chars: 400000
     - name: qwen
-      model_id: "qwen3-coder:480b-cloud"       # Alibaba Qwen3 flagship; verify exact tag
+      model_slug: "qwen/qwen3-coder"           # Alibaba Qwen3 — best JSON discipline of the bunch; verify slug
+      max_context_chars: 400000
+
+# -----------------------------------------------------------------------------
+# Ollama Cloud — alternative open-weight seats. DISABLED by default: the big
+# models (DeepSeek 671B, GLM-5, …) require an Ollama Cloud paid subscription, so
+# OpenRouter (above) is the preferred path. Enable this only if you have the
+# subscription. If you do, give these seats names that don't collide with the
+# OpenRouter ones above (or disable those). Verify model ids at
+# https://ollama.com/search?c=cloud. Auth: OLLAMA_API_KEY env var or the
+# Settings → API Keys panel.
+# -----------------------------------------------------------------------------
+ollama_cloud:
+  enabled: false
+  endpoint: "https://ollama.com"
+  models:
+    - name: ollama-qwen
+      model_id: "qwen3-coder:480b-cloud"       # works on Ollama Cloud's free tier; verify exact tag
       max_context_chars: 400000
