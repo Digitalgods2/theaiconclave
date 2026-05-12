@@ -1,0 +1,34 @@
+{
+  "protocol_version": "1.0",
+  "source": "api",
+  "mode": "conclave",
+  "task_type": "architecture_review",
+  "user_request": "I need to pick a database for a new internal tool: ~50 users, mostly read-heavy, will eventually need full-text search. Pick one and defend the choice.",
+  "primary_agent": null,
+  "consultants": ["codex", "gemini", "fake"],
+  "context": {
+    "files": [],
+    "error": null,
+    "git_diff": null,
+    "extra": {
+      "fake_behavior": "conclave_iterate"
+    }
+  },
+  "permissions": {
+    "can_read_files": true,
+    "can_write_files": false,
+    "can_run_commands": false,
+    "can_access_network": false,
+    "can_install_packages": false,
+    "can_apply_patches": false,
+    "can_read_env_files": false,
+    "can_read_secrets": false
+  },
+  "limits": {
+    "max_rounds": 5,
+    "timeout_seconds": 240,
+    "max_seconds": 900,
+    "max_context_tokens": null,
+    "convergence_threshold": 0.66
+  }
+}

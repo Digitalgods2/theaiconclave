@@ -1,0 +1,153 @@
+# AI Switchboard configuration
+# Copy to config.yaml and adjust for your machine.
+# Values in .env override values here.
+
+protocol_version: "1.0"
+
+server:
+  host: 127.0.0.1
+  port: 8787
+
+database:
+  path: data/switchboard.db
+
+logging:
+  level: info             # debug | info | warn | error
+  retain_days: null       # null = retain forever (MVP default)
+  audit_to_file: false    # also write audit events to data/logs/audit.log
+
+# -----------------------------------------------------------------------------
+# Defaults applied when a task request omits a field.
+# The task request is always authoritative; this is only a fallback.
+# -----------------------------------------------------------------------------
+defaults:
+  mode: resolve              # resolve | consult — resolve is open-ended, consult is bounded
+  primary_agent: codex
+  consultant: claude-code
+  max_rounds: 50             # backstop in resolve mode; primary cap in consult (use lower for consult)
+  timeout_seconds: 180       # per agent call
+  max_seconds: 600           # total task time ceiling (resolve mode)
+  task_type: general_consultation
+
+# -----------------------------------------------------------------------------
+# Default permissions when a task request does not specify them.
+# A task may NOT escalate beyond what the user submits — this is a fallback,
+# not a ceiling.
+# -----------------------------------------------------------------------------
+permissions:
+  can_read_files: true
+  can_write_files: false
+  can_run_commands: false
+  can_access_network: false
+  can_install_packages: false
+  can_apply_patches: false
+  can_read_env_files: false
+  can_read_secrets: false
+
+# -----------------------------------------------------------------------------
+# Forced-approval categories. These actions ALWAYS require approval, regardless
+# of granted permissions. In MVP these flags cannot be set to false.
+# -----------------------------------------------------------------------------
+approval_required:
+  patches: true
+  commands: true
+  package_installs: true
+
+# -----------------------------------------------------------------------------
+# Orchestration knobs.
+# -----------------------------------------------------------------------------
+orchestration:
+  loop_detection_threshold: 0.8     # n-gram overlap that triggers loop_detected
+  max_context_bytes: 524288         # 512 KiB ceiling on context per agent call
+  worker_poll_interval_seconds: 2   # how often the worker checks for new tasks
+
+# -----------------------------------------------------------------------------
+# DB retention policy per decision 0003.
+# Operational trigger: db size OR completed-task count exceeds budget.
+# Selection: tier-based (decisions and unresolved dissent never auto-trim).
+# -----------------------------------------------------------------------------
+retention:
+  enabled: true
+  max_db_size_mb: 2048              # trim when SQLite + WAL exceed this (2 GB)
+  max_completed_tasks: 1000         # OR when completed-task count exceeds this
+  min_task_age_days: 90             # never trim tasks newer than this
+  check_interval_seconds: 21600     # 6 hours between retention passes
+
+# -----------------------------------------------------------------------------
+# Dashboard. MVP serves the dashboard on the same port as the API.
+# -----------------------------------------------------------------------------
+dashboard:
+  enabled: true
+  bind_to_api_port: true
+
+# -----------------------------------------------------------------------------
+# Agent registry. Each entry maps a canonical agent name to the CLI it wraps.
+# `enabled: false` keeps the adapter registered but causes is_available() to
+# return false; the orchestrator surfaces this as agent_unavailable.
+# -----------------------------------------------------------------------------
+agents:
+  codex:
+    enabled: true
+    command: codex                  # absolute path or $PATH lookup
+    args: []                        # baseline args; adapter appends prompt-specific flags
+    supported_modes: [consult, handoff]
+    supported_task_types:
+      - debug
+      - code_review
+      - architecture_review
+      - general_consultation
+    timeout_seconds: 180
+
+  claude-code:
+    enabled: true
+    command: claude
+    args: []
+    supported_modes: [consult, handoff]
+    supported_task_types:
+      - debug
+      - code_review
+      - architecture_review
+      - security_review
+      - general_consultation
+    timeout_seconds: 180
+
+  gemini:
+    enabled: false
+    command: gemini
+    args: []
+    supported_modes: []
+    supported_task_types: []
+    timeout_seconds: 180
+
+  openclaw:
+    enabled: false
+    command: openclaw
+    args: []
+    supported_modes: []
+    supported_task_types: []
+    timeout_seconds: 180
+
+  ollama:
+    enabled: false
+    command: ollama
+    args: ["run"]
+    model: "qwen2.5-coder:7b"
+    endpoint: "http://127.0.0.1:11434"
+    supported_modes: []
+    supported_task_types: []
+    timeout_seconds: 300
+
+  fake:
+    enabled: true                   # used by tests; safe to leave on
+    command: ""                     # not invoked; fake adapter returns canned data
+    args: []
+    supported_modes: [consult, handoff, poll]
+    supported_task_types:
+      - debug
+      - code_review
+      - architecture_review
+      - security_review
+      - deployment_help
+      - documentation
+      - general_consultation
+    timeout_seconds: 5

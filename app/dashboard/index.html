@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Switchboard</title>
+  <link rel="stylesheet" href="/static/dashboard.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>AI Switchboard</h1>
+        <span class="health" id="health-indicator" title="service health">checking...</span>
+      </div>
+      <nav class="tabs" role="tablist">
+        <button class="tab" data-view="new" role="tab">New Task</button>
+        <button class="tab" data-view="inbox" role="tab">Inbox</button>
+        <button class="tab" data-view="detail" role="tab">Detail</button>
+      </nav>
+    </header>
+
+    <main class="content">
+
+      <!-- ============ NEW TASK VIEW ============ -->
+      <section class="view" id="view-new" hidden>
+        <h2>Submit a new task</h2>
+        <div class="followup-banner" id="followup-banner" hidden>
+          <div class="followup-banner-text" id="followup-banner-text"></div>
+          <button type="button" class="followup-banner-dismiss" id="followup-banner-dismiss"
+            aria-label="Dismiss thread continuation" title="Treat this as a fresh task instead">×</button>
+        </div>
+        <form id="new-task-form" class="form">
+          <div class="form-row">
+            <label for="mode">Mode</label>
+            <select id="mode" name="mode">
+              <option value="conclave" selected>conclave</option>
+              <option value="consult">consult</option>
+              <option value="resolve">resolve</option>
+            </select>
+            <p class="hint" id="mode-hint"></p>
+          </div>
+
+          <div class="form-row">
+            <label>Agents</label>
+            <div id="agents-list" class="agents-list">
+              <p class="loading">Loading agents...</p>
+            </div>
+            <p class="hint" id="agents-hint"></p>
+          </div>
+
+          <div class="form-row">
+            <label for="permissions-details">Permissions</label>
+            <details id="permissions-details" class="permissions-details">
+              <summary id="permissions-summary" class="permissions-summary">Permissions: read-only (default)</summary>
+              <div class="permissions-body">
+                <div class="permissions-presets">
+                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_only">Read-only</button>
+                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_env">Read + .env</button>
+                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_all">Read everything</button>
+                </div>
+                <div class="permissions-list" id="permissions-list">
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_read_files" data-perm="can_read_files" checked />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_read_files</span>
+                      <small>Read files inside project_path (default ON)</small>
+                    </span>
+                  </label>
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_write_files" data-perm="can_write_files" />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_write_files</span>
+                      <small>Modify files (currently no adapter uses this; defer to Layer 2)</small>
+                    </span>
+                  </label>
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_run_commands" data-perm="can_run_commands" />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_run_commands</span>
+                      <small>Execute commands (currently no adapter uses this; defer to Layer 2)</small>
+                    </span>
+                  </label>
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_access_network" data-perm="can_access_network" />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_access_network</span>
+                      <small>Outbound HTTP/HTTPS</small>
+                    </span>
+                  </label>
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_install_packages" data-perm="can_install_packages" />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_install_packages</span>
+                      <small>Install dependencies (implies run + network)</small>
+                    </span>
+                  </label>
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_apply_patches" data-perm="can_apply_patches" />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_apply_patches</span>
+                      <small>Apply patches (currently surfaced for approval only)</small>
+                    </span>
+                  </label>
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_read_env_files" data-perm="can_read_env_files" />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_read_env_files</span>
+                      <small>Read .env, .env.*, .envrc</small>
+                    </span>
+                  </label>
+                  <label class="permission-check">
+                    <input type="checkbox" id="perm-can_read_secrets" data-perm="can_read_secrets" />
+                    <span class="permission-label-text">
+                      <span class="permission-name">can_read_secrets</span>
+                      <small>Read *.key, *.pem, credentials*, etc.</small>
+                    </span>
+                  </label>
+                </div>
+                <p class="permissions-footnote">
+                  Some permissions (write, run, install, patch) are not yet wired to adapter execution &mdash; granting them currently has no runtime effect. They're recorded on the task for future use.
+                </p>
+              </div>
+            </details>
+          </div>
+
+          <div class="form-row">
+            <label for="project-path">Project source</label>
+            <div class="project-source">
+              <div class="project-source-field">
+                <label for="project-path" class="project-source-sublabel">Project path (for sandbox scoping)</label>
+                <input type="text" id="project-path" name="project_path"
+                       placeholder="C:/path/to/your/project (optional)" autocomplete="off" />
+                <p class="hint">When set, the orchestrator uses this for permission scoping and (if enabled below) sandbox population.</p>
+              </div>
+              <label class="permission-check project-source-check">
+                <input type="checkbox" id="include-sandbox" />
+                <span class="permission-label-text">
+                  <span class="permission-name">Provide a read-only sandbox copy to the agents</span>
+                  <small>When enabled, the orchestrator copies the project at <code>project_path</code> to a per-task sandbox dir. Each agent gets read-only access to that snapshot via its native CLI tools (Codex shell read-only, Gemini included-directories, Claude Read tool). Skips: .git, __pycache__, node_modules, .venv, dist, data, binaries. Requires <code>can_read_files</code>. The original project is never modified.</small>
+                </span>
+              </label>
+              <p class="form-status" id="sandbox-warning"></p>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="question-label-row">
+              <label for="question">Question</label>
+              <button type="button" class="btn btn-secondary git-diff-btn" id="attach-git-diff-btn"
+                disabled title="Set project_path to enable.">Attach current git diff</button>
+            </div>
+            <textarea id="question" name="question" rows="10" placeholder="Describe the problem or question for the agents..." required></textarea>
+            <p class="form-status" id="git-diff-status"></p>
+          </div>
+
+          <div class="form-row">
+            <label for="attachments-input">Attachments</label>
+            <div class="dropzone" id="dropzone" tabindex="0">
+              <p class="dropzone-prompt">
+                <strong>Drop files here</strong> or
+                <button type="button" class="link-btn" id="browse-btn">browse</button>
+              </p>
+              <p class="hint">Supported: .txt, .md, .pdf, .json, .py, .js, .ts, .png, .jpg, .jpeg, .gif, .webp and other text/code files. Max 20 MiB per file. Or drop an entire project folder &mdash; standard ignore patterns (.git, node_modules, etc.) are applied automatically.</p>
+              <input type="file" id="attachments-input" multiple hidden
+                     accept=".txt,.md,.pdf,.json,.py,.js,.ts,.tsx,.jsx,.go,.rs,.rb,.java,.c,.cpp,.h,.hpp,.cs,.html,.css,.xml,.yaml,.yml,.toml,.ini,.sh,.bat,.ps1,.sql,.log,.csv,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*,text/*,application/pdf,application/json" />
+            </div>
+            <p class="form-status muted" id="folder-upload-status"></p>
+            <div id="attachments-list" class="attachments-list" hidden></div>
+            <p class="form-status" id="attachments-warning"></p>
+          </div>
+
+          <div class="form-row form-actions">
+            <button type="submit" class="btn btn-primary" id="submit-btn">Submit task</button>
+            <span class="form-status" id="form-status"></span>
+          </div>
+        </form>
+      </section>
+
+      <!-- ============ INBOX VIEW ============ -->
+      <section class="view" id="view-inbox" hidden>
+        <div class="view-header">
+          <h2>Inbox</h2>
+          <span class="muted" id="inbox-status">Auto-refreshing every 5s</span>
+        </div>
+        <div class="inbox-filters" id="inbox-filters">
+          <div class="inbox-filter-field">
+            <label for="filter-status">Status</label>
+            <select id="filter-status">
+              <option value="">(all statuses)</option>
+              <option value="pending">pending</option>
+              <option value="running">running</option>
+              <option value="awaiting_user_input">awaiting_user_input</option>
+              <option value="completed">completed</option>
+              <option value="failed">failed</option>
+              <option value="cancelled">cancelled</option>
+            </select>
+          </div>
+          <div class="inbox-filter-field">
+            <label for="filter-mode">Mode</label>
+            <select id="filter-mode">
+              <option value="">(all modes)</option>
+              <option value="conclave">conclave</option>
+              <option value="consult">consult</option>
+              <option value="resolve">resolve</option>
+            </select>
+          </div>
+          <div class="inbox-filter-field">
+            <label for="filter-exported">Export status</label>
+            <select id="filter-exported" title="Filter by whether the task has been exported to data/exports/">
+              <option value="">(any)</option>
+              <option value="true">Exported</option>
+              <option value="false">Not exported</option>
+            </select>
+          </div>
+          <div class="inbox-filter-field inbox-filter-search">
+            <label for="filter-search">Search</label>
+            <div class="inbox-search-row">
+              <input type="text" id="filter-search" placeholder="Search by ID or text..." autocomplete="off" />
+              <button type="button" class="btn btn-secondary inbox-clear-btn" id="inbox-clear-btn"
+                title="Reset all filters to defaults" aria-label="Clear all filters">X</button>
+            </div>
+          </div>
+          <div class="inbox-filter-field">
+            <label for="filter-limit">Show last</label>
+            <select id="filter-limit">
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+              <option value="5000">5000</option>
+            </select>
+          </div>
+        </div>
+        <div class="inbox-counter-row">
+          <span class="inbox-counter muted" id="inbox-counter">Showing 0 of 0 tasks</span>
+          <div class="inbox-bulk-actions">
+            <button type="button" class="btn btn-secondary inbox-bulk-export-btn" id="inbox-bulk-export-btn"
+              title="Export every unexported terminal task to data/exports/ as a markdown decision record.">
+              Bulk export unexported
+            </button>
+            <span class="inbox-bulk-export-status" id="inbox-bulk-export-status" hidden></span>
+          </div>
+        </div>
+        <div class="inbox-bulk-export-errors" id="inbox-bulk-export-errors" hidden></div>
+        <div class="table-wrap tasks-scroll">
+          <table class="tasks-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Status</th>
+                <th>Mode</th>
+                <th>Agents</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="tasks-tbody">
+              <tr><td colspan="5" class="loading">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ DETAIL VIEW ============ -->
+      <section class="view" id="view-detail" hidden>
+        <div class="detail-header" id="detail-header">
+          <p class="muted">No task selected. Submit a new one or pick a task from the Inbox.</p>
+        </div>
+
+        <div class="detail-body" id="detail-body" hidden>
+          <section class="thread-breadcrumb" id="thread-breadcrumb" hidden>
+            <span class="thread-breadcrumb-label">Thread:</span>
+            <div class="thread-breadcrumb-chain" id="thread-breadcrumb-chain"></div>
+          </section>
+
+          <section class="live-activity" id="live-activity" hidden>
+            <div class="live-activity-inner" id="live-activity-inner"></div>
+          </section>
+
+          <section class="user-request">
+            <div class="panel-header">
+              <h3>User request</h3>
+              <span id="user-request-copy-slot"></span>
+            </div>
+            <pre id="detail-user-request" class="pre-block"></pre>
+          </section>
+
+          <section class="answer-prompt" id="answer-prompt" hidden>
+            <h3>Agent is asking for your input</h3>
+            <p class="muted" id="answer-question"></p>
+            <form id="answer-form">
+              <textarea id="answer-text" rows="5" placeholder="Type your reply for the agent..." required></textarea>
+              <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Send answer</button>
+                <span class="form-status" id="answer-status"></span>
+              </div>
+            </form>
+          </section>
+
+          <section class="transcript">
+            <h3>Transcript</h3>
+            <div id="transcript-container"></div>
+          </section>
+
+          <section class="final-result" id="final-result-section" hidden>
+            <div class="panel-header">
+              <h3>Final result</h3>
+              <span id="final-result-copy-slot"></span>
+            </div>
+            <div id="final-result-container"></div>
+          </section>
+
+          <section class="errors" id="errors-section" hidden>
+            <h3>Errors</h3>
+            <ul id="errors-list"></ul>
+          </section>
+
+          <section class="actions-row">
+            <button class="btn btn-secondary" id="cancel-btn" hidden>Cancel task</button>
+          </section>
+
+          <section class="decision-panel" id="decision-panel" hidden>
+            <div class="decision-panel-inner" id="decision-panel-inner"></div>
+          </section>
+
+          <section class="post-task-bar" id="post-task-bar" hidden>
+            <div class="post-task-bar-inner">
+              <button type="button" class="btn btn-primary" id="start-new-btn"
+                title="Start a clean new task with an empty question form">
+                Start New Task
+              </button>
+              <button type="button" class="btn btn-secondary" id="followup-btn"
+                title="Start a new task with this task's question, answer, and your decision pre-loaded as context. Useful when the resolution was ambiguous and you want to dig further on the same topic.">
+                Continue this thread
+              </button>
+              <button type="button" class="btn btn-secondary" id="export-btn"
+                title="Export this task's question, transcript, final result, and decision to a markdown file in data/exports/.">
+                Export to decision record
+              </button>
+              <span class="export-last-info" id="export-last-info" hidden></span>
+            </div>
+            <p class="post-task-bar-help">
+              <strong>Continue this thread</strong> opens the New Task form pre-filled with this task's context (final answer and your decision) so the next conclave starts from where you left off. <strong>Start New Task</strong> opens a blank form. <strong>Export to decision record</strong> writes a markdown snapshot of this task to <code>data/exports/</code>.
+            </p>
+            <div class="export-feedback" id="export-feedback" hidden></div>
+          </section>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,1029 @@
+AI Switchboard: Full Service Plan
+1. Project Summary
+AI Switchboard is a background automation service that lets AI coding agents and AI CLI tools consult with one another.
+Instead of forcing the user to copy and paste between tools like Codex, Claude Code, Gemini CLI, OpenClaw, Ollama, or local models, Switchboard runs in the background, waits for incoming tasks, routes those tasks through selected AI agents, manages structured review rounds, and returns a controlled final answer.
+The system should behave like an automation hub, not a terminal tool.
+The user, app, or calling agent submits a task.
+One AI acts as the primary agent.
+Other AIs act as consultants.
+The Switchboard controls the conversation.
+The primary agent or calling program gets the final say.
+2. Core Concept
+User or app sends a task to Switchboard.
+Switchboard receives the task, validates it, and decides how to route it.
+A primary AI agent analyzes the request first.
+One or more consultant agents review the primary agent’s answer.
+The consultant agents critique, challenge, or improve the first response.
+The primary agent receives the critique and prepares a final answer.
+Switchboard packages the result and sends it back to the user or calling program.
+The agents do not free-chat with each other. Switchboard controls the flow.
+3. Main Product Goals
+AI Switchboard should:
+
+
+Run in the background.
+
+
+Wait for incoming tasks.
+
+
+Accept messages from apps, scripts, dashboards, and AI tools.
+
+
+Route tasks to multiple AI agents.
+
+
+Support primary and consultant roles.
+
+
+Support structured debate.
+
+
+Preserve final authority for the caller or chosen primary agent.
+
+
+Prevent uncontrolled agent loops.
+
+
+Protect files and commands with permissions.
+
+
+Log all task activity.
+
+
+Expose a dashboard for normal users.
+
+
+Provide skills so AI apps know how to connect.
+
+
+4. Background Service Model
+AI Switchboard should run as a persistent local service.
+Supported environments:
+Windows can run it as a background process or Windows service.
+macOS can run it as a launchd agent.
+Linux can run it as a systemd service.
+A server can run it as a FastAPI daemon.
+The MVP should use Python, FastAPI, SQLite, subprocess calls, a simple background worker, and a local dashboard.
+Docker should not be required.
+5. Service Responsibilities
+The background service handles task intake, task validation, agent selection, context collection, role assignment, agent execution, consultation rounds, response parsing, disagreement tracking, safety enforcement, final result generation, audit logging, dashboard display, and API responses.
+The service should sit in the middle of every exchange. It should not let one agent directly control another agent without the Switchboard seeing and recording what happened.
+6. Supported Incoming Sources
+Switchboard should eventually accept tasks from:
+
+
+Web dashboard
+
+
+Desktop app
+
+
+Browser extension
+
+
+VS Code extension
+
+
+Webhook
+
+
+Folder watcher
+
+
+Git watcher
+
+
+Log watcher
+
+
+Scheduled automation
+
+
+Another AI CLI
+
+
+OpenClaw
+
+
+Codex
+
+
+Claude Code
+
+
+Gemini CLI
+
+
+Local scripts
+
+
+For the MVP, support the web dashboard, HTTP API, and manual task submission.
+7. High-Level Architecture
+The flow should look like this:
+Incoming request enters the FastAPI service.
+FastAPI sends it to the task router.
+The task router decides task type, primary agent, consultants, and permissions.
+The context manager gathers needed project context.
+The safety policy checks what the task may access.
+The task is saved to SQLite.
+A background worker picks up the task.
+The orchestrator runs the agent consultation process.
+Agent adapters call Codex, Claude Code, Gemini CLI, OpenClaw, Ollama, or other models.
+The result builder creates the final answer.
+The dashboard and API expose the result.
+8. Recommended Project Structure
+The project should use this general structure:
+ai-switchboard
+app
+app/main.py
+app/config.py
+app/database.py
+app/logging_config.py
+app/api
+app/api/tasks.py
+app/api/agents.py
+app/api/approvals.py
+app/api/settings.py
+app/api/health.py
+app/models
+app/models/task.py
+app/models/agent.py
+app/models/message.py
+app/models/approval.py
+app/models/result.py
+app/protocol
+app/protocol/schemas.py
+app/protocol/message_types.py
+app/protocol/validators.py
+app/services
+app/services/task_router.py
+app/services/orchestrator.py
+app/services/context_manager.py
+app/services/result_builder.py
+app/services/agent_registry.py
+app/services/session_logger.py
+app/agents
+app/agents/base.py
+app/agents/codex_adapter.py
+app/agents/claude_adapter.py
+app/agents/gemini_adapter.py
+app/agents/openclaw_adapter.py
+app/agents/ollama_adapter.py
+app/agents/fake_adapter.py
+app/workers
+app/workers/task_worker.py
+app/safety
+app/safety/policy.py
+app/safety/command_guard.py
+app/safety/file_guard.py
+app/safety/approval_gate.py
+app/dashboard
+app/dashboard/templates
+app/dashboard/static
+app/dashboard/routes.py
+app/utils
+app/utils/ids.py
+app/utils/subprocess_runner.py
+app/utils/json_tools.py
+app/utils/path_tools.py
+skills
+skills/generic/switchboard_connector.md
+skills/generic/primary_agent_behavior.md
+skills/generic/consultant_behavior.md
+skills/generic/safety_behavior.md
+skills/codex/codex_switchboard_skill.md
+skills/codex/codex_primary_rules.md
+skills/claude-code/claude_switchboard_skill.md
+skills/claude-code/claude_consultant_rules.md
+skills/gemini-cli/gemini_switchboard_skill.md
+skills/gemini-cli/gemini_consultant_rules.md
+skills/openclaw/openclaw_switchboard_skill.md
+skills/openclaw/openclaw_gateway_rules.md
+docs
+docs/README.md
+docs/SERVICE_OVERVIEW.md
+docs/ARCHITECTURE.md
+docs/SWITCHBOARD_PROTOCOL.md
+docs/AGENT_ADAPTERS.md
+docs/SKILLS_SYSTEM.md
+docs/TASK_LIFECYCLE.md
+docs/SAFETY_MODEL.md
+docs/AUTOMATION_TRIGGERS.md
+docs/DASHBOARD_PLAN.md
+docs/DATABASE_SCHEMA.md
+docs/API_REFERENCE.md
+docs/INSTALLATION.md
+docs/CONFIGURATION.md
+docs/MVP_PLAN.md
+docs/ROADMAP.md
+examples
+examples/task_request_debug.json
+examples/task_request_code_review.json
+examples/agent_response_primary.json
+examples/agent_response_consultant.json
+examples/final_result.json
+examples/approval_required.json
+data
+data/switchboard.db
+data/logs
+tests
+tests/test_protocol.py
+tests/test_task_lifecycle.py
+tests/test_safety.py
+tests/test_fake_adapter.py
+Root files:
+.env.example
+config.example.yaml
+requirements.txt
+pyproject.toml
+LICENSE
+9. Core Modules
+app/main.py
+This starts the application.
+It should load configuration, initialize the database, register API routes, register dashboard routes, start the background worker, expose a health check, and handle shutdown cleanly.
+app/config.py
+This loads and validates settings from config.yaml, .env, and environment variables.
+Settings should include server host, server port, database path, enabled agents, default primary agent, default consultants, debate round limit, timeout values, safety defaults, dashboard settings, and logging settings.
+app/database.py
+This manages SQLite setup.
+It should connect to the database, create tables, run migrations, provide query helpers, manage task records, manage agent message records, manage result records, and manage approval records.
+app/api/tasks.py
+This handles task endpoints.
+The main routes should include:
+POST /api/tasks
+GET /api/tasks
+GET /api/tasks/{task_id}
+POST /api/tasks/{task_id}/cancel
+POST /api/tasks/{task_id}/retry
+app/api/agents.py
+This handles agent discovery and testing.
+The main routes should include:
+GET /api/agents
+GET /api/agents/{agent_name}
+POST /api/agents/{agent_name}/test
+app/api/approvals.py
+This handles user approval for actions.
+The main routes should include:
+GET /api/approvals
+GET /api/approvals/{approval_id}
+POST /api/approvals/{approval_id}/approve
+POST /api/approvals/{approval_id}/reject
+app/services/task_router.py
+This decides how a task should run.
+It should identify the task mode, select a primary agent, select consultant agents, check required permissions, assign risk level, and decide whether approval will be needed.
+Example task modes:
+Debug
+Code review
+Architecture review
+Security review
+Deployment help
+Documentation generation
+General consultation
+app/services/context_manager.py
+This collects context for the agents.
+Context may include the user request, selected files, project path, Git diff, logs, error messages, package files, README files, test output, and environment details.
+This module should avoid sending entire projects by default. It should send compact, relevant context.
+app/services/orchestrator.py
+This manages the agent debate.
+The default flow should be:
+Primary agent receives the task.
+Primary agent gives an initial proposal.
+Consultant agent receives the task and the primary response.
+Consultant critiques the primary response.
+Primary agent receives the critique.
+Primary agent gives a final answer.
+Switchboard saves the final result.
+The orchestrator must enforce max rounds. It should never allow endless agent discussion.
+app/services/result_builder.py
+This creates the final user-facing output.
+The final result should include final recommendation, agent agreement level, major disagreements, risks, recommended actions, commands requiring approval, patches requiring approval, and next steps.
+app/services/agent_registry.py
+This tracks available agents.
+It should know which agents are enabled, which commands launch them, which modes they support, whether they are available, and whether they passed a connection test.
+app/agents/base.py
+This defines the base adapter interface.
+Each adapter should support:
+name
+is_available
+run_primary
+run_consultant
+run_final
+test_connection
+The rest of the system should call agents through this interface only.
+app/agents/codex_adapter.py
+This wraps Codex CLI.
+It should build prompts, call the Codex command, capture output, parse the result, handle timeouts, handle errors, and return a structured response.
+app/agents/claude_adapter.py
+This wraps Claude Code.
+It should follow the same adapter pattern.
+app/agents/gemini_adapter.py
+This wraps Gemini CLI.
+It should follow the same adapter pattern.
+app/agents/openclaw_adapter.py
+This wraps OpenClaw.
+It should eventually support OpenClaw gateway mode, OpenClaw agent mode, configured model aliases, OAuth-backed providers, and local model routing.
+app/agents/ollama_adapter.py
+This wraps local Ollama models.
+It should support local consultation, cheap review passes, and privacy-sensitive tasks.
+app/agents/fake_adapter.py
+This is for testing.
+It should return predictable fake responses so the Switchboard can be tested without real AI tools.
+app/workers/task_worker.py
+This runs pending jobs.
+For MVP, it can poll SQLite every few seconds.
+Basic flow:
+Find pending task.
+Mark task as running.
+Send task to orchestrator.
+Save messages as they arrive.
+Save final result.
+Mark task as completed or failed.
+app/safety/policy.py
+This defines global safety rules.
+Default behavior should deny file writes and command execution unless explicitly allowed.
+app/safety/command_guard.py
+This blocks dangerous shell commands.
+Examples of blocked command patterns:
+rm -rf
+del /s
+format
+diskpart
+shutdown
+reboot
+curl pipe bash
+sudo
+chmod -R 777
+app/safety/file_guard.py
+This controls file access.
+It should limit which folders agents can read, prevent access to secrets by default, block .env unless explicitly approved, block private keys, and log all file access.
+app/safety/approval_gate.py
+This pauses tasks when an action needs user approval.
+Examples:
+An agent suggests editing files.
+An agent suggests running a command.
+An agent suggests installing packages.
+An agent suggests deleting or moving files.
+An agent suggests changing deployment config.
+Switchboard should pause, show the user the proposed action, and wait for approval or rejection.
+10. Task Lifecycle
+Task statuses should include:
+Pending
+Running
+Waiting for user
+Completed
+Failed
+Cancelled
+The lifecycle:
+Task received.
+Task validated.
+Task saved.
+Context collected.
+Safety checked.
+Primary agent called.
+Consultants called.
+Primary reviews feedback.
+Final result generated.
+User receives result.
+If approval is required:
+Agent suggests action.
+Switchboard pauses.
+User reviews action.
+User approves or rejects.
+Switchboard continues or stops.
+11. Message Protocol
+Switchboard needs a common message format.
+Every request and response should use structured fields.
+Task Request Fields
+source
+source_agent
+task_type
+user_request
+primary_agent
+consultants
+project_path
+context
+permissions
+limits
+Agent Response Fields
+agent
+role
+message_type
+summary
+analysis
+recommended_actions
+risks
+confidence
+Consultant Critique Fields
+agent
+role
+message_type
+agreement
+critique
+missed_risks
+suggested_questions
+confidence
+Final Result Fields
+task_id
+status
+primary_agent
+consultants
+agreement_level
+final_answer
+recommended_actions
+commands_requiring_approval
+patches_requiring_approval
+risks
+errors
+12. Example Task Request
+Task request should look like this conceptually:
+source: dashboard
+source_agent: none
+task_type: debug
+user_request: Find out why this FastAPI app crashes on startup.
+primary_agent: codex
+consultants: claude-code
+project_path: C:/projects/myapp
+context error: ModuleNotFoundError: No module named pydantic
+permissions: read files allowed, writes denied, commands denied
+limits: 2 rounds, 120 second timeout
+13. Example Consultation Flow
+A dashboard task asks:
+Review this Python traceback and suggest the safest fix.
+Primary agent:
+Codex
+Consultant:
+Claude Code
+Permissions:
+Read files only
+No writes
+No command execution
+Switchboard calls Codex.
+Codex says the issue is likely a missing dependency.
+Switchboard sends Codex’s answer to Claude.
+Claude says the missing package is real, but the deeper issue may be the wrong Python environment.
+Switchboard sends Claude’s critique back to Codex.
+Codex gives a final answer:
+Activate the project virtual environment, then install from requirements.txt using python -m pip install -r requirements.txt, then verify pydantic exists in that same interpreter.
+Switchboard marks command execution as requiring user approval.
+The dashboard shows the final answer and the disagreement.
+14. Skills System
+Skills are Markdown instruction files that tell AI apps how to connect to Switchboard.
+They are not code.
+They explain behavior.
+A skill tells an AI agent:
+How to contact Switchboard.
+What endpoint to use.
+What JSON format to send.
+When to ask for consultation.
+How to behave as primary.
+How to behave as consultant.
+How to return structured results.
+What not to do.
+15. Skill Types
+Generic Switchboard Connector Skill
+This tells any AI tool how to contact Switchboard.
+It should include the local endpoint, required request format, permission rules, and expected response behavior.
+Primary Agent Skill
+This tells an AI how to behave when it owns the task.
+Primary agent responsibilities:
+Make the first proposal.
+Read consultant feedback.
+Accept or reject critique.
+Produce the final answer.
+Do not hide disagreement.
+Do not claim consensus if there was none.
+Consultant Agent Skill
+This tells an AI how to behave when it only reviews.
+Consultant responsibilities:
+Critique the proposal.
+Identify bugs.
+Identify missed risks.
+Suggest better options.
+Ask clarifying questions if needed.
+Do not take final authority.
+Safety Skill
+This tells AI agents what they must not do.
+Rules:
+Do not execute file changes without approval.
+Do not request command execution unless allowed.
+Do not send secrets.
+Do not ask for destructive operations unless absolutely necessary.
+Always mark risky actions clearly.
+16. Generic Skill File Content
+The generic connector skill should say:
+Use AI Switchboard when a task would benefit from another AI agent’s review, critique, or alternate reasoning.
+Default local endpoint:
+http://127.0.0.1:8787/api/tasks
+Use Switchboard when:
+The user asks to consult another AI.
+The problem is complex.
+The answer may affect code, files, deployment, security, or data.
+A second opinion would reduce risk.
+The current agent is uncertain.
+Required behavior:
+Send a structured task request using the Switchboard Protocol.
+Do not send secrets unless the user explicitly allows it.
+Do not request file writes unless the user has approved file write permissions.
+Do not request command execution unless the user has approved command execution.
+If acting as primary:
+Make the initial proposal.
+Review consultant feedback.
+Produce the final answer.
+If acting as consultant:
+Critique the proposal.
+Identify bugs, risks, missing context, and better options.
+Do not claim final authority.
+Final authority belongs to the calling agent or user-selected primary agent.
+17. Documentation Files
+README.md
+This should explain what AI Switchboard is, why it exists, how to install it, how to run it, supported agents, safety model, and current roadmap.
+SERVICE_OVERVIEW.md
+This should explain the background service model, incoming task model, agent consultation model, final authority model, and automation use cases.
+ARCHITECTURE.md
+This should explain the main components:
+Background service
+API layer
+Task queue
+Orchestrator
+Agent adapters
+Safety layer
+Dashboard
+Database
+SWITCHBOARD_PROTOCOL.md
+This is one of the most important files.
+It should define:
+Task request schema
+Agent response schema
+Consultant critique schema
+Final result schema
+Status values
+Error format
+Versioning rules
+AGENT_ADAPTERS.md
+This should explain how each CLI gets wrapped.
+Sections:
+Adapter interface
+Codex adapter
+Claude Code adapter
+Gemini CLI adapter
+OpenClaw adapter
+Ollama/local adapter
+Timeout handling
+Error handling
+Output parsing
+SKILLS_SYSTEM.md
+This should explain what a skill is, how skills are installed, how skills guide behavior, and how primary and consultant agents differ.
+TASK_LIFECYCLE.md
+This should explain every task state and the transitions between them.
+SAFETY_MODEL.md
+This should explain default deny behavior, file permissions, command permissions, dangerous command blocking, patch approval, Git backup strategy, and audit logs.
+AUTOMATION_TRIGGERS.md
+This should explain webhook triggers, folder watchers, Git watchers, log watchers, scheduled tasks, and future integrations.
+DASHBOARD_PLAN.md
+This should define the user interface.
+Pages:
+Inbox
+Active tasks
+Task detail page
+Agent conversation view
+Disagreement view
+Approval page
+Settings page
+DATABASE_SCHEMA.md
+This should document SQLite tables.
+Tables:
+tasks
+agent_runs
+agent_messages
+final_results
+approvals
+settings
+logs
+API_REFERENCE.md
+This should document all HTTP endpoints.
+Endpoints:
+POST /api/tasks
+GET /api/tasks
+GET /api/tasks/{id}
+POST /api/tasks/{id}/approve
+POST /api/tasks/{id}/cancel
+GET /api/agents
+POST /api/agents/{name}/test
+INSTALLATION.md
+This should explain installation on Windows, macOS, and Linux.
+CONFIGURATION.md
+This should explain config.yaml, .env, agent paths, default agents, safety defaults, and dashboard settings.
+MVP_PLAN.md
+This should define the first build.
+It should include included features, excluded features, milestones, test scenarios, and success criteria.
+ROADMAP.md
+This should track future development phases.
+18. Database Schema
+The database should start with SQLite.
+tasks table
+Stores task-level information.
+Fields:
+id
+created_at
+updated_at
+status
+source
+source_agent
+task_type
+user_request
+primary_agent
+consultants
+project_path
+permissions_json
+limits_json
+error_message
+agent_runs table
+Stores each agent execution.
+Fields:
+id
+task_id
+agent_name
+role
+started_at
+finished_at
+status
+exit_code
+duration_ms
+error_message
+agent_messages table
+Stores every message sent to or received from agents.
+Fields:
+id
+task_id
+agent_run_id
+agent_name
+role
+message_type
+content
+structured_json
+created_at
+final_results table
+Stores final answers.
+Fields:
+id
+task_id
+final_answer
+agreement_level
+recommended_actions_json
+risks_json
+commands_json
+patches_json
+created_at
+approvals table
+Stores user approvals.
+Fields:
+id
+task_id
+approval_type
+description
+payload_json
+status
+created_at
+resolved_at
+settings table
+Stores service settings.
+Fields:
+key
+value
+updated_at
+logs table
+Stores event logs.
+Fields:
+id
+task_id
+level
+event_type
+message
+metadata_json
+created_at
+19. API Design
+POST /api/tasks
+Creates a new task.
+Input:
+Task request fields.
+Output:
+task_id
+status
+created_at
+GET /api/tasks
+Returns task list.
+Optional filters:
+status
+agent
+task_type
+created date
+GET /api/tasks/{task_id}
+Returns full task detail.
+Includes:
+task metadata
+agent messages
+consultant critiques
+final result
+approval requests
+errors
+POST /api/tasks/{task_id}/cancel
+Cancels a pending or running task.
+POST /api/tasks/{task_id}/retry
+Retries a failed task.
+GET /api/agents
+Lists enabled agents.
+POST /api/agents/{agent_name}/test
+Tests whether an agent adapter works.
+GET /api/approvals
+Lists pending approvals.
+POST /api/approvals/{approval_id}/approve
+Approves a proposed action.
+POST /api/approvals/{approval_id}/reject
+Rejects a proposed action.
+20. Dashboard Plan
+The dashboard matters because most users hate command-line workflows.
+The dashboard should include:
+Inbox
+Shows all tasks.
+Columns:
+Task
+Status
+Primary agent
+Consultants
+Created time
+Result status
+New Task Page
+Allows the user to submit a task.
+Fields:
+Task description
+Task type
+Primary agent
+Consultants
+Project path
+Permissions
+Max rounds
+Task Detail Page
+Shows:
+Original request
+Task status
+Agent conversation
+Primary proposal
+Consultant critiques
+Final answer
+Risks
+Recommended actions
+Approval buttons
+Agent Conversation View
+Shows each agent message in order.
+Labels:
+Primary proposal
+Consultant critique
+Primary response
+Final answer
+Disagreement View
+Shows where agents disagreed.
+This is important. Disagreement is useful information.
+Approvals Page
+Shows pending approvals.
+Actions:
+Approve command
+Reject command
+Approve patch
+Reject patch
+Settings Page
+Allows configuration of:
+Enabled agents
+Default primary agent
+Default consultants
+Max rounds
+Timeouts
+Safety settings
+Dashboard options
+21. Safety Model
+Safety must be built in from the start.
+Default rules:
+File reads allowed only inside approved project folders.
+File writes disabled by default.
+Command execution disabled by default.
+Patch application requires approval.
+Package installation requires approval.
+Network operations require approval.
+Dangerous commands blocked.
+Secrets should not be sent to agents by default.
+All actions should be logged.
+Agents should not get unlimited context.
+Agents should not get unlimited rounds.
+Consultants should not get final authority unless explicitly assigned.
+22. Permission Model
+Each task should carry permissions.
+Permissions:
+can_read_files
+can_write_files
+can_run_commands
+can_access_network
+can_install_packages
+can_apply_patches
+can_read_env_files
+can_read_secrets
+Default MVP permissions:
+can_read_files: true
+can_write_files: false
+can_run_commands: false
+can_access_network: false
+can_install_packages: false
+can_apply_patches: false
+can_read_env_files: false
+can_read_secrets: false
+23. Automation Triggers
+Automation triggers create Switchboard tasks without manual user entry.
+Webhook Trigger
+External apps can POST tasks to Switchboard.
+Example use:
+A build system sends a failed test log to Switchboard.
+Folder Watcher
+Switchboard watches a folder.
+Example use:
+When error.log changes, Switchboard analyzes the new error.
+Git Watcher
+Switchboard watches Git diffs.
+Example use:
+When files change, Switchboard asks agents to review the diff.
+Log Watcher
+Switchboard watches logs.
+Example use:
+When a traceback appears, Switchboard starts a debug task.
+Scheduled Task
+Switchboard runs a task on a schedule.
+Example use:
+Every night, review project TODOs and create a report.
+For MVP, defer watchers. Start with manual dashboard tasks and HTTP API tasks.
+24. Agent Debate Rules
+The debate must stay controlled.
+Default pattern:
+Primary proposal.
+Consultant critique.
+Primary final.
+Optional second round only if needed.
+Rules:
+Maximum 2 rounds by default.
+Consultants critique, they do not decide.
+Primary must address consultant risks.
+Switchboard records disagreements.
+Switchboard does not hide uncertainty.
+Switchboard stops if agents loop, repeat, or exceed time limits.
+25. Result Format
+The final result shown to the user should include:
+Task summary.
+Final answer.
+Recommended actions.
+Agent agreement level.
+Disagreements.
+Risks.
+Commands requiring approval.
+Patches requiring approval.
+Errors encountered.
+Agent transcript link.
+The final answer should be clean and practical. The full agent conversation should remain available, but the user should not have to read it unless they want to.
+26. MVP Scope
+The MVP should prove the core product.
+Included:
+Background FastAPI service
+SQLite database
+Task creation endpoint
+Task status endpoint
+Basic dashboard
+Codex adapter
+Claude Code adapter
+Fake adapter for testing
+Structured protocol
+Two-agent consultation
+Final result builder
+Basic logs
+Config file
+Safety defaults
+Not included yet:
+Automatic patch application
+Full plugin marketplace
+Remote multi-user authentication
+Complex queue system
+GitHub integration
+VS Code extension
+Slack integration
+Voice interface
+Team management
+Cloud sync
+27. MVP Workflow
+User opens dashboard.
+User submits a task.
+User chooses primary agent.
+User chooses consultant agent.
+Switchboard creates task.
+Worker picks up task.
+Primary agent responds.
+Consultant critiques.
+Primary agent gives final answer.
+Dashboard shows final result.
+The first successful demo should show:
+Codex gives an answer.
+Claude critiques it.
+Codex responds with a better final answer.
+The dashboard displays the process clearly.
+28. Development Milestones
+Milestone 1: Protocol
+Create the Switchboard protocol.
+Files:
+docs/SWITCHBOARD_PROTOCOL.md
+examples/task_request_debug.json
+examples/agent_response_primary.json
+examples/agent_response_consultant.json
+examples/final_result.json
+Goal:
+Prove the message format.
+Milestone 2: Service Shell
+Create the FastAPI app and SQLite database.
+Endpoints:
+POST /api/tasks
+GET /api/tasks/{id}
+GET /api/health
+Goal:
+Tasks can be created and read.
+Milestone 3: Worker
+Create the background worker and fake agent adapter.
+Goal:
+A task can move from pending to running to completed.
+Milestone 4: Real Agent Adapters
+Create Codex and Claude Code adapters.
+Goal:
+Switchboard can call real CLI agents.
+Milestone 5: Debate Loop
+Create the real consultation loop.
+Goal:
+Primary proposal, consultant critique, primary final.
+Milestone 6: Dashboard
+Create a simple dashboard.
+Goal:
+User can submit and review tasks without using the command line.
+Milestone 7: Skills
+Create generic, Codex, and Claude Code skill files.
+Goal:
+AI apps know how to call the service.
+Milestone 8: Approval Gate
+Add approval handling.
+Goal:
+Commands and file changes pause for user approval.
+29. Recommended First File Set
+Start with these files:
+README.md
+SERVICE_OVERVIEW.md
+ARCHITECTURE.md
+SWITCHBOARD_PROTOCOL.md
+MVP_PLAN.md
+SAFETY_MODEL.md
+SKILLS_SYSTEM.md
+config.example.yaml
+Then build the app skeleton.
+Do not overbuild documentation before testing the protocol.
+30. Example Configuration
+The config should include:
+Server host: 127.0.0.1
+Server port: 8787
+Database path: data/switchboard.db
+Default primary agent: codex
+Default consultant: claude-code
+Max rounds: 2
+Timeout: 180 seconds
+File read allowed: true
+File write allowed: false
+Command execution allowed: false
+Patch approval required: true
+Command approval required: true
+Agent config should include:
+Codex enabled
+Codex command path
+Claude Code enabled
+Claude command path
+Gemini disabled by default
+OpenClaw disabled by default
+Ollama disabled by default
+31. Key Product Rules
+The Switchboard controls the conversation.
+Agents do not free-chat endlessly.
+The user stays in control.
+No file writes by default.
+No command execution by default.
+Every task is logged.
+Every agent message is saved.
+Consultants critique.
+Primary decides.
+Disagreement is shown, not hidden.
+The dashboard matters more than the terminal.
+Skills explain how AI tools connect.
+The system should work locally before it works remotely.
+32. Best First Version
+The first useful version should do one thing well:
+Codex can ask Claude for review through Switchboard.
+Claude can critique Codex.
+Codex can produce a final answer.
+The user can see the whole process in a dashboard.
+That proves the product.

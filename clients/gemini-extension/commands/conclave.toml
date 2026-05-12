@@ -1,0 +1,11 @@
+description = "Submit a question to the AI conclave (codex + gemini + claude-code) for multi-AI deliberation"
+
+prompt = """
+The user invoked /conclave with this question:
+
+{{args}}
+
+Below is the full transcript and final result from a 3-AI conclave (codex + gemini + claude-code) deliberating via AI Switchboard. Render this for the user. Lead with the final answer; surface disagreements verbatim if any; do NOT flatten dissent. If `agreement_level` is `major_disagreement` or `unresolved`, show every position. If the task ended `awaiting_user_input`, surface the clarifying question and tell the user to answer with /answer.
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini run conclave codex,gemini,claude-code "{{args}}"}
+"""

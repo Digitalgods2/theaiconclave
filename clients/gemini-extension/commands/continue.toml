@@ -1,0 +1,19 @@
+description = "Continue a conclave thread - start a new task threaded to a parent (same mode + agents, prior thread context auto-injected)"
+
+prompt = """
+The user invoked /continue with these arguments:
+
+{{args}}
+
+Parse the arguments:
+- First token: parent task_id (typically `tsk_...`) — or `latest` for the most recent task
+- Rest of the line: the new question
+
+The script below runs the threaded follow-up. The new task inherits the parent's mode and agents — if the parent was a 3-AI conclave, the follow-up is too. The orchestrator automatically loads the parent's ancestry (question + final answer + recorded decision) into every participant's prompt as the "Prior Thread Context" section.
+
+After the task completes, render the result. The conclave's participants will see the prior thread context, so their answers should pick up where the prior thread left off.
+
+If the user wants to inspect the thread genealogy first, suggest /thread <task_id>.
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini continue {{args}}}
+"""

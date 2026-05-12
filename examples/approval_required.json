@@ -1,0 +1,16 @@
+{
+  "id": "apr_01HX9KAB7C2DEFG8HJKMNPQRST",
+  "task_id": "tsk_01HX9K8M2A3FYZRQVWBN7PCD4E",
+  "approval_type": "command",
+  "description": "Install Python dependencies into the active virtualenv.",
+  "payload": {
+    "command": "python -m pip install -r requirements.txt",
+    "working_directory": "C:/projects/myapp",
+    "requested_by_agent": "codex",
+    "round": 2
+  },
+  "status": "pending",
+  "created_at": "2026-05-10T14:32:18.402Z",
+  "resolved_at": null,
+  "resolution_note": null
+}

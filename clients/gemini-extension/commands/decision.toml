@@ -1,0 +1,15 @@
+description = "Fetch a task's decision and conclave context, ready for follow-up action"
+
+prompt = """
+The user invoked /decision with these arguments:
+
+{{args}}
+
+Parse the arguments: first token is the task_id (or `latest` for most recent). The script output below shows the original question, the conclave's final answer, and the recorded decision (or "none recorded yet").
+
+After displaying the output, if a decision is present and the user appears to want to act on it, surface the next concrete step. If the decision is ambiguous in your context, ask one minimal clarification. Respect permission boundaries — if the decision implies write/run actions and you do not have those permissions, surface that and ask.
+
+If no decision is recorded yet, point the user to /decide or the dashboard. Do not assume what they would have decided.
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini decision {{args}}}
+"""

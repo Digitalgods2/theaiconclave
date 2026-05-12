@@ -1,0 +1,20 @@
+description = "Record your authoritative decision on a completed conclave task"
+
+prompt = """
+The user invoked /decide with these arguments:
+
+{{args}}
+
+Parse the arguments:
+- First token: task_id (typically `tsk_...`) — or `latest` for the most recent task
+- Rest of the line: the user's decision text (free-form, the user's own words)
+
+If only a task_id was provided with no decision text, ask the user briefly what their decision is before re-running. Otherwise, the script below has already been run with the given arguments — render its output and confirm to the user that:
+- The decision is now visible in the dashboard's Detail view at http://127.0.0.1:8787/
+- The decision will auto-include as context in any /continue follow-up on this thread
+- They can fetch it later with /decision <task_id>
+
+For significant Switchboard capability or infrastructure decisions, Charter v1.2 also requires an Operability Impact section in the decision. If the topic looks Switchboard-related, suggest that addendum.
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini decide {{args}}}
+"""

@@ -1,0 +1,33 @@
+# Runtime data — deliberation DB, per-task sandboxes (copies of user projects), uploads
+data/switchboard.db
+data/switchboard.db-shm
+data/switchboard.db-wal
+data/sandboxes/
+data/uploads/
+data/exports/
+
+# Local config (may contain API keys / endpoints) — config.example.yaml is tracked, config.yaml is not
+config.yaml
+config.yml
+*.local.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs
+*.log

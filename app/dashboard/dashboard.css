@@ -1,0 +1,1447 @@
+/* ===== Base / reset ===== */
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background: #f6f7f9;
+  color: #1f2330;
+  line-height: 1.5;
+  font-size: 14px;
+}
+
+button { font-family: inherit; cursor: pointer; }
+input, textarea, select { font-family: inherit; font-size: 14px; }
+
+h1, h2, h3 { margin: 0; font-weight: 600; }
+h1 { font-size: 18px; }
+h2 { font-size: 20px; margin-bottom: 16px; }
+h3 { font-size: 15px; margin-bottom: 8px; color: #2a3045; }
+
+pre, code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+/* ===== Layout ===== */
+.app {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 20px 60px 20px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid #e3e6ed;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.health {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: #e3e6ed;
+  color: #555;
+}
+.health.ok      { background: #dcf3e2; color: #1d6b35; }
+.health.degraded{ background: #fdecc8; color: #8a5a00; }
+.health.down    { background: #fbd5d0; color: #8a1f17; }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+.tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  padding: 8px 14px;
+  font-size: 14px;
+  color: #4a5066;
+  border-radius: 6px 6px 0 0;
+}
+.tab:hover { background: #eef0f5; }
+.tab.active {
+  color: #1f2330;
+  border-bottom-color: #2a66e3;
+  background: #fff;
+  border-color: #e3e6ed;
+  border-bottom-color: #2a66e3;
+  font-weight: 600;
+}
+
+.content { min-height: 60vh; }
+
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+.muted { color: #6c7180; font-size: 13px; }
+.loading { color: #6c7180; font-style: italic; }
+
+/* ===== Forms ===== */
+.form { display: flex; flex-direction: column; gap: 18px; max-width: 720px; }
+.form-row { display: flex; flex-direction: column; gap: 6px; }
+.form-row > label {
+  font-weight: 600;
+  color: #2a3045;
+  font-size: 13px;
+}
+.hint { margin: 0; color: #6c7180; font-size: 12px; }
+
+select, textarea, input[type="text"] {
+  border: 1px solid #cdd2dc;
+  background: #fff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  width: 100%;
+}
+select { max-width: 260px; }
+textarea { resize: vertical; font-family: inherit; min-height: 120px; }
+
+.form-actions {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+.form-status {
+  font-size: 13px;
+  color: #6c7180;
+}
+.form-status.error { color: #b3261e; }
+.form-status.ok    { color: #1d6b35; }
+.form-status.muted { color: #6c7180; }
+
+/* Label row above the Question textarea: keeps the label flush-left and the
+   "Attach current git diff" action flush-right on the same line. */
+.question-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.question-label-row > label {
+  font-weight: 600;
+  color: #2a3045;
+  font-size: 13px;
+}
+.git-diff-btn {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+.git-diff-btn:disabled {
+  background: #f6f7f9;
+  color: #9aa0b3;
+  border-color: #e3e6ed;
+  cursor: not-allowed;
+}
+
+.btn {
+  border: 1px solid transparent;
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.btn-primary {
+  background: #2a66e3;
+  color: #fff;
+}
+.btn-primary:hover { background: #234fc1; }
+.btn-primary:disabled { background: #99b1e9; cursor: not-allowed; }
+
+.btn-secondary {
+  background: #fff;
+  border-color: #cdd2dc;
+  color: #2a3045;
+}
+.btn-secondary:hover { background: #eef0f5; }
+
+/* ===== Agents list ===== */
+.agents-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #cdd2dc;
+  border-radius: 6px;
+}
+.agent-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: #f0f2f7;
+  border-radius: 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.agent-check input { margin: 0; }
+.agent-check.primary {
+  background: #dbe6fa;
+  font-weight: 600;
+}
+
+/* ===== Permissions (New Task form) ===== */
+.permissions-details {
+  background: #fff;
+  border: 1px solid #cdd2dc;
+  border-radius: 6px;
+}
+.permissions-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: #2a3045;
+  font-weight: 500;
+  border-radius: 6px;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.permissions-summary::-webkit-details-marker { display: none; }
+.permissions-summary::before {
+  content: "\25B8";
+  color: #6c7180;
+  font-size: 11px;
+  transition: transform 0.12s ease;
+  display: inline-block;
+}
+.permissions-details[open] > .permissions-summary::before {
+  transform: rotate(90deg);
+}
+.permissions-summary:hover {
+  background: #f6f9ff;
+}
+.permissions-body {
+  padding: 12px 14px 14px;
+  border-top: 1px solid #e3e6ed;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.permissions-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.permission-preset {
+  font-size: 12px;
+  padding: 6px 12px;
+}
+.permissions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #fdfdff;
+  border: 1px solid #e3e6ed;
+  border-radius: 6px;
+}
+.permission-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 4px 2px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.permission-check input[type="checkbox"] {
+  margin: 3px 0 0 0;
+  flex: 0 0 auto;
+}
+.permission-label-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+}
+.permission-name {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  color: #1f2330;
+  font-weight: 600;
+}
+.permission-label-text small {
+  color: #6c7180;
+  font-size: 12px;
+  line-height: 1.4;
+}
+.permissions-footnote {
+  margin: 0;
+  font-size: 12px;
+  color: #6c7180;
+  font-style: italic;
+  line-height: 1.45;
+}
+
+/* ===== Project source (project_path + sandbox checkbox) ===== */
+.project-source {
+  background: #fff;
+  border: 1px solid #cdd2dc;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.project-source-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.project-source-sublabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a5066;
+}
+.project-source-check {
+  margin: 0;
+  padding: 8px 10px;
+  background: #fdfdff;
+  border: 1px solid #e3e6ed;
+  border-radius: 6px;
+}
+.project-source-check code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  background: #eef0f5;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 11.5px;
+}
+
+/* ===== Tasks table ===== */
+.table-wrap {
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+  overflow: hidden;
+}
+/* Scrollable wrapper for the inbox table so the page itself never overflows.
+   Sticky <thead> keeps column labels visible while scrolling. */
+.table-wrap.tasks-scroll {
+  overflow-y: auto;
+  overflow-x: auto;
+  max-height: calc(100vh - 260px);
+}
+.tasks-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.tasks-table th, .tasks-table td {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid #eef0f5;
+  font-size: 13px;
+  vertical-align: top;
+}
+.tasks-table th {
+  background: #f6f7f9;
+  font-weight: 600;
+  color: #4a5066;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* A subtle bottom border so the sticky header reads as a distinct band
+     when rows scroll behind it. */
+  box-shadow: inset 0 -1px 0 #e3e6ed;
+}
+
+/* ===== Inbox filter bar ===== */
+.inbox-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 8px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+}
+.inbox-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 140px;
+}
+.inbox-filter-field > label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6c7180;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.inbox-filter-field select,
+.inbox-filter-field input[type="text"] {
+  max-width: 100%;
+  min-width: 140px;
+}
+.inbox-filter-field select:disabled {
+  background: #f0f2f7;
+  color: #9aa0b3;
+  cursor: not-allowed;
+}
+.inbox-filter-search {
+  flex: 1 1 240px;
+  min-width: 220px;
+}
+.inbox-search-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.inbox-search-row input[type="text"] {
+  flex: 1 1 auto;
+}
+.inbox-clear-btn {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 13px;
+  line-height: 1;
+}
+.inbox-counter {
+  margin: 4px 2px 8px;
+}
+
+/* Counter row holds the "Showing X of Y" text on the left and the bulk-export
+   action on the right. The counter keeps its existing muted styling. */
+.inbox-counter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 4px 2px 8px;
+}
+.inbox-counter-row .inbox-counter {
+  margin: 0;
+}
+.inbox-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.inbox-bulk-export-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.inbox-bulk-export-btn:disabled {
+  background: #f6f7f9;
+  color: #9aa0b3;
+  border-color: #e3e6ed;
+  cursor: not-allowed;
+}
+.inbox-bulk-export-status {
+  font-size: 12.5px;
+  color: #4a5066;
+  font-style: italic;
+}
+.inbox-bulk-export-status.ok    { color: #1d6b35; font-style: normal; }
+.inbox-bulk-export-status.error { color: #8a1f17; font-style: normal; }
+.inbox-bulk-export-errors {
+  margin: 0 2px 8px;
+  padding: 8px 12px;
+  background: #fdf3f2;
+  border: 1px solid #f0c4be;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #8a1f17;
+}
+.inbox-bulk-export-errors ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+.inbox-bulk-export-errors li {
+  margin-bottom: 2px;
+}
+
+/* ===== Inbox: exported-row indicator =====
+   A small green dot suffixed to the ID cell when the task has been exported.
+   Subtle by design — doesn't add a column, just a discreet decoration. */
+.export-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #1d6b35;
+  margin-left: 6px;
+  vertical-align: middle;
+  /* A faint ring so the dot reads on hover-tinted rows too. */
+  box-shadow: 0 0 0 1px rgba(29, 107, 53, 0.18);
+}
+.tasks-table tbody tr.exported-row {
+  /* Faint left-tint so the whole row carries the "exported" signal even when
+     scrolled past the ID column. The vertical accent is only 2px wide so it
+     doesn't compete with the status badge. */
+  box-shadow: inset 2px 0 0 #b6dcc2;
+}
+
+/* Detail view: "Last exported" hint next to the export button. */
+.export-last-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+.export-last-info code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  background: #f1f3f7;
+  border: 1px solid #e3e6ed;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  color: #2a3045;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+  vertical-align: middle;
+}
+@media (max-width: 1000px) {
+  .inbox-filter-field {
+    min-width: 120px;
+    flex: 1 1 160px;
+  }
+}
+.tasks-table tbody tr {
+  cursor: pointer;
+}
+.tasks-table tbody tr:hover {
+  background: #f6f9ff;
+}
+.tasks-table .id-cell {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+/* ===== Status badges ===== */
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #e3e6ed;
+  color: #4a5066;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+}
+.badge.status-pending   { background: #e6ebf3; color: #4a5066; }
+.badge.status-running   { background: #dbe6fa; color: #1c4ab8; }
+.badge.status-completed { background: #dcf3e2; color: #1d6b35; }
+.badge.status-failed    { background: #fbd5d0; color: #8a1f17; }
+.badge.status-cancelled { background: #e3e6ed; color: #6c7180; }
+.badge.status-awaiting_user_input { background: #fdecc8; color: #8a5a00; }
+
+.badge.mode-conclave { background: #e7e1fa; color: #4a259a; }
+.badge.mode-consult  { background: #d6f0f1; color: #1c5c61; }
+.badge.mode-resolve  { background: #fce4d6; color: #8a3a17; }
+
+.badge.role         { background: #e3e6ed; color: #4a5066; }
+
+/* ===== Detail view ===== */
+.detail-header {
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+}
+.detail-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+}
+.detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.detail-body section {
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.pre-block {
+  background: #f6f7f9;
+  border: 1px solid #e3e6ed;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* ===== Transcript ===== */
+#transcript-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.round-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.round-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #6c7180;
+  padding-top: 8px;
+  border-top: 1px dashed #e3e6ed;
+}
+.round-label:first-child { border-top: none; padding-top: 0; }
+
+.msg {
+  position: relative;
+  border: 1px solid #e3e6ed;
+  border-left: 4px solid #cdd2dc;
+  border-radius: 6px;
+  padding: 12px 14px;
+  /* Reserve room in the top-right for the absolute-positioned copy button */
+  padding-right: 40px;
+  background: #fdfdff;
+}
+.msg-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #4a5066;
+}
+.msg-agent {
+  font-weight: 700;
+  color: #1f2330;
+  font-size: 13px;
+}
+.msg-time {
+  display: block;
+  margin-top: 2px;
+  margin-bottom: 6px;
+  color: #6c7180;
+  font-size: 11px;
+}
+.msg-type {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #eef0f5;
+  color: #4a5066;
+}
+
+/* Convergence-driven colors on conclave_turn */
+.msg.conv-i_am_done       { border-left-color: #28a35a; background: #f3fbf5; }
+.msg.conv-still_thinking  { border-left-color: #c9941b; background: #fffaee; }
+.msg.conv-need_user_input { border-left-color: #2a66e3; background: #f1f6ff; }
+
+/* Agreement-driven colors on consultant_critique */
+.msg.agree-agree    { border-left-color: #28a35a; background: #f3fbf5; }
+.msg.agree-partial  { border-left-color: #c9941b; background: #fffaee; }
+.msg.agree-disagree { border-left-color: #b3261e; background: #fdf3f2; }
+
+.msg-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.field-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c7180;
+}
+.field-value {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 13px;
+  color: #1f2330;
+}
+.field-value.mono {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: #f6f7f9;
+  padding: 6px 8px;
+  border-radius: 4px;
+  border: 1px solid #e3e6ed;
+}
+.field-list {
+  margin: 0;
+  padding-left: 18px;
+}
+.field-list li { margin-bottom: 2px; }
+
+/* ===== Final result ===== */
+.final-grid { display: flex; flex-direction: column; gap: 14px; }
+.agreement-display {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+.agreement-pill {
+  display: inline-block;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: capitalize;
+  background: #e3e6ed;
+  color: #4a5066;
+}
+.agreement-pill.agreement-consensus { background: #dcf3e2; color: #1d6b35; }
+.agreement-pill.agreement-majority  { background: #dbe6fa; color: #1c4ab8; }
+.agreement-pill.agreement-split     { background: #fdecc8; color: #8a5a00; }
+.agreement-pill.agreement-no_consensus { background: #fbd5d0; color: #8a1f17; }
+
+.agreement-label {
+  font-size: 12px;
+  color: #6c7180;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.final-answer-block {
+  background: #f6f7f9;
+  border: 1px solid #e3e6ed;
+  border-radius: 6px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.disagreements {
+  border: 1px solid #f0c4be;
+  background: #fdf3f2;
+  border-radius: 6px;
+  padding: 12px 14px;
+}
+.disagreements-title {
+  font-weight: 700;
+  color: #8a1f17;
+  margin-bottom: 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.disagreement-item {
+  border-top: 1px solid #f0c4be;
+  padding-top: 8px;
+  margin-top: 8px;
+}
+.disagreement-item:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.disagreement-topic { font-weight: 600; margin-bottom: 4px; }
+
+/* ===== Answer prompt ===== */
+.answer-prompt {
+  border-left: 4px solid #c9941b !important;
+  background: #fffaee !important;
+}
+.answer-prompt h3 { color: #8a5a00; }
+.answer-prompt textarea { background: #fff; }
+
+/* ===== Errors ===== */
+.errors {
+  border-left: 4px solid #b3261e !important;
+  background: #fdf3f2 !important;
+}
+.errors h3 { color: #8a1f17; }
+#errors-list { margin: 0; padding-left: 20px; }
+#errors-list li { margin-bottom: 4px; }
+
+.actions-row {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* ===== Attachments / dropzone ===== */
+.dropzone {
+  border: 2px dashed #cdd2dc;
+  background: #fff;
+  border-radius: 6px;
+  padding: 14px 16px;
+  text-align: center;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.dropzone:focus { outline: 2px solid #2a66e3; outline-offset: 1px; }
+.dropzone.dragover {
+  background: #f1f6ff;
+  border-color: #2a66e3;
+}
+.dropzone-prompt {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  color: #4a5066;
+}
+.link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #2a66e3;
+  text-decoration: underline;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.link-btn:hover { color: #234fc1; }
+
+.attachments-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.attachment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  background: #f0f2f7;
+  border: 1px solid #e3e6ed;
+  border-radius: 14px;
+  font-size: 12px;
+  color: #2a3045;
+  max-width: 100%;
+}
+.attachment-pill .att-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.attachment-pill .att-size {
+  color: #6c7180;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+.attachment-pill .att-remove {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #6c7180;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+.attachment-pill .att-remove:hover {
+  background: #e3e6ed;
+  color: #1f2330;
+}
+
+/* ===== Decision panel (user's authoritative call) ===== */
+.decision-panel {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin-bottom: 16px !important;
+}
+.decision-panel-inner {
+  position: relative;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-left: 5px solid #92400e;
+  border-radius: 8px;
+  padding: 18px 22px;
+  /* Reserve top-right for the absolute-positioned copy button when present */
+  padding-right: 56px;
+}
+.decision-title {
+  color: #78350f;
+  font-size: 15px;
+  margin: 0 0 6px 0;
+  letter-spacing: 0.01em;
+}
+.decision-help {
+  margin: 0 0 14px 0;
+  color: #78350f;
+  font-size: 13px;
+  opacity: 0.85;
+}
+.decision-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.decision-textarea {
+  border: 1px solid #d6b977;
+  background: #fffdf7;
+  border-radius: 6px;
+  padding: 10px 12px;
+  width: 100%;
+  min-height: 110px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 14px;
+  color: #1f2330;
+}
+.decision-textarea:focus {
+  outline: 2px solid #92400e;
+  outline-offset: 1px;
+  border-color: #92400e;
+}
+.decision-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.btn-decision {
+  background: #92400e;
+  color: #fff;
+  border-color: #92400e;
+  padding: 11px 22px;
+  font-weight: 600;
+  font-size: 14px;
+}
+.btn-decision:hover { background: #78350f; border-color: #78350f; }
+.btn-decision:disabled { background: #c8a079; border-color: #c8a079; cursor: not-allowed; }
+
+.decision-display-head {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.decision-edit-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #78350f;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  text-decoration: underline;
+  font-weight: 500;
+}
+.decision-edit-btn:hover {
+  background: rgba(146, 64, 14, 0.08);
+  text-decoration: none;
+}
+.decision-text-block {
+  background: #fffdf7;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  padding: 14px 16px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 14px;
+  color: #1f2330;
+  line-height: 1.55;
+}
+.decision-timestamp {
+  margin: 10px 0 0 0;
+  font-size: 12px;
+  color: #92400e;
+  opacity: 0.75;
+  font-style: italic;
+}
+
+/* ===== Post-task action bar ===== */
+.post-task-bar {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin-top: 8px !important;
+}
+.post-task-bar-inner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-top: 3px solid #2a66e3;
+  border-radius: 8px;
+}
+.post-task-bar .btn { padding: 11px 22px; font-size: 14px; font-weight: 600; }
+.post-task-bar-help {
+  margin: 8px 2px 0;
+  font-size: 12.5px;
+  color: #6b7280;
+  line-height: 1.5;
+}
+.post-task-bar-help strong { color: #374151; font-weight: 600; }
+.post-task-bar-help code {
+  background: #f1f3f7;
+  border: 1px solid #e3e6ed;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 12px;
+  color: #2a3045;
+}
+
+/* ===== Export feedback (post-task bar) ===== */
+.export-feedback {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #f1f7ee;
+  border: 1px solid #cfe3c4;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #2a3045;
+  line-height: 1.5;
+}
+.export-feedback.error {
+  background: #fdf2f2;
+  border-color: #f0c2c2;
+  color: #842727;
+}
+.export-feedback-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.export-feedback-message {
+  font-weight: 500;
+  color: #2a3045;
+}
+.export-feedback.error .export-feedback-message {
+  color: #842727;
+}
+.export-feedback-path {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  background: #fff;
+  border: 1px solid #cdd2dc;
+  border-radius: 4px;
+  padding: 3px 8px;
+  word-break: break-all;
+  flex: 1 1 auto;
+  min-width: 220px;
+  color: #2a3045;
+}
+.export-feedback-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+  font-style: italic;
+}
+.export-feedback-note code {
+  background: #eef0f5;
+  border: 1px solid #dde1ea;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11.5px;
+  font-style: normal;
+}
+
+/* ===== Copy buttons ===== */
+.copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #6b7280;
+  border-radius: 4px;
+  padding: 3px;
+  cursor: pointer;
+  line-height: 0;
+  vertical-align: middle;
+  transition: background 0.12s ease, color 0.12s ease;
+  position: relative;
+}
+.copy-btn:hover {
+  background: #eef0f5;
+  color: #2a3045;
+}
+.copy-btn:focus-visible {
+  outline: 2px solid #2a66e3;
+  outline-offset: 1px;
+}
+.copy-btn svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  pointer-events: none;
+}
+.copy-btn.copied {
+  color: #1d6b35;
+  background: #dcf3e2;
+}
+.copy-btn.copy-failed {
+  color: #8a1f17;
+  background: #fbd5d0;
+}
+
+/* Inline copy button next to truncated IDs in the inbox */
+.copy-btn-inline {
+  margin-left: 6px;
+}
+
+/* Larger, more prominent copy button for the detail header full ID */
+.copy-btn-prominent {
+  margin-left: 8px;
+  padding: 5px;
+  border: 1px solid #cdd2dc;
+  background: #fff;
+}
+.copy-btn-prominent svg {
+  width: 16px;
+  height: 16px;
+}
+.copy-btn-prominent:hover {
+  background: #eef0f5;
+  border-color: #b8bfcc;
+}
+
+/* Floating "Copied" feedback label */
+.copy-btn .copy-feedback {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1f2330;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 10;
+}
+.copy-btn .copy-feedback.show {
+  opacity: 1;
+}
+
+/* Panel header used to anchor a copy button to the top-right of a section */
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.panel-header h3 {
+  margin-bottom: 0;
+}
+
+/* Compact label row used inside fields (label + copy icon side-by-side) */
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Code/pre boxes need a relative container so the copy button can anchor */
+.copyable-box {
+  position: relative;
+}
+.copyable-box > .copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: rgba(255, 255, 255, 0.85);
+}
+.copyable-box > .copy-btn:hover {
+  background: #eef0f5;
+}
+
+/* Card-level copy buttons sit absolutely in the upper-right corner of their
+   containing panel/card. The wrapping element (.msg, .disagreement-item,
+   .decision-panel-inner, etc.) must use position: relative and reserve a bit
+   of padding-right to avoid overlap with long content. */
+.copy-btn-card {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  z-index: 1;
+}
+.copy-btn-card:hover {
+  background: #eef0f5;
+}
+
+/* Disagreement entry: relative container so the per-card copy button anchors */
+.disagreement-item {
+  position: relative;
+  padding-right: 36px;
+}
+.disagreement-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+/* ===== Follow-up / thread banner on New Task view ===== */
+.followup-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #eff6ff;
+  border: 1px solid #cfe0fb;
+  border-left: 4px solid #2a66e3;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 0 0 16px 0;
+  max-width: 720px;
+  font-size: 13px;
+  color: #1f2330;
+  line-height: 1.45;
+}
+.followup-banner-text {
+  flex: 1 1 auto;
+}
+.followup-banner-text code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  background: #dbe6fa;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.followup-banner-dismiss {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #1c4ab8;
+  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+.followup-banner-dismiss:hover {
+  background: #dbe6fa;
+  color: #234fc1;
+}
+
+/* ===== Thread breadcrumb (Detail view) ===== */
+.thread-breadcrumb {
+  background: #f1f5f9 !important;
+  border: 1px solid #e3e6ed !important;
+  border-radius: 6px !important;
+  padding: 8px 12px !important;
+  margin-bottom: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.thread-breadcrumb-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: #6c7180;
+  flex: 0 0 auto;
+}
+.thread-breadcrumb-chain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+.thread-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  background: #dbe6fa;
+  color: #1c4ab8;
+  border: 1px solid #b8cdf0;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 600;
+}
+.thread-pill:hover {
+  background: #c7d8f7;
+}
+.thread-pill.current {
+  background: #e3e6ed;
+  color: #6c7180;
+  border-color: #cdd2dc;
+  cursor: default;
+  font-weight: 500;
+}
+.thread-pill.current:hover {
+  background: #e3e6ed;
+}
+.thread-arrow {
+  color: #6c7180;
+  font-size: 13px;
+  flex: 0 0 auto;
+}
+
+/* ===== Live activity panel (Detail view, running tasks) ===== */
+.live-activity {
+  /* Override the generic section card styling so this can carry its own accent. */
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin-bottom: 16px !important;
+}
+.live-activity-inner {
+  background: #eff6ff;
+  border: 1px solid #cfe0fb;
+  border-left: 4px solid #2a66e3;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.live-activity-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13.5px;
+  color: #1f2330;
+}
+.live-activity-main {
+  font-weight: 600;
+  color: #1c4ab8;
+}
+.live-activity-sep,
+.live-activity-prefix {
+  color: #6c7180;
+}
+.live-activity-elapsed {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #2a3045;
+}
+.live-activity-round {
+  font-size: 12.5px;
+  color: #1c4ab8;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.live-activity-recent {
+  border-top: 1px dashed #cfe0fb;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.live-activity-recent-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6c7180;
+}
+.live-activity-recent-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: #4a5066;
+  line-height: 1.55;
+}
+.live-activity-recent-list li { margin: 0; }
+
+/* Subtle breathing dot next to the active agent name. */
+.live-pulse-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2a66e3;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 0 rgba(42, 102, 227, 0.55);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(42, 102, 227, 0.55); opacity: 1; }
+  70%  { box-shadow: 0 0 0 8px rgba(42, 102, 227, 0);    opacity: 0.85; }
+  100% { box-shadow: 0 0 0 0   rgba(42, 102, 227, 0);    opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-pulse-dot { animation: none; }
+}
+
+/* ===== Usage summary line (terminal tasks, detail header) ===== */
+.detail-usage {
+  margin: 8px 0 0 0;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Per-message run details (duration / tokens / cost) inline with the timestamp. */
+.msg-run-sep { color: #cdd2dc; }
+.msg-run-details {
+  color: #6c7180;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Detail header full task ID styling */
+.detail-id-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.detail-id-code {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2330;
+  background: #f6f7f9;
+  border: 1px solid #e3e6ed;
+  border-radius: 5px;
+  padding: 3px 8px;
+}

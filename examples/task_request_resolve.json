@@ -1,0 +1,35 @@
+{
+  "protocol_version": "1.0",
+  "source": "api",
+  "source_agent": null,
+  "mode": "resolve",
+  "task_type": "debug",
+  "user_request": "Figure out why my FastAPI app crashes on startup and tell me how to fix it.",
+  "primary_agent": "fake",
+  "consultants": ["fake"],
+  "project_path": null,
+  "context": {
+    "files": [],
+    "error": "ModuleNotFoundError: No module named 'pydantic'",
+    "git_diff": null,
+    "extra": {
+      "fake_behavior": "resolve_after_one_round"
+    }
+  },
+  "permissions": {
+    "can_read_files": true,
+    "can_write_files": false,
+    "can_run_commands": false,
+    "can_access_network": false,
+    "can_install_packages": false,
+    "can_apply_patches": false,
+    "can_read_env_files": false,
+    "can_read_secrets": false
+  },
+  "limits": {
+    "max_rounds": 50,
+    "timeout_seconds": 180,
+    "max_seconds": 600,
+    "max_context_tokens": null
+  }
+}

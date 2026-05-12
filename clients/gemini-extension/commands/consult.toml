@@ -1,0 +1,15 @@
+description = "Get a quick second opinion on a question from one named AI agent (codex, claude-code)"
+
+prompt = """
+The user invoked /consult with these arguments:
+
+{{args}}
+
+The user wants a quick second opinion. The convention in this command is: first token is the consultant agent name (one of `codex`, `claude-code`), the rest is the question. Gemini (you) is always the primary in this consult — you draft the answer and the named consultant critiques it.
+
+If the first token doesn't match a known agent, treat it as part of the question and default the consultant to `codex`.
+
+The shell command below already ran the consult with gemini as primary. Render the result. Lead with the final answer (gemini's response after considering the consultant's critique), then surface where the consultant disagreed.
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini run consult gemini,codex "{{args}}"}
+"""

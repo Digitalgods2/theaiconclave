@@ -1,0 +1,15 @@
+description = "Show the ancestry chain (thread) for a conclave task"
+
+prompt = """
+The user invoked /thread with this argument:
+
+{{args}}
+
+Parse: task_id (typically `tsk_...`) or `latest` for the most recent task. The script output below shows the chain oldest-first, with the current task marked.
+
+After displaying, if the user wants to act on something in the thread, suggest:
+- /decision <task_id> to fetch a specific ancestor's full context
+- /continue <task_id> <question> to start a new follow-up from any node in the chain
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini thread {{args}}}
+"""

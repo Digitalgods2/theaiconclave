@@ -1,0 +1,22 @@
+description = "Answer a paused conclave task (status awaiting_user_input). Submits the supplied text as the answer."
+
+prompt = """
+The user invoked /answer with these arguments:
+
+{{args}}
+
+Parse:
+- First token: task_id (typically `tsk_...`) or `latest` for the most recent task
+- Rest of the line: the answer text to submit
+
+The shell command below already submitted the answer. The task transitions from `awaiting_user_input` back to `pending` and the worker re-claims it. The conclave continues from where it paused.
+
+After confirming the submission, tell the user they can watch the resumed deliberation finish with:
+  python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini wait <task_id>
+
+Or open the dashboard at http://127.0.0.1:8787/ and find the task in the Inbox.
+
+Hard rule: this slash command submits text only. If the user actually wanted to run a shell command and submit its output (e.g., `pytest 2>&1 | switchboard.py answer latest -`), they should do that from a real shell, not /answer.
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini answer {{args}}}
+"""

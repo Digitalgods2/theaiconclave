@@ -1,0 +1,30 @@
+{
+  "protocol_version": "1.0",
+  "task_id": "tsk_01HX9K8M2A3FYZRQVWBN7PCD4E",
+  "agent": "gemini",
+  "role": "peer",
+  "message_type": "peer_answer",
+  "summary": "Wrong Python interpreter is the most likely cause; missing package is a downstream symptom.",
+  "analysis": "Given venv_active=false in the context, the active interpreter is almost certainly the system Python rather than the project venv. The fix is environment-level, not package-level.",
+  "recommended_actions": [
+    {
+      "kind": "run_command",
+      "description": "Activate the project virtualenv before running the app.",
+      "requires_approval": false,
+      "payload": {"command": ".venv\\Scripts\\activate"}
+    },
+    {
+      "kind": "run_command",
+      "description": "After activation, install dependencies in the venv.",
+      "requires_approval": true,
+      "payload": {"command": "python -m pip install -r requirements.txt"}
+    }
+  ],
+  "risks": [
+    {
+      "severity": "low",
+      "description": "Path to the venv may differ — '.venv', 'venv', or 'env' are all common."
+    }
+  ],
+  "confidence": 0.8
+}

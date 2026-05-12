@@ -1,0 +1,15 @@
+description = "Get a second opinion on the current conversation/answer from another AI"
+
+prompt = """
+The user invoked /secondopinion with these arguments:
+
+{{args}}
+
+If {{args}} is empty, use the last substantive question or proposal in this conversation as the topic. Otherwise use {{args}} as the topic.
+
+Default to consult mode with gemini (you) as primary, codex as consultant. If the user explicitly mentions another agent ("get Claude's take"), use that instead.
+
+Render the consultant's critique — that's what the user asked for. If the consultant agreed, say so plainly without padding.
+
+!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini run consult gemini,codex "{{args}}"}
+"""

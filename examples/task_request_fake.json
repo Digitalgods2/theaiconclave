@@ -1,0 +1,32 @@
+{
+  "protocol_version": "1.0",
+  "source": "api",
+  "source_agent": null,
+  "mode": "consult",
+  "task_type": "general_consultation",
+  "user_request": "What does the fake adapter do, and is it useful?",
+  "primary_agent": "fake",
+  "consultants": ["fake"],
+  "project_path": null,
+  "context": {
+    "files": [],
+    "error": null,
+    "git_diff": null,
+    "extra": {}
+  },
+  "permissions": {
+    "can_read_files": true,
+    "can_write_files": false,
+    "can_run_commands": false,
+    "can_access_network": false,
+    "can_install_packages": false,
+    "can_apply_patches": false,
+    "can_read_env_files": false,
+    "can_read_secrets": false
+  },
+  "limits": {
+    "max_rounds": 3,
+    "timeout_seconds": 30,
+    "max_context_tokens": null
+  }
+}

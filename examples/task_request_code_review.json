@@ -1,0 +1,34 @@
+{
+  "protocol_version": "1.0",
+  "source": "api",
+  "source_agent": "claude-code",
+  "mode": "consult",
+  "task_type": "code_review",
+  "user_request": "Review this auth middleware for security issues before I merge it.",
+  "primary_agent": "claude-code",
+  "consultants": ["codex", "gemini"],
+  "project_path": "C:/projects/myapp",
+  "context": {
+    "files": ["app/middleware/auth.py", "app/models/session.py"],
+    "git_diff": "diff --git a/app/middleware/auth.py ...",
+    "extra": {
+      "branch": "feature/session-tokens",
+      "base": "main"
+    }
+  },
+  "permissions": {
+    "can_read_files": true,
+    "can_write_files": false,
+    "can_run_commands": false,
+    "can_access_network": false,
+    "can_install_packages": false,
+    "can_apply_patches": false,
+    "can_read_env_files": false,
+    "can_read_secrets": false
+  },
+  "limits": {
+    "max_rounds": 3,
+    "timeout_seconds": 240,
+    "max_context_tokens": null
+  }
+}

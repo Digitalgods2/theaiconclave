@@ -1,0 +1,35 @@
+{
+  "protocol_version": "1.0",
+  "source": "dashboard",
+  "source_agent": null,
+  "mode": "consult",
+  "task_type": "debug",
+  "user_request": "Find out why this FastAPI app crashes on startup with a ModuleNotFoundError for pydantic.",
+  "primary_agent": "codex",
+  "consultants": ["claude-code"],
+  "project_path": "C:/projects/myapp",
+  "context": {
+    "files": ["app/main.py", "requirements.txt"],
+    "error": "ModuleNotFoundError: No module named 'pydantic'",
+    "git_diff": null,
+    "extra": {
+      "python_version": "3.13.2",
+      "venv_active": false
+    }
+  },
+  "permissions": {
+    "can_read_files": true,
+    "can_write_files": false,
+    "can_run_commands": false,
+    "can_access_network": false,
+    "can_install_packages": false,
+    "can_apply_patches": false,
+    "can_read_env_files": false,
+    "can_read_secrets": false
+  },
+  "limits": {
+    "max_rounds": 3,
+    "timeout_seconds": 180,
+    "max_context_tokens": null
+  }
+}

@@ -1,0 +1,2896 @@
+// AI Switchboard dashboard - vanilla JS, no build step
+"use strict";
+
+// ------------------------------------------------------------
+// State
+// ------------------------------------------------------------
+const State = {
+  view: "new",                  // "new" | "inbox" | "detail"
+  agents: [],                   // available agent names
+  selectedAgents: [],           // for the New Task form
+  inboxTimer: null,
+  detailTimer: null,
+  currentTaskId: null,
+  currentTaskData: null,        // last fetched detail payload
+  terminalStatuses: new Set(["completed", "failed", "cancelled"]),
+  attachments: [],              // [{ id, file: File }] pending uploads for New Task form
+  decisionEditing: false,       // when true, force the decision panel into the form state even if a decision exists
+  decisionDraft: "",            // preserved draft text across re-renders while editing
+  followupParentId: null,       // set when "Continue this thread" was used; included as parent_task_id on next submit
+  threadCache: {},              // taskId -> last fetched thread response
+  liveTickerTimer: null,        // 1s interval for live elapsed-time updates on the active agent run
+  liveTickerStartMs: null,      // ms epoch for the active run start, used by the ticker
+  // Inbox filters / quantity / search. These persist across the 5s auto-refresh.
+  inboxFilters: {
+    status: "",                 // "" = all, else one of: pending|running|awaiting_user_input|completed|failed|cancelled
+    mode: "",                   // "" = all, else conclave|consult|resolve (client-side filter)
+    search: "",                 // case-insensitive substring match against row text + ID
+    exported: "",               // "" = any, "true" = exported only, "false" = not-exported only (server-side filter)
+  },
+  inboxLimit: 50,               // last-N to request from server; persisted in localStorage
+  inboxRawTasks: [],            // last server payload (already limit-applied), used for client-side filter rerenders
+  inboxSearchDebounce: null,    // debounce timer for the search input
+};
+
+const INBOX_LIMIT_KEY = "switchboard.inbox.limit";
+const INBOX_LIMIT_CHOICES = [50, 100, 500, 1000, 5000];
+
+const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MiB cap, matches server
+
+// Standard ignore set for folder uploads. Mirrors the server-side ignore list
+// so we don't bother POSTing files the server will reject. Centralized here so
+// future tweaks are obvious — do not scatter individual checks elsewhere.
+const FOLDER_IGNORE = {
+  dirNames: new Set([
+    ".git", "__pycache__", "node_modules", ".venv", "venv", "env",
+    "dist", "build", "target", "out", ".next", ".nuxt", ".svelte-kit",
+    ".idea", ".vscode", "coverage", "htmlcov", "data",
+  ]),
+  fileSuffixes: [
+    ".pyc", ".pyo", ".so", ".dll", ".exe",
+    ".zip", ".tar", ".gz", ".mp4", ".mov",
+  ],
+  // Exact file-name matches (case-sensitive on most filesystems; we lowercase
+  // when comparing to be forgiving).
+  fileNames: new Set([".ds_store", "thumbs.db"]),
+};
+
+// Rough sanity guard: refuse to walk a dropped folder if its top-level entry
+// count is over this. Catches accidental drags of "Downloads" or "/".
+const FOLDER_TOP_LEVEL_LIMIT = 500;
+
+function folderShouldIgnoreDir(name) {
+  return FOLDER_IGNORE.dirNames.has(name);
+}
+
+function folderShouldIgnoreFile(name) {
+  const lower = (name || "").toLowerCase();
+  if (FOLDER_IGNORE.fileNames.has(lower)) return true;
+  for (const suf of FOLDER_IGNORE.fileSuffixes) {
+    if (lower.endsWith(suf)) return true;
+  }
+  return false;
+}
+
+// ------------------------------------------------------------
+// Tiny DOM helpers
+// ------------------------------------------------------------
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v === null || v === undefined || v === false) continue;
+    if (k === "class") node.className = v;
+    else if (k === "text") node.textContent = v;
+    else if (k === "html") node.innerHTML = v;
+    else if (k.startsWith("on") && typeof v === "function") {
+      node.addEventListener(k.slice(2), v);
+    } else {
+      node.setAttribute(k, v);
+    }
+  }
+  for (const c of [].concat(children)) {
+    if (c === null || c === undefined) continue;
+    node.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+  }
+  return node;
+}
+
+function fmtTime(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleString();
+  } catch (_) { return iso; }
+}
+
+function shortId(id) {
+  if (!id) return "";
+  return id.length > 14 ? id.slice(0, 14) + "..." : id;
+}
+
+// Parse an ISO timestamp into ms-since-epoch, or null if unparseable.
+function parseIsoMs(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const t = d.getTime();
+  return isNaN(t) ? null : t;
+}
+
+// Compact human-readable duration. msOrSecs may be number-of-ms.
+function fmtDurationMs(ms) {
+  if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) return "";
+  const totalSecs = Math.floor(ms / 1000);
+  if (totalSecs < 60) return totalSecs + "s";
+  const m = Math.floor(totalSecs / 60);
+  const s = totalSecs % 60;
+  if (m < 60) return s === 0 ? m + "m" : m + "m " + s + "s";
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm === 0 ? h + "h" : h + "h " + mm + "m";
+}
+
+// Format an integer with thousands separators. Returns "" for null/undefined.
+function fmtInt(n) {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "";
+  try { return Number(n).toLocaleString("en-US"); } catch (_) { return String(n); }
+}
+
+// Format a USD cost with at most 4 decimal places, dropping trailing zeros.
+function fmtUsd(n) {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "";
+  if (n === 0) return "$0";
+  const abs = Math.abs(n);
+  const digits = abs < 0.01 ? 4 : (abs < 1 ? 3 : 2);
+  return "$" + n.toFixed(digits).replace(/\.?0+$/, (m) => m === "." ? "" : "");
+}
+
+function isPlainObject(v) {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+// ------------------------------------------------------------
+// Clipboard / copy buttons
+// ------------------------------------------------------------
+// Single inline SVG clipboard icon. Reused by every copy button via cloneNode.
+const COPY_ICON_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+  '<rect x="9" y="9" width="11" height="11" rx="2" ry="2"></rect>' +
+  '<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>' +
+  '</svg>';
+
+const COPY_CHECK_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+  '<polyline points="20 6 9 17 4 12"></polyline>' +
+  '</svg>';
+
+async function copyToClipboard(text) {
+  if (text === null || text === undefined) text = "";
+  text = String(text);
+  // Modern path
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    try {
+      await navigator.clipboard.writeText(text);
+      return { ok: true, fallback: false };
+    } catch (_) {
+      // fall through to fallback
+    }
+  }
+  // Fallback: hidden textarea + execCommand
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "-1000px";
+    ta.style.left = "-1000px";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+    document.body.removeChild(ta);
+    if (ok) return { ok: true, fallback: true };
+  } catch (_) { /* ignore */ }
+  return { ok: false, fallback: true };
+}
+
+function flashCopyFeedback(btn, success) {
+  if (!btn) return;
+  const originalIconHtml = btn.dataset.iconHtml || COPY_ICON_SVG;
+  if (!btn.dataset.iconHtml) btn.dataset.iconHtml = originalIconHtml;
+
+  // Swap in the check icon (or keep clipboard for failure) and add a label tooltip
+  const iconSpan = btn.querySelector(".copy-icon");
+  if (success) {
+    btn.classList.add("copied");
+    if (iconSpan) iconSpan.innerHTML = COPY_CHECK_SVG;
+  } else {
+    btn.classList.add("copy-failed");
+  }
+
+  let feedback = btn.querySelector(".copy-feedback");
+  if (!feedback) {
+    feedback = document.createElement("span");
+    feedback.className = "copy-feedback";
+    btn.appendChild(feedback);
+  }
+  feedback.textContent = success ? "Copied" : "Copy failed";
+  // Force reflow before adding the .show class so the transition runs
+  // eslint-disable-next-line no-unused-expressions
+  feedback.offsetHeight;
+  feedback.classList.add("show");
+
+  if (btn._copyTimer) clearTimeout(btn._copyTimer);
+  btn._copyTimer = setTimeout(() => {
+    btn.classList.remove("copied", "copy-failed");
+    feedback.classList.remove("show");
+    if (iconSpan) iconSpan.innerHTML = originalIconHtml;
+  }, 1500);
+}
+
+// textOrFn: either a string, or a function returning a string (evaluated at click time
+// so callers can capture fresh state if needed).
+function makeCopyButton(textOrFn, label, opts) {
+  opts = opts || {};
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "copy-btn" + (opts.extraClass ? " " + opts.extraClass : "");
+  const ariaLabel = "Copy " + label;
+  btn.setAttribute("aria-label", ariaLabel);
+  btn.setAttribute("title", ariaLabel);
+  const iconSpan = document.createElement("span");
+  iconSpan.className = "copy-icon";
+  iconSpan.innerHTML = COPY_ICON_SVG;
+  btn.appendChild(iconSpan);
+  btn.dataset.iconHtml = COPY_ICON_SVG;
+
+  btn.addEventListener("click", async (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    const text = (typeof textOrFn === "function") ? textOrFn() : textOrFn;
+    const result = await copyToClipboard(text);
+    flashCopyFeedback(btn, result.ok);
+  });
+
+  return btn;
+}
+
+// ------------------------------------------------------------
+// Formatters used by copy buttons (plain-text, human-readable)
+// ------------------------------------------------------------
+function valueToPlainText(value, indent) {
+  indent = indent || "";
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+        return indent + "- " + String(item);
+      }
+      return indent + "- " + JSON.stringify(item, null, 2).replace(/\n/g, "\n  " + indent);
+    }).join("\n");
+  }
+  if (isPlainObject(value)) {
+    return JSON.stringify(value, null, 2);
+  }
+  return String(value);
+}
+
+function formatMessageAsText(m) {
+  const lines = [];
+  const header = (m.agent_name || "?") + (m.role ? " (" + m.role + ")" : "")
+    + (m.message_type ? " [" + m.message_type + "]" : "");
+  lines.push(header);
+  if (m.created_at) lines.push("Time: " + fmtTime(m.created_at));
+  lines.push("");
+
+  const structured = isPlainObject(m.structured) ? m.structured : null;
+  if (structured) {
+    for (const [key, value] of Object.entries(structured)) {
+      if (value === null || value === undefined) continue;
+      if (Array.isArray(value) && value.length === 0) continue;
+      if (typeof value === "string" && value.trim() === "") continue;
+      lines.push(prettifyKey(key).toUpperCase() + ":");
+      lines.push(valueToPlainText(value));
+      lines.push("");
+    }
+  } else if (typeof m.content === "string" && m.content.length > 0) {
+    lines.push(m.content);
+  }
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function formatDisagreementAsText(d) {
+  const lines = [];
+  if (d.topic) lines.push("Topic: " + d.topic);
+  if (d.primary_position) {
+    lines.push("");
+    lines.push("Primary position:");
+    lines.push(valueToPlainText(d.primary_position));
+  }
+  if (d.consultant_position) {
+    lines.push("");
+    lines.push("Consultant position:");
+    lines.push(valueToPlainText(d.consultant_position));
+  }
+  for (const [k, v] of Object.entries(d)) {
+    if (["topic", "primary_position", "consultant_position"].includes(k)) continue;
+    if (v === null || v === undefined) continue;
+    lines.push("");
+    lines.push(prettifyKey(k) + ":");
+    lines.push(valueToPlainText(v));
+  }
+  return lines.join("\n").trim();
+}
+
+// ------------------------------------------------------------
+// API
+// ------------------------------------------------------------
+async function api(path, opts = {}) {
+  const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
+  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  let body = null;
+  try { body = await res.json(); } catch (_) { /* ignore non-json */ }
+  if (!res.ok) {
+    const detail = body && (body.detail || body.error || body.message);
+    const msg = detail ? (typeof detail === "string" ? detail : JSON.stringify(detail))
+                       : `${res.status} ${res.statusText}`;
+    const err = new Error(msg);
+    err.status = res.status;
+    err.body = body;
+    throw err;
+  }
+  return body;
+}
+
+const Api = {
+  health:   () => api("/api/health"),
+  agents:   () => api("/api/agents"),
+  listTasks:(opts) => {
+    const params = new URLSearchParams();
+    if (opts && opts.status) params.set("status", opts.status);
+    if (opts && opts.limit) params.set("limit", String(opts.limit));
+    if (opts && (opts.exported === "true" || opts.exported === "false")) {
+      params.set("exported", opts.exported);
+    }
+    const q = params.toString();
+    return api("/api/tasks" + (q ? "?" + q : ""));
+  },
+  getTask:  (id) => api(`/api/tasks/${id}`),
+  getThread:(id) => api(`/api/tasks/${id}/thread`),
+  createTask: (payload) => api("/api/tasks", { method: "POST", body: JSON.stringify(payload) }),
+  cancelTask: (id) => api(`/api/tasks/${id}/cancel`, { method: "POST" }),
+  answerTask: (id, answer) => api(`/api/tasks/${id}/answer`,
+    { method: "POST", body: JSON.stringify({ answer }) }),
+  decideTask: (id, decision) => api(`/api/tasks/${id}/decide`,
+    { method: "POST", body: JSON.stringify({ decision }) }),
+  exportTask: (id) => api(`/api/tasks/${id}/export`, { method: "POST" }),
+  exportBatchTasks: (body) => api("/api/tasks/export-batch",
+    { method: "POST", body: JSON.stringify(body || {}) }),
+  uploadFile: async (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/uploads", { method: "POST", body: fd });
+    let body = null;
+    try { body = await res.json(); } catch (_) { /* ignore non-json */ }
+    if (!res.ok) {
+      const detail = body && (body.detail || body.error || body.message);
+      const msg = detail ? (typeof detail === "string" ? detail : JSON.stringify(detail))
+                         : `${res.status} ${res.statusText}`;
+      const err = new Error(msg);
+      err.status = res.status;
+      err.body = body;
+      throw err;
+    }
+    return body;
+  },
+};
+
+// ------------------------------------------------------------
+// View switching
+// ------------------------------------------------------------
+function switchView(name) {
+  State.view = name;
+  for (const v of ["new", "inbox", "detail"]) {
+    const section = $("#view-" + v);
+    if (section) section.hidden = (v !== name);
+  }
+  for (const t of $$(".tab")) {
+    t.classList.toggle("active", t.dataset.view === name);
+  }
+  // Manage polling lifecycles
+  if (name === "inbox") startInboxPolling(); else stopInboxPolling();
+  if (name === "detail") startDetailPolling(); else stopDetailPolling();
+
+  // Trigger immediate fetches when entering a view
+  if (name === "inbox") refreshInbox();
+  if (name === "detail" && State.currentTaskId) refreshDetail();
+}
+
+// ------------------------------------------------------------
+// Health badge
+// ------------------------------------------------------------
+async function pollHealth() {
+  const ind = $("#health-indicator");
+  try {
+    const h = await Api.health();
+    if (h && h.status === "ok") {
+      ind.textContent = "healthy";
+      ind.className = "health ok";
+    } else if (h && h.status === "degraded") {
+      ind.textContent = "degraded";
+      ind.className = "health degraded";
+      ind.title = h.error || "degraded";
+    } else {
+      ind.textContent = "unknown";
+      ind.className = "health";
+    }
+  } catch (_) {
+    ind.textContent = "offline";
+    ind.className = "health down";
+  }
+}
+
+// ------------------------------------------------------------
+// New Task view
+// ------------------------------------------------------------
+async function loadAgents() {
+  try {
+    const resp = await Api.agents();
+    State.agents = Array.isArray(resp.agents) ? resp.agents : [];
+  } catch (e) {
+    State.agents = [];
+    $("#agents-list").innerHTML = "";
+    $("#agents-list").appendChild(el("p", { class: "form-status error", text: "Failed to load agents: " + e.message }));
+    return;
+  }
+  renderAgentsList();
+}
+
+function renderAgentsList() {
+  const container = $("#agents-list");
+  container.innerHTML = "";
+  if (State.agents.length === 0) {
+    container.appendChild(el("p", { class: "muted", text: "No agents available." }));
+    return;
+  }
+  const mode = $("#mode").value;
+  for (const name of State.agents) {
+    const checked = State.selectedAgents.includes(name);
+    const isPrimary = (mode === "consult" || mode === "resolve") && checked && State.selectedAgents[0] === name;
+    const label = el("label", { class: "agent-check" + (isPrimary ? " primary" : "") });
+    const cb = el("input", { type: "checkbox", value: name });
+    cb.checked = checked;
+    cb.addEventListener("change", () => {
+      if (cb.checked) {
+        if (!State.selectedAgents.includes(name)) State.selectedAgents.push(name);
+      } else {
+        State.selectedAgents = State.selectedAgents.filter((a) => a !== name);
+      }
+      renderAgentsList();
+    });
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + name + (isPrimary ? " (primary)" : "")));
+    container.appendChild(label);
+  }
+}
+
+function updateModeHint() {
+  const mode = $("#mode").value;
+  const hints = {
+    conclave: "All selected agents deliberate together as peers.",
+    consult:  "The first selected agent is the primary; the rest are consultants.",
+    resolve:  "The first selected agent resolves the task; consultants are optional.",
+  };
+  $("#mode-hint").textContent = hints[mode] || "";
+  $("#agents-hint").textContent = mode === "conclave"
+    ? "Pick two or more agents."
+    : "Pick at least one. The first becomes the primary agent.";
+}
+
+// ------------------------------------------------------------
+// Permissions (New Task form)
+// ------------------------------------------------------------
+const PERMISSION_KEYS = [
+  "can_read_files",
+  "can_write_files",
+  "can_run_commands",
+  "can_access_network",
+  "can_install_packages",
+  "can_apply_patches",
+  "can_read_env_files",
+  "can_read_secrets",
+];
+
+const DEFAULT_PERMISSIONS = Object.freeze({
+  can_read_files: true,
+  can_write_files: false,
+  can_run_commands: false,
+  can_access_network: false,
+  can_install_packages: false,
+  can_apply_patches: false,
+  can_read_env_files: false,
+  can_read_secrets: false,
+});
+
+function permCheckbox(key) {
+  return document.getElementById("perm-" + key);
+}
+
+function readPermissions() {
+  const out = {};
+  for (const k of PERMISSION_KEYS) {
+    const cb = permCheckbox(k);
+    out[k] = !!(cb && cb.checked);
+  }
+  return out;
+}
+
+function writePermissions(perms) {
+  const source = perms || DEFAULT_PERMISSIONS;
+  for (const k of PERMISSION_KEYS) {
+    const cb = permCheckbox(k);
+    if (cb) cb.checked = !!source[k];
+  }
+  updatePermissionsSummary();
+}
+
+function setPermissionsToDefaults() {
+  writePermissions(DEFAULT_PERMISSIONS);
+}
+
+function permsEqual(a, b) {
+  for (const k of PERMISSION_KEYS) {
+    if (!!a[k] !== !!b[k]) return false;
+  }
+  return true;
+}
+
+function describePermissions(perms) {
+  // Specific named states that take priority over generic counts.
+  const base = Object.assign({}, DEFAULT_PERMISSIONS);
+  if (permsEqual(perms, base)) return "Permissions: read-only (default)";
+
+  const readPlusEnv = Object.assign({}, base, { can_read_env_files: true });
+  if (permsEqual(perms, readPlusEnv)) return "Permissions: read + .env";
+
+  const readPlusSecrets = Object.assign({}, base, { can_read_secrets: true });
+  if (permsEqual(perms, readPlusSecrets)) return "Permissions: read + secrets";
+
+  const readEverything = Object.assign({}, base, {
+    can_read_env_files: true,
+    can_read_secrets: true,
+  });
+  if (permsEqual(perms, readEverything)) return "Permissions: read everything";
+
+  let n = 0;
+  for (const k of PERMISSION_KEYS) if (perms[k]) n += 1;
+  return "Permissions: " + n + " enabled";
+}
+
+function updatePermissionsSummary() {
+  const summary = $("#permissions-summary");
+  if (!summary) return;
+  summary.textContent = describePermissions(readPermissions());
+}
+
+function applyInstallImpliesRule(changedKey) {
+  // Pydantic validator: can_install_packages requires can_run_commands AND can_access_network.
+  // Mirror that here so the UI can't submit an invalid combination.
+  const install = permCheckbox("can_install_packages");
+  const run = permCheckbox("can_run_commands");
+  const net = permCheckbox("can_access_network");
+  if (!install || !run || !net) return;
+
+  if (changedKey === "can_install_packages" && install.checked) {
+    run.checked = true;
+    net.checked = true;
+  } else if (
+    install.checked
+    && (changedKey === "can_run_commands" || changedKey === "can_access_network")
+    && (!run.checked || !net.checked)
+  ) {
+    // Reverse direction: unchecking a dependency while install is on also drops install.
+    install.checked = false;
+  }
+}
+
+function applyPermissionPreset(preset) {
+  const next = Object.assign({}, DEFAULT_PERMISSIONS);
+  if (preset === "read_only") {
+    // already correct
+  } else if (preset === "read_env") {
+    next.can_read_env_files = true;
+  } else if (preset === "read_all") {
+    next.can_read_env_files = true;
+    next.can_read_secrets = true;
+  }
+  writePermissions(next);
+}
+
+function setupPermissionsUI() {
+  for (const k of PERMISSION_KEYS) {
+    const cb = permCheckbox(k);
+    if (!cb) continue;
+    cb.addEventListener("change", () => {
+      applyInstallImpliesRule(k);
+      updatePermissionsSummary();
+    });
+  }
+  for (const btn of $$(".permission-preset")) {
+    btn.addEventListener("click", () => {
+      applyPermissionPreset(btn.dataset.preset);
+    });
+  }
+  updatePermissionsSummary();
+}
+
+function readProjectPath() {
+  const inp = $("#project-path");
+  return inp ? inp.value.trim() : "";
+}
+
+function readIncludeSandbox() {
+  const cb = $("#include-sandbox");
+  return !!(cb && cb.checked);
+}
+
+function setProjectPath(value) {
+  const inp = $("#project-path");
+  if (inp) inp.value = value || "";
+}
+
+function setIncludeSandbox(value) {
+  const cb = $("#include-sandbox");
+  if (cb) cb.checked = !!value;
+}
+
+function setSandboxWarning(text) {
+  const w = $("#sandbox-warning");
+  if (!w) return;
+  w.textContent = text || "";
+  w.className = "form-status" + (text ? " error" : "");
+}
+
+function setupProjectSourceUI() {
+  const pathInput = $("#project-path");
+  const sandboxCb = $("#include-sandbox");
+  // Clear the inline warning as soon as the user starts fixing things.
+  if (pathInput) {
+    pathInput.addEventListener("input", () => setSandboxWarning(""));
+  }
+  if (sandboxCb) {
+    sandboxCb.addEventListener("change", () => setSandboxWarning(""));
+  }
+}
+
+function buildPayload(mode, agents, question) {
+  const projectPath = readProjectPath();
+  const base = {
+    protocol_version: "1.0",
+    source: "dashboard",
+    source_agent: null,
+    mode,
+    task_type: "general_consultation",
+    user_request: question,
+    project_path: projectPath || null,
+    context: { files: [], error: null, git_diff: null, extra: {} },
+    permissions: readPermissions(),
+    limits: {
+      max_rounds: 5, timeout_seconds: 240, max_seconds: 1200,
+      max_context_tokens: null, convergence_threshold: 1.0,
+    },
+  };
+
+  if (mode === "conclave") {
+    base.primary_agent = null;
+    base.consultants = agents.slice();
+  } else if (mode === "consult") {
+    base.primary_agent = agents[0];
+    base.consultants = agents.slice(1);
+  } else if (mode === "resolve") {
+    base.primary_agent = agents[0];
+    base.consultants = agents.slice(1);
+  }
+  return base;
+}
+
+// ------------------------------------------------------------
+// Attachments (New Task form)
+// ------------------------------------------------------------
+function formatBytes(n) {
+  if (!Number.isFinite(n) || n < 0) return "";
+  if (n < 1024) return n + " B";
+  const kib = n / 1024;
+  if (kib < 1024) return kib.toFixed(kib < 10 ? 2 : 1) + " KiB";
+  const mib = kib / 1024;
+  return mib.toFixed(mib < 10 ? 2 : 1) + " MiB";
+}
+
+function setAttachmentsWarning(text, kind) {
+  const w = $("#attachments-warning");
+  if (!w) return;
+  w.textContent = text || "";
+  w.className = "form-status" + (text ? " " + (kind || "error") : "");
+}
+
+function renderAttachmentsList() {
+  const list = $("#attachments-list");
+  if (!list) return;
+  list.innerHTML = "";
+  if (State.attachments.length === 0) {
+    list.hidden = true;
+    return;
+  }
+  list.hidden = false;
+  for (const att of State.attachments) {
+    const pill = el("div", { class: "attachment-pill" });
+    pill.appendChild(el("span", { class: "att-name", text: att.file.name, title: att.file.name }));
+    pill.appendChild(el("span", { class: "att-size", text: formatBytes(att.file.size) }));
+    const removeBtn = el("button", {
+      type: "button",
+      class: "att-remove",
+      title: "Remove",
+      "aria-label": "Remove " + att.file.name,
+      text: "×",
+    });
+    removeBtn.addEventListener("click", () => {
+      State.attachments = State.attachments.filter((a) => a.id !== att.id);
+      renderAttachmentsList();
+    });
+    pill.appendChild(removeBtn);
+    list.appendChild(pill);
+  }
+}
+
+function addAttachmentFiles(fileList) {
+  if (!fileList || fileList.length === 0) return;
+  const rejected = [];
+  for (const f of Array.from(fileList)) {
+    if (f.size > MAX_FILE_BYTES) {
+      rejected.push(f.name);
+      continue;
+    }
+    const dup = State.attachments.some((a) =>
+      a.file.name === f.name && a.file.size === f.size && a.file.lastModified === f.lastModified);
+    if (dup) continue;
+    State.attachments.push({
+      id: "att_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36),
+      file: f,
+    });
+  }
+  renderAttachmentsList();
+  if (rejected.length > 0) {
+    setAttachmentsWarning(
+      "Skipped (over 20 MiB): " + rejected.join(", "), "error");
+  } else {
+    setAttachmentsWarning("", null);
+  }
+}
+
+function clearAttachments() {
+  State.attachments = [];
+  const input = $("#attachments-input");
+  if (input) input.value = "";
+  setAttachmentsWarning("", null);
+  renderAttachmentsList();
+}
+
+function setupAttachmentsUI() {
+  const dz = $("#dropzone");
+  const input = $("#attachments-input");
+  const browseBtn = $("#browse-btn");
+  if (!dz || !input) return;
+
+  browseBtn && browseBtn.addEventListener("click", () => input.click());
+  dz.addEventListener("click", (e) => {
+    // Avoid double-firing when the inner button is clicked
+    if (e.target && (e.target === browseBtn || e.target.closest("button"))) return;
+    input.click();
+  });
+  dz.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      input.click();
+    }
+  });
+
+  input.addEventListener("change", () => {
+    addAttachmentFiles(input.files);
+    // Reset native input so the same filename can be re-added after removal
+    input.value = "";
+  });
+
+  const prevent = (e) => { e.preventDefault(); e.stopPropagation(); };
+  ["dragenter", "dragover"].forEach((ev) => {
+    dz.addEventListener(ev, (e) => {
+      prevent(e);
+      dz.classList.add("dragover");
+    });
+  });
+  ["dragleave", "drop"].forEach((ev) => {
+    dz.addEventListener(ev, (e) => {
+      prevent(e);
+      dz.classList.remove("dragover");
+    });
+  });
+  dz.addEventListener("drop", (e) => {
+    // Inspect DataTransferItemList first so we can detect a directory drop and
+    // route it through the recursive folder-walk path. Falls back to the
+    // existing single-file flow when no items are directories.
+    const items = e.dataTransfer && e.dataTransfer.items;
+    const dirEntries = [];
+    const looseFiles = [];
+    if (items && items.length) {
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        if (!it || it.kind !== "file") continue;
+        const entry = (typeof it.webkitGetAsEntry === "function") ? it.webkitGetAsEntry() : null;
+        if (entry && entry.isDirectory) {
+          dirEntries.push(entry);
+        } else {
+          const f = it.getAsFile();
+          if (f) looseFiles.push(f);
+        }
+      }
+    }
+    if (dirEntries.length > 0) {
+      // Loose files dropped alongside a folder still go through the regular path.
+      if (looseFiles.length) addAttachmentFiles(looseFiles);
+      // Walk each directory sequentially (each runs its own upload pipeline).
+      (async () => {
+        for (const d of dirEntries) {
+          await handleFolderDrop(d);
+        }
+      })();
+      return;
+    }
+    const files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length) addAttachmentFiles(files);
+  });
+  // Avoid hijacking page-wide drag operations
+  ["dragover", "drop"].forEach((ev) => {
+    window.addEventListener(ev, (e) => {
+      if (!dz.contains(e.target)) e.preventDefault();
+    });
+  });
+}
+
+// ------------------------------------------------------------
+// Folder drop: recursive walk + sequential upload
+// ------------------------------------------------------------
+function setFolderUploadStatus(text, kind) {
+  const el2 = $("#folder-upload-status");
+  if (!el2) return;
+  el2.textContent = text || "";
+  el2.className = "form-status" + (text ? " " + (kind || "muted") : " muted");
+}
+
+// Promise wrappers for the callback-based FileSystem API.
+function readEntriesPromise(reader) {
+  return new Promise((resolve, reject) => {
+    reader.readEntries((entries) => resolve(entries), (err) => reject(err));
+  });
+}
+
+function entryFilePromise(fileEntry) {
+  return new Promise((resolve, reject) => {
+    fileEntry.file((f) => resolve(f), (err) => reject(err));
+  });
+}
+
+// Read every entry under a directory (readEntries may chunk and must be called
+// repeatedly until it returns an empty list).
+async function readAllEntries(dirEntry) {
+  const reader = dirEntry.createReader();
+  const out = [];
+  while (true) {
+    let batch;
+    try {
+      batch = await readEntriesPromise(reader);
+    } catch (_) {
+      break;
+    }
+    if (!batch || batch.length === 0) break;
+    for (const e of batch) out.push(e);
+  }
+  return out;
+}
+
+// Recursively gather { fileEntry, relPath } pairs under root, applying the
+// standard ignore set to both directories and files.
+async function gatherFilesUnder(dirEntry, relPrefix) {
+  const collected = [];
+  const stack = [{ entry: dirEntry, rel: relPrefix || dirEntry.name }];
+  while (stack.length > 0) {
+    const { entry, rel } = stack.pop();
+    const children = await readAllEntries(entry);
+    for (const child of children) {
+      const childRel = rel + "/" + child.name;
+      if (child.isDirectory) {
+        if (folderShouldIgnoreDir(child.name)) continue;
+        stack.push({ entry: child, rel: childRel });
+      } else if (child.isFile) {
+        if (folderShouldIgnoreFile(child.name)) continue;
+        collected.push({ entry: child, relPath: childRel });
+      }
+    }
+  }
+  return collected;
+}
+
+async function handleFolderDrop(dirEntry) {
+  setAttachmentsWarning("", null);
+  setFolderUploadStatus("Scanning " + dirEntry.name + "...", "muted");
+
+  // Top-level sanity guard: if the dropped folder itself has too many direct
+  // children, bail out before walking. This catches accidental Downloads/root drops.
+  let topLevel;
+  try {
+    topLevel = await readAllEntries(dirEntry);
+  } catch (err) {
+    setFolderUploadStatus("Failed to read folder: " + (err && err.message ? err.message : err), "error");
+    return;
+  }
+  if (topLevel.length > FOLDER_TOP_LEVEL_LIMIT) {
+    setFolderUploadStatus(
+      "Refusing to walk \"" + dirEntry.name + "\": " + topLevel.length +
+      " top-level entries (limit " + FOLDER_TOP_LEVEL_LIMIT +
+      "). Pick a smaller folder.", "error");
+    return;
+  }
+
+  // Walk the whole tree applying the ignore set.
+  let collected;
+  try {
+    collected = await gatherFilesUnder(dirEntry, dirEntry.name);
+  } catch (err) {
+    setFolderUploadStatus("Failed during walk: " + (err && err.message ? err.message : err), "error");
+    return;
+  }
+
+  if (collected.length === 0) {
+    setFolderUploadStatus("No eligible files in " + dirEntry.name + " (all filtered by ignore set).", "muted");
+    return;
+  }
+
+  const total = collected.length;
+  let uploaded = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (let i = 0; i < total; i++) {
+    const { entry, relPath } = collected[i];
+    let file;
+    try {
+      file = await entryFilePromise(entry);
+    } catch (err) {
+      failed++;
+      // eslint-disable-next-line no-console
+      console.warn("Folder upload: failed to read", relPath, err);
+      setFolderUploadStatus(
+        "Uploading " + (uploaded + 1) + " of " + total +
+        " (skipped " + skipped + (failed ? ", failed " + failed : "") + ")...", "muted");
+      continue;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      skipped++;
+      setFolderUploadStatus(
+        "Uploading " + (uploaded + 1) + " of " + total +
+        " (skipped " + skipped + (failed ? ", failed " + failed : "") + ")...", "muted");
+      continue;
+    }
+
+    setFolderUploadStatus(
+      "Uploading " + (uploaded + 1) + " of " + total +
+      " (skipped " + skipped + (failed ? ", failed " + failed : "") + "): " + relPath, "muted");
+
+    try {
+      // Tag the File with the relative path so the pill shows the project-relative
+      // name rather than just the bare basename. The server gets the basename
+      // either way via the multipart form filename field.
+      const renamed = new File([file], relPath, { type: file.type, lastModified: file.lastModified });
+      const dup = State.attachments.some((a) =>
+        a.file.name === renamed.name && a.file.size === renamed.size);
+      if (dup) {
+        skipped++;
+      } else {
+        State.attachments.push({
+          id: "att_" + Math.random().toString(36).slice(2, 10) + "_" + Date.now().toString(36),
+          file: renamed,
+        });
+        uploaded++;
+        renderAttachmentsList();
+      }
+    } catch (err) {
+      failed++;
+      // eslint-disable-next-line no-console
+      console.warn("Folder upload: failed to queue", relPath, err);
+    }
+
+    // Yield so the page stays responsive even on very large folders.
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 0));
+  }
+
+  const summary = "Folder \"" + dirEntry.name + "\": queued " + uploaded +
+    ", skipped " + skipped + (failed ? ", failed " + failed : "") +
+    " of " + total + " files.";
+  setFolderUploadStatus(summary, "muted");
+  // Clear the summary after a short delay so the dropzone returns to a clean state.
+  if (handleFolderDrop._timer) clearTimeout(handleFolderDrop._timer);
+  handleFolderDrop._timer = setTimeout(() => setFolderUploadStatus("", "muted"), 8000);
+}
+
+// ------------------------------------------------------------
+// Attach current git diff (button next to Question label)
+// ------------------------------------------------------------
+function setGitDiffStatus(text, kind) {
+  const node = $("#git-diff-status");
+  if (!node) return;
+  node.textContent = text || "";
+  node.className = "form-status" + (text ? " " + (kind || "muted") : "");
+}
+
+function updateGitDiffButtonEnabled() {
+  const btn = $("#attach-git-diff-btn");
+  if (!btn) return;
+  const projectPath = readProjectPath();
+  if (projectPath) {
+    btn.disabled = false;
+    btn.title = "POST /api/git/diff and append the diff to the question.";
+  } else {
+    btn.disabled = true;
+    btn.title = "Set project_path to enable.";
+  }
+}
+
+// Best-effort parse of the server's stat_summary to produce a one-line
+// "12 files, 87 + / 23 -" headline. Falls back to "" if it can't read it.
+function summarizeGitDiffStat(statSummary) {
+  if (!statSummary || typeof statSummary !== "string") return "";
+  let files = 0;
+  let plus = 0;
+  let minus = 0;
+  // Lines look like "  app/main.py | 4 +-" or "  N files changed, X insertions(+), Y deletions(-)".
+  const lines = statSummary.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    // Per-file row: "path | N <chars>"
+    const m = trimmed.match(/^[^|]+\|\s*(\d+)\s*([+\-]*)/);
+    if (m) {
+      files += 1;
+      const chars = m[2] || "";
+      for (const ch of chars) {
+        if (ch === "+") plus += 1;
+        else if (ch === "-") minus += 1;
+      }
+    }
+  }
+  if (files === 0) return "";
+  return files + " file" + (files === 1 ? "" : "s") + ", " + plus + " + / " + minus + " -";
+}
+
+async function onAttachGitDiff() {
+  const btn = $("#attach-git-diff-btn");
+  if (!btn || btn.disabled) return;
+  const projectPath = readProjectPath();
+  if (!projectPath) {
+    setGitDiffStatus("Set project_path to enable.", "error");
+    return;
+  }
+  btn.disabled = true;
+  setGitDiffStatus("Fetching git diff...", "muted");
+  try {
+    const res = await fetch("/api/git/diff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project_path: projectPath, include_staged: true }),
+    });
+    let body = null;
+    try { body = await res.json(); } catch (_) { /* ignore */ }
+    if (!res.ok) {
+      const detail = body && (body.detail || body.error || body.message);
+      const msg = detail ? (typeof detail === "string" ? detail : JSON.stringify(detail))
+                         : (res.status + " " + res.statusText);
+      if (res.status === 400) {
+        setGitDiffStatus(msg, "error");
+      } else {
+        setGitDiffStatus("git diff failed: " + msg, "error");
+      }
+      return;
+    }
+    // Success: append a separator block + stat_summary + raw diff to the textarea.
+    const ta = $("#question");
+    if (!ta) return;
+    const branch = (body && body.branch) ? body.branch : "?";
+    const head = (body && body.head) ? body.head : "?";
+    const stat = (body && body.stat_summary) ? body.stat_summary : "";
+    const diff = (body && body.diff) ? body.diff : "";
+    const sep = "\n\n=== Current git diff (branch: " + branch + ", head: " + head + ") ===\n";
+    ta.value = (ta.value || "") + sep + stat + "\n\n" + diff;
+    // Bring the appended block into view.
+    ta.scrollTop = ta.scrollHeight;
+
+    const headline = summarizeGitDiffStat(stat);
+    const bytes = (body && Number.isFinite(body.diff_bytes)) ? body.diff_bytes : (diff ? diff.length : 0);
+    const sizeStr = formatBytes(bytes);
+    const msg = headline
+      ? "Attached git diff: " + headline + " (" + sizeStr + ")"
+      : "Attached diff (" + sizeStr + ")";
+    setGitDiffStatus(msg, "ok");
+  } catch (err) {
+    setGitDiffStatus("git diff failed: " + (err && err.message ? err.message : String(err)), "error");
+  } finally {
+    // Always re-enable, respecting current project_path state.
+    updateGitDiffButtonEnabled();
+  }
+}
+
+function setupGitDiffUI() {
+  const btn = $("#attach-git-diff-btn");
+  if (btn) btn.addEventListener("click", onAttachGitDiff);
+  const pathInput = $("#project-path");
+  if (pathInput) {
+    pathInput.addEventListener("input", updateGitDiffButtonEnabled);
+  }
+  updateGitDiffButtonEnabled();
+}
+
+async function onSubmitNewTask(ev) {
+  ev.preventDefault();
+  const status = $("#form-status");
+  const btn = $("#submit-btn");
+  status.className = "form-status";
+  status.textContent = "";
+  setSandboxWarning("");
+
+  const mode = $("#mode").value;
+  const question = $("#question").value.trim();
+  const agents = State.selectedAgents.slice();
+  const projectPath = readProjectPath();
+  const includeSandbox = readIncludeSandbox();
+
+  if (!question) {
+    status.className = "form-status error";
+    status.textContent = "Please enter a question.";
+    return;
+  }
+  if (agents.length === 0) {
+    status.className = "form-status error";
+    status.textContent = "Select at least one agent.";
+    return;
+  }
+  if (mode === "conclave" && agents.length < 2) {
+    status.className = "form-status error";
+    status.textContent = "Conclave mode requires at least two agents.";
+    return;
+  }
+  if (mode === "consult" && agents.length < 2) {
+    status.className = "form-status error";
+    status.textContent = "Consult mode requires a primary plus at least one consultant.";
+    return;
+  }
+
+  // Sandbox cross-field checks: must have a project_path, and can_read_files must be on.
+  if (includeSandbox) {
+    if (!projectPath) {
+      setSandboxWarning("Set project_path before enabling the sandbox");
+      status.className = "form-status error";
+      status.textContent = "Fix the sandbox configuration before submitting.";
+      return;
+    }
+    const perms = readPermissions();
+    if (!perms.can_read_files) {
+      setSandboxWarning("Enable can_read_files in Permissions before using the sandbox");
+      status.className = "form-status error";
+      status.textContent = "Fix the sandbox configuration before submitting.";
+      return;
+    }
+  }
+
+  const payload = buildPayload(mode, agents, question);
+
+  // Flag the sandbox request in context.extra when all preconditions are met.
+  if (includeSandbox && projectPath && payload.permissions.can_read_files) {
+    if (!isPlainObject(payload.context.extra)) payload.context.extra = {};
+    payload.context.extra.include_sandbox = true;
+  }
+
+  btn.disabled = true;
+  try {
+    // Step 1: upload any attachments
+    const uploaded = [];
+    const total = State.attachments.length;
+    if (total > 0) {
+      for (let i = 0; i < total; i++) {
+        const att = State.attachments[i];
+        status.className = "form-status";
+        status.textContent = `Uploading ${i + 1} of ${total}: ${att.file.name}`;
+        try {
+          const result = await Api.uploadFile(att.file);
+          uploaded.push({
+            file_id: result.file_id,
+            filename: result.filename,
+            mime_type: result.mime_type,
+          });
+        } catch (uerr) {
+          status.className = "form-status error";
+          status.textContent = `Upload failed for ${att.file.name}: ${uerr.message}`;
+          btn.disabled = false;
+          return;
+        }
+      }
+      if (!isPlainObject(payload.context.extra)) payload.context.extra = {};
+      payload.context.extra.attachments = uploaded;
+    }
+
+    // Include parent_task_id if the user came in via "Continue this thread".
+    if (State.followupParentId) {
+      payload.parent_task_id = State.followupParentId;
+    }
+
+    // Step 2: create the task
+    status.className = "form-status";
+    status.textContent = "Submitting...";
+    const resp = await Api.createTask(payload);
+    status.className = "form-status ok";
+    status.textContent = "Created " + resp.task_id;
+    State.currentTaskId = resp.task_id;
+    State.currentTaskData = null;
+    // Reset the form and clear the parent linkage now that it's been consumed.
+    $("#question").value = "";
+    clearAttachments();
+    clearFollowupParent();
+    openDetail(resp.task_id);
+  } catch (e) {
+    status.className = "form-status error";
+    status.textContent = "Submit failed: " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ------------------------------------------------------------
+// Inbox view
+// ------------------------------------------------------------
+function startInboxPolling() {
+  stopInboxPolling();
+  State.inboxTimer = setInterval(refreshInbox, 5000);
+}
+function stopInboxPolling() {
+  if (State.inboxTimer) { clearInterval(State.inboxTimer); State.inboxTimer = null; }
+}
+
+async function refreshInbox() {
+  const tbody = $("#tasks-tbody");
+  try {
+    const resp = await Api.listTasks({
+      status: State.inboxFilters.status || undefined,
+      limit: State.inboxLimit,
+      exported: State.inboxFilters.exported || undefined,
+    });
+    const tasks = Array.isArray(resp.tasks) ? resp.tasks : [];
+    tasks.sort((a, b) => {
+      const ad = a.created_at || "";
+      const bd = b.created_at || "";
+      return bd.localeCompare(ad);
+    });
+    State.inboxRawTasks = tasks;
+    renderInbox();
+  } catch (e) {
+    tbody.innerHTML = "";
+    tbody.appendChild(el("tr", {}, [
+      el("td", { colspan: 5, class: "form-status error", text: "Failed to load tasks: " + e.message }),
+    ]));
+    State.inboxRawTasks = [];
+    updateInboxCounter(0, 0);
+  }
+}
+
+// Render the inbox table from State.inboxRawTasks, applying the client-side
+// mode + search filters. Called by refreshInbox after a server fetch and also
+// directly when only client-side filters change (no refetch needed).
+function renderInbox() {
+  const tbody = $("#tasks-tbody");
+  if (!tbody) return;
+  const all = Array.isArray(State.inboxRawTasks) ? State.inboxRawTasks : [];
+  const modeFilter = (State.inboxFilters.mode || "").toLowerCase();
+  const searchRaw = (State.inboxFilters.search || "").trim().toLowerCase();
+
+  const filtered = all.filter((t) => {
+    if (modeFilter && (t.mode || "").toLowerCase() !== modeFilter) return false;
+    if (searchRaw) {
+      // Build a haystack from the user-visible row content (ID + status + mode + agents + created).
+      const agentsList = [];
+      if (t.primary_agent) agentsList.push(t.primary_agent);
+      if (Array.isArray(t.consultants)) {
+        for (const c of t.consultants) if (c && !agentsList.includes(c)) agentsList.push(c);
+      }
+      const haystack = [
+        t.id || "",
+        t.status || "",
+        t.mode || "",
+        agentsList.join(", "),
+        fmtTime(t.created_at) || "",
+      ].join(" ").toLowerCase();
+      if (!haystack.includes(searchRaw)) return false;
+    }
+    return true;
+  });
+
+  tbody.innerHTML = "";
+  if (filtered.length === 0) {
+    const emptyText = all.length === 0 ? "No tasks yet." : "No tasks match the current filters.";
+    tbody.appendChild(el("tr", {}, [
+      el("td", { colspan: 5, class: "muted", text: emptyText }),
+    ]));
+    updateInboxCounter(0, all.length);
+    return;
+  }
+  for (const t of filtered) {
+    const agentsList = [];
+    if (t.primary_agent) agentsList.push(t.primary_agent);
+    if (Array.isArray(t.consultants)) {
+      for (const c of t.consultants) if (c && !agentsList.includes(c)) agentsList.push(c);
+    }
+    const isExported = !!t.exported_at;
+    const trAttrs = { title: t.id };
+    if (isExported) trAttrs.class = "exported-row";
+    const tr = el("tr", trAttrs);
+    tr.addEventListener("click", () => openDetail(t.id));
+    const idCell = el("td", { class: "id-cell" });
+    idCell.appendChild(document.createTextNode(shortId(t.id)));
+    const fullId = t.id;
+    idCell.appendChild(makeCopyButton(fullId, "task ID",
+      { extraClass: "copy-btn-inline" }));
+    if (isExported) {
+      const exportedLabel = "Exported at " + fmtTime(t.exported_at)
+        + (t.export_path ? " (" + t.export_path + ")" : "");
+      idCell.appendChild(el("span", {
+        class: "export-dot",
+        title: exportedLabel,
+        "aria-label": exportedLabel,
+      }));
+    }
+    tr.appendChild(idCell);
+    tr.appendChild(el("td", {}, [statusBadge(t.status)]));
+    tr.appendChild(el("td", {}, [modeBadge(t.mode)]));
+    tr.appendChild(el("td", { text: agentsList.join(", ") || "-" }));
+    tr.appendChild(el("td", { text: fmtTime(t.created_at) }));
+    tbody.appendChild(tr);
+  }
+  updateInboxCounter(filtered.length, all.length);
+}
+
+function updateInboxCounter(shown, total) {
+  const counter = $("#inbox-counter");
+  if (!counter) return;
+  counter.textContent = "Showing " + shown + " of " + total + " tasks";
+}
+
+function loadInboxLimitFromStorage() {
+  try {
+    const raw = localStorage.getItem(INBOX_LIMIT_KEY);
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n) && INBOX_LIMIT_CHOICES.includes(n)) {
+      State.inboxLimit = n;
+    }
+  } catch (_) { /* localStorage may be unavailable */ }
+}
+
+function saveInboxLimitToStorage(n) {
+  try { localStorage.setItem(INBOX_LIMIT_KEY, String(n)); } catch (_) { /* ignore */ }
+}
+
+function setupInboxFiltersUI() {
+  loadInboxLimitFromStorage();
+
+  const statusSel = $("#filter-status");
+  const modeSel = $("#filter-mode");
+  const exportedSel = $("#filter-exported");
+  const searchInput = $("#filter-search");
+  const limitSel = $("#filter-limit");
+  const clearBtn = $("#inbox-clear-btn");
+  const bulkExportBtn = $("#inbox-bulk-export-btn");
+
+  if (limitSel) {
+    limitSel.value = String(State.inboxLimit);
+    limitSel.addEventListener("change", () => {
+      const n = parseInt(limitSel.value, 10);
+      if (Number.isFinite(n) && INBOX_LIMIT_CHOICES.includes(n)) {
+        State.inboxLimit = n;
+        saveInboxLimitToStorage(n);
+        refreshInbox();
+      }
+    });
+  }
+
+  if (statusSel) {
+    statusSel.value = State.inboxFilters.status;
+    statusSel.addEventListener("change", () => {
+      State.inboxFilters.status = statusSel.value;
+      // Status is a server-side filter, so refetch.
+      refreshInbox();
+    });
+  }
+
+  if (modeSel) {
+    modeSel.value = State.inboxFilters.mode;
+    modeSel.addEventListener("change", () => {
+      State.inboxFilters.mode = modeSel.value;
+      // Client-side filter, no refetch needed.
+      renderInbox();
+    });
+  }
+
+  if (exportedSel) {
+    exportedSel.value = State.inboxFilters.exported;
+    exportedSel.addEventListener("change", () => {
+      State.inboxFilters.exported = exportedSel.value;
+      // Server-side filter (passed as ?exported=true|false), so refetch.
+      refreshInbox();
+    });
+  }
+
+  if (bulkExportBtn) {
+    bulkExportBtn.addEventListener("click", onBulkExportUnexported);
+  }
+
+  if (searchInput) {
+    searchInput.value = State.inboxFilters.search;
+    searchInput.addEventListener("input", () => {
+      // Debounce ~200ms so each keystroke doesn't rerender.
+      if (State.inboxSearchDebounce) clearTimeout(State.inboxSearchDebounce);
+      State.inboxSearchDebounce = setTimeout(() => {
+        State.inboxFilters.search = searchInput.value;
+        renderInbox();
+      }, 200);
+    });
+  }
+
+  if (clearBtn) {
+    clearBtn.addEventListener("click", () => {
+      State.inboxFilters.status = "";
+      State.inboxFilters.mode = "";
+      State.inboxFilters.search = "";
+      State.inboxFilters.exported = "";
+      if (statusSel) statusSel.value = "";
+      if (modeSel) modeSel.value = "";
+      if (exportedSel) exportedSel.value = "";
+      if (searchInput) searchInput.value = "";
+      if (State.inboxSearchDebounce) {
+        clearTimeout(State.inboxSearchDebounce);
+        State.inboxSearchDebounce = null;
+      }
+      // Clearing status changes the server query, so refetch.
+      refreshInbox();
+    });
+  }
+}
+
+// ------------------------------------------------------------
+// Bulk export (inbox)
+// ------------------------------------------------------------
+function setBulkExportStatus(text, kind) {
+  const node = $("#inbox-bulk-export-status");
+  if (!node) return;
+  if (!text) {
+    node.hidden = true;
+    node.textContent = "";
+    node.className = "inbox-bulk-export-status";
+    return;
+  }
+  node.hidden = false;
+  node.textContent = text;
+  node.className = "inbox-bulk-export-status" + (kind ? " " + kind : "");
+}
+
+function setBulkExportErrors(errors) {
+  const node = $("#inbox-bulk-export-errors");
+  if (!node) return;
+  node.innerHTML = "";
+  if (!Array.isArray(errors) || errors.length === 0) {
+    node.hidden = true;
+    return;
+  }
+  const head = el("div", { text: "First errors:" });
+  node.appendChild(head);
+  const ul = el("ul");
+  for (const err of errors.slice(0, 3)) {
+    let line;
+    if (typeof err === "string") {
+      line = err;
+    } else if (err && typeof err === "object") {
+      const id = err.task_id ? err.task_id + ": " : "";
+      const msg = err.error || err.message || err.detail || JSON.stringify(err);
+      line = id + msg;
+    } else {
+      line = String(err);
+    }
+    ul.appendChild(el("li", { text: line }));
+  }
+  node.appendChild(ul);
+  node.hidden = false;
+}
+
+async function onBulkExportUnexported() {
+  const btn = $("#inbox-bulk-export-btn");
+  const ok = window.confirm(
+    "Export all unexported terminal tasks to data/exports/? This will write to disk.");
+  if (!ok) return;
+
+  setBulkExportErrors([]);
+  setBulkExportStatus("Exporting...", null);
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
+    btn.textContent = "Exporting...";
+  }
+
+  try {
+    // Empty body uses the default filter=unexported_terminal on the server.
+    const resp = await Api.exportBatchTasks({});
+    const exported = Number(resp && resp.exported_count) || 0;
+    const skipped = Number(resp && resp.skipped_count) || 0;
+    const errs = Number(resp && resp.error_count) || 0;
+    const summary = "Exported " + exported + " task" + (exported === 1 ? "" : "s")
+      + ". " + skipped + " skipped, " + errs + " error" + (errs === 1 ? "" : "s") + ".";
+    setBulkExportStatus(summary, errs > 0 ? "error" : "ok");
+    if (errs > 0 && Array.isArray(resp.errors)) {
+      setBulkExportErrors(resp.errors);
+    } else {
+      setBulkExportErrors([]);
+    }
+    // Refresh the inbox so freshly-exported tasks show their exported_at value.
+    await refreshInbox();
+  } catch (e) {
+    setBulkExportStatus("Bulk export failed: " + (e && e.message ? e.message : String(e)),
+      "error");
+    setBulkExportErrors([]);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = btn.dataset.originalText || "Bulk export unexported";
+    }
+  }
+}
+
+function statusBadge(status) {
+  const safe = (status || "unknown").toLowerCase();
+  return el("span", { class: "badge status-" + safe, text: safe });
+}
+function modeBadge(mode) {
+  const safe = (mode || "").toLowerCase();
+  return el("span", { class: "badge mode-" + safe, text: safe || "?" });
+}
+function roleBadge(role) {
+  return el("span", { class: "badge role", text: role || "" });
+}
+
+// ------------------------------------------------------------
+// Detail view
+// ------------------------------------------------------------
+function openDetail(taskId) {
+  State.currentTaskId = taskId;
+  State.currentTaskData = null;
+  State.decisionEditing = false;
+  State.decisionDraft = "";
+  // Hide any stale breadcrumb from a prior task until the new fetch resolves.
+  hideThreadBreadcrumb();
+  // Drop any live activity ticker from the prior task until the new fetch resolves.
+  hideLiveActivity();
+  // Drop any export feedback from a prior task so it doesn't bleed across views.
+  hideExportFeedback();
+  switchView("detail");
+}
+
+function startDetailPolling() {
+  stopDetailPolling();
+  State.detailTimer = setInterval(() => {
+    const data = State.currentTaskData;
+    if (!data) { refreshDetail(); return; }
+    const status = data.task && data.task.status;
+    if (status && !State.terminalStatuses.has(status)) refreshDetail();
+  }, 3000);
+}
+function stopDetailPolling() {
+  if (State.detailTimer) { clearInterval(State.detailTimer); State.detailTimer = null; }
+  // The live activity ticker is only meaningful while the detail view is active.
+  stopLiveTicker();
+}
+
+async function refreshDetail() {
+  if (!State.currentTaskId) return;
+  try {
+    const data = await Api.getTask(State.currentTaskId);
+    State.currentTaskData = data;
+    renderDetail(data);
+    // Fetch thread ancestry only when this task is part of a thread.
+    const task = data.task || {};
+    if (task.parent_task_id) {
+      refreshThreadBreadcrumb(State.currentTaskId);
+    } else {
+      hideThreadBreadcrumb();
+    }
+  } catch (e) {
+    const header = $("#detail-header");
+    header.innerHTML = "";
+    header.appendChild(el("p", { class: "form-status error", text: "Failed to load task: " + e.message }));
+    $("#detail-body").hidden = true;
+  }
+}
+
+async function refreshThreadBreadcrumb(taskId) {
+  try {
+    const resp = await Api.getThread(taskId);
+    // Guard against stale responses if the user has navigated away.
+    if (State.currentTaskId !== taskId) return;
+    State.threadCache[taskId] = resp;
+    renderThreadBreadcrumb(resp);
+  } catch (_) {
+    // Non-fatal: just hide the breadcrumb if the thread fetch fails.
+    hideThreadBreadcrumb();
+  }
+}
+
+function hideThreadBreadcrumb() {
+  const section = $("#thread-breadcrumb");
+  if (section) section.hidden = true;
+  const chain = $("#thread-breadcrumb-chain");
+  if (chain) chain.innerHTML = "";
+}
+
+function renderThreadBreadcrumb(resp) {
+  const section = $("#thread-breadcrumb");
+  const chain = $("#thread-breadcrumb-chain");
+  if (!section || !chain) return;
+  const thread = Array.isArray(resp && resp.thread) ? resp.thread : [];
+  // Only show when there's at least one ancestor in addition to the current task.
+  if (thread.length <= 1) {
+    hideThreadBreadcrumb();
+    return;
+  }
+  chain.innerHTML = "";
+  const currentId = (resp && resp.task_id) || State.currentTaskId;
+  thread.forEach((entry, idx) => {
+    if (idx > 0) {
+      chain.appendChild(el("span", { class: "thread-arrow", "aria-hidden": "true", text: "→" }));
+    }
+    const isCurrent = entry.id === currentId;
+    const preview = (entry.user_request || "").replace(/\s+/g, " ").trim().slice(0, 80);
+    const tooltip = entry.id + (preview ? " — " + preview : "");
+    if (isCurrent) {
+      chain.appendChild(el("span", {
+        class: "thread-pill current",
+        title: tooltip,
+        text: shortId(entry.id),
+      }));
+    } else {
+      const pill = el("button", {
+        type: "button",
+        class: "thread-pill",
+        title: tooltip,
+        text: shortId(entry.id),
+      });
+      pill.addEventListener("click", () => openDetail(entry.id));
+      chain.appendChild(pill);
+    }
+  });
+  section.hidden = false;
+}
+
+function renderDetail(data) {
+  const task = data.task || {};
+  const messages = Array.isArray(data.messages) ? data.messages : [];
+  const finalResult = data.final_result || null;
+  // agent_runs is the new backend envelope key; may be undefined for older
+  // tasks/API responses. Treat anything non-array as "not available" so the
+  // live activity + usage features degrade gracefully.
+  const agentRuns = Array.isArray(data.agent_runs) ? data.agent_runs : null;
+
+  // Header
+  const header = $("#detail-header");
+  header.innerHTML = "";
+  const fullTaskId = task.id || State.currentTaskId || "";
+  const idRow = el("div", { class: "detail-id-row" });
+  idRow.appendChild(el("span", { class: "detail-id-code", text: fullTaskId }));
+  if (fullTaskId) {
+    idRow.appendChild(makeCopyButton(fullTaskId, "task ID",
+      { extraClass: "copy-btn-prominent" }));
+  }
+  const titleRow = el("div", { class: "detail-meta" }, [idRow]);
+  const metaRow = el("div", { class: "detail-meta" });
+  metaRow.appendChild(statusBadge(task.status));
+  metaRow.appendChild(modeBadge(task.mode));
+  if (task.task_type) {
+    metaRow.appendChild(el("span", { class: "muted", text: "type: " + task.task_type }));
+  }
+  const agents = [];
+  if (task.primary_agent) agents.push(task.primary_agent + " (primary)");
+  if (Array.isArray(task.consultants)) for (const c of task.consultants) agents.push(c);
+  if (agents.length) metaRow.appendChild(el("span", { class: "muted", text: "agents: " + agents.join(", ") }));
+  if (task.created_at) metaRow.appendChild(el("span", { class: "muted", text: "created: " + fmtTime(task.created_at) }));
+  if (task.updated_at) metaRow.appendChild(el("span", { class: "muted", text: "updated: " + fmtTime(task.updated_at) }));
+  header.appendChild(titleRow);
+  header.appendChild(metaRow);
+  if (task.error_message) {
+    header.appendChild(el("p", { class: "form-status error", text: "error: " + task.error_message }));
+  }
+
+  // Usage summary (terminal tasks only). Gracefully omitted when there is no data.
+  const usageNode = renderUsageSummary(task, agentRuns);
+  if (usageNode) header.appendChild(usageNode);
+
+  $("#detail-body").hidden = false;
+
+  // Live activity panel (running/pending tasks only).
+  renderLiveActivity(task, agentRuns);
+
+  // User request
+  const userRequestText = task.user_request || "";
+  $("#detail-user-request").textContent = userRequestText;
+  const userReqSlot = $("#user-request-copy-slot");
+  if (userReqSlot) {
+    userReqSlot.innerHTML = "";
+    if (userRequestText) {
+      userReqSlot.appendChild(makeCopyButton(userRequestText, "user request"));
+    }
+  }
+
+  // Answer prompt if awaiting user input
+  renderAnswerPrompt(task, messages);
+
+  // Transcript
+  renderTranscript(task, messages, agentRuns);
+
+  // Final result
+  renderFinalResult(finalResult);
+
+  // Errors
+  renderErrors(finalResult);
+
+  // Cancel button visibility
+  const cancelBtn = $("#cancel-btn");
+  if (task.status && !State.terminalStatuses.has(task.status)) {
+    cancelBtn.hidden = false;
+  } else {
+    cancelBtn.hidden = true;
+  }
+
+  // Decision panel (terminal status only) - rendered before the post-task bar
+  renderDecisionPanel(task);
+
+  // Post-task action bar (terminal status only)
+  const postBar = $("#post-task-bar");
+  if (postBar) {
+    if (task.status && State.terminalStatuses.has(task.status)) {
+      postBar.hidden = false;
+      // Reflect whether this task has already been exported in the button label
+      // and the small muted "Last exported" hint.
+      updateExportButtonState(task);
+    } else {
+      postBar.hidden = true;
+      // Drop any stale export feedback if the bar is being hidden.
+      hideExportFeedback();
+      updateExportButtonState(null);
+    }
+  }
+}
+
+// Update the export button label + auxiliary "Last exported" hint based on
+// whether task.exported_at is set. Called from renderDetail and after a
+// successful single-task export so the UI reflects the new state immediately.
+function updateExportButtonState(task) {
+  const btn = $("#export-btn");
+  const info = $("#export-last-info");
+  if (!btn) return;
+
+  const exportedAt = task && task.exported_at ? task.exported_at : null;
+  const exportPath = task && task.export_path ? task.export_path : "";
+
+  if (exportedAt) {
+    btn.textContent = "Re-export";
+    btn.dataset.originalText = "Re-export";
+    btn.title = "Re-export this task to data/exports/, overwriting the previous file.";
+    if (info) {
+      info.hidden = false;
+      info.innerHTML = "";
+      const shortPath = exportPath
+        ? (exportPath.length > 48
+            ? "..." + exportPath.slice(exportPath.length - 45)
+            : exportPath)
+        : "";
+      let label = "Last exported: " + fmtTime(exportedAt);
+      if (shortPath) label += " at ";
+      info.appendChild(document.createTextNode(label));
+      if (exportPath) {
+        const code = el("code", { text: shortPath, title: exportPath });
+        info.appendChild(code);
+        // Reuse the standard copy button factory so users can grab the full path.
+        info.appendChild(makeCopyButton(exportPath, "export path"));
+      }
+    }
+  } else {
+    btn.textContent = "Export to decision record";
+    btn.dataset.originalText = "Export to decision record";
+    btn.title = "Export this task's question, transcript, final result, and decision to a markdown file in data/exports/.";
+    if (info) {
+      info.hidden = true;
+      info.innerHTML = "";
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Live activity panel (Feature A)
+// ------------------------------------------------------------
+function stopLiveTicker() {
+  if (State.liveTickerTimer) {
+    clearInterval(State.liveTickerTimer);
+    State.liveTickerTimer = null;
+  }
+  State.liveTickerStartMs = null;
+}
+
+function startLiveTicker(startMs) {
+  stopLiveTicker();
+  if (!Number.isFinite(startMs)) return;
+  State.liveTickerStartMs = startMs;
+  State.liveTickerTimer = setInterval(() => {
+    const target = document.getElementById("live-activity-elapsed");
+    if (!target || !Number.isFinite(State.liveTickerStartMs)) return;
+    const elapsed = Date.now() - State.liveTickerStartMs;
+    target.textContent = fmtDurationMs(elapsed) + " ago";
+  }, 1000);
+}
+
+function hideLiveActivity() {
+  stopLiveTicker();
+  const section = $("#live-activity");
+  const inner = $("#live-activity-inner");
+  if (inner) inner.innerHTML = "";
+  if (section) section.hidden = true;
+}
+
+function findActiveRun(runs) {
+  // Most recent "running" + no finished_at; prefer the one with the latest started_at.
+  if (!Array.isArray(runs) || runs.length === 0) return null;
+  let best = null;
+  let bestT = -Infinity;
+  for (const r of runs) {
+    if (!r || r.status !== "running" || r.finished_at) continue;
+    const t = parseIsoMs(r.started_at) || 0;
+    if (t >= bestT) { best = r; bestT = t; }
+  }
+  return best;
+}
+
+function maxRoundNumber(runs) {
+  if (!Array.isArray(runs) || runs.length === 0) return null;
+  let m = null;
+  for (const r of runs) {
+    if (!r) continue;
+    const n = Number(r.round_number);
+    if (Number.isFinite(n) && (m === null || n > m)) m = n;
+  }
+  return m;
+}
+
+function recentFinishedRuns(runs, limit) {
+  if (!Array.isArray(runs) || runs.length === 0) return [];
+  const finished = runs.filter((r) => r && r.finished_at);
+  finished.sort((a, b) => {
+    const at = parseIsoMs(a.finished_at) || 0;
+    const bt = parseIsoMs(b.finished_at) || 0;
+    return bt - at;
+  });
+  return finished.slice(0, limit || 5);
+}
+
+function renderLiveActivity(task, agentRuns) {
+  const section = $("#live-activity");
+  const inner = $("#live-activity-inner");
+  if (!section || !inner) return;
+
+  const status = task && task.status;
+  // Hide for terminal statuses or awaiting_user_input (the answer form takes over).
+  if (!status || status === "awaiting_user_input"
+      || State.terminalStatuses.has(status)) {
+    hideLiveActivity();
+    return;
+  }
+
+  // agent_runs may be missing on older API responses; if pending status, still show
+  // a "waiting" line. If running but no runs array at all, gracefully omit the panel.
+  const runsAvailable = Array.isArray(agentRuns);
+
+  if (status === "pending") {
+    stopLiveTicker();
+    inner.innerHTML = "";
+    inner.appendChild(el("div", { class: "live-activity-row" }, [
+      el("span", { class: "live-pulse-dot", "aria-hidden": "true" }),
+      el("span", { class: "live-activity-main",
+        text: "Waiting for worker to claim..." }),
+    ]));
+    section.hidden = false;
+    return;
+  }
+
+  if (status !== "running") {
+    hideLiveActivity();
+    return;
+  }
+
+  if (!runsAvailable) {
+    // Older API: gracefully omit instead of breaking.
+    hideLiveActivity();
+    return;
+  }
+
+  inner.innerHTML = "";
+
+  const active = findActiveRun(agentRuns);
+  const round = maxRoundNumber(agentRuns);
+
+  // Active row
+  const row = el("div", { class: "live-activity-row" });
+  row.appendChild(el("span", { class: "live-pulse-dot", "aria-hidden": "true" }));
+
+  if (active) {
+    const agentName = active.agent_name || "?";
+    const roundN = Number.isFinite(Number(active.round_number)) ? Number(active.round_number) : null;
+    const headText = "Calling " + agentName + (roundN !== null ? " (round " + roundN + ")" : "");
+    row.appendChild(el("span", { class: "live-activity-main", text: headText }));
+    row.appendChild(el("span", { class: "live-activity-sep", text: "—" }));
+    row.appendChild(el("span", { class: "live-activity-prefix", text: "started" }));
+    const startedMs = parseIsoMs(active.started_at);
+    const elapsedText = startedMs !== null
+      ? (fmtDurationMs(Date.now() - startedMs) + " ago")
+      : "just now";
+    row.appendChild(el("span", {
+      id: "live-activity-elapsed",
+      class: "live-activity-elapsed",
+      text: elapsedText,
+    }));
+    if (startedMs !== null) startLiveTicker(startedMs);
+    else stopLiveTicker();
+  } else {
+    row.appendChild(el("span", { class: "live-activity-main",
+      text: "Deliberating..." }));
+    stopLiveTicker();
+  }
+  inner.appendChild(row);
+
+  // Round progress line
+  if (round !== null) {
+    inner.appendChild(el("div", {
+      class: "live-activity-round",
+      text: "Round " + round + " in progress",
+    }));
+  }
+
+  // Recent activity summary (last 3-5 finished runs)
+  const recent = recentFinishedRuns(agentRuns, 5);
+  if (recent.length > 0) {
+    const recentWrap = el("div", { class: "live-activity-recent" });
+    recentWrap.appendChild(el("div", {
+      class: "live-activity-recent-label",
+      text: "Recent activity",
+    }));
+    const list = el("ul", { class: "live-activity-recent-list" });
+    for (const r of recent) {
+      const agentName = r.agent_name || "?";
+      const role = r.role || "";
+      const rn = Number.isFinite(Number(r.round_number)) ? Number(r.round_number) : null;
+      const dur = Number.isFinite(Number(r.duration_ms)) ? Number(r.duration_ms) : null;
+      let suffix;
+      if (r.status === "completed") {
+        suffix = dur !== null ? "completed in " + fmtDurationMs(dur) : "completed";
+      } else if (r.status === "failed") {
+        suffix = "failed" + (r.error_code ? " (" + r.error_code + ")" : "");
+      } else if (r.status === "timed_out") {
+        suffix = "timed out" + (dur !== null ? " after " + fmtDurationMs(dur) : "");
+      } else {
+        suffix = r.status || "finished";
+      }
+      const line = agentName
+        + (role ? " (" + role + ")" : "")
+        + (rn !== null ? " round " + rn : "")
+        + " — " + suffix;
+      list.appendChild(el("li", { text: line }));
+    }
+    recentWrap.appendChild(list);
+    inner.appendChild(recentWrap);
+  }
+
+  section.hidden = false;
+}
+
+// ------------------------------------------------------------
+// Usage aggregation (Feature B)
+// ------------------------------------------------------------
+function aggregateUsage(agentRuns) {
+  const result = {
+    runs: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    hasTokenData: false,
+    cost: 0,
+    hasCostData: false,
+    fullCostCoverage: true,   // false if at least one run lacks cost_usd
+    totalDurationMs: 0,
+    hasDuration: false,
+  };
+  if (!Array.isArray(agentRuns)) return result;
+  for (const r of agentRuns) {
+    if (!r) continue;
+    result.runs += 1;
+    const inp = Number(r.input_tokens);
+    const out = Number(r.output_tokens);
+    if (Number.isFinite(inp)) { result.inputTokens += inp; result.hasTokenData = true; }
+    if (Number.isFinite(out)) { result.outputTokens += out; result.hasTokenData = true; }
+    const cost = Number(r.cost_usd);
+    if (r.cost_usd !== null && r.cost_usd !== undefined && Number.isFinite(cost)) {
+      result.cost += cost;
+      result.hasCostData = true;
+    } else {
+      result.fullCostCoverage = false;
+    }
+    const dur = Number(r.duration_ms);
+    if (Number.isFinite(dur)) { result.totalDurationMs += dur; result.hasDuration = true; }
+  }
+  return result;
+}
+
+// Build the per-run cost detail string used in the transcript message header.
+// Returns "" when neither tokens, cost, nor duration are available.
+function formatRunDetails(run) {
+  if (!run) return "";
+  const parts = [];
+  const dur = Number(run.duration_ms);
+  if (Number.isFinite(dur)) parts.push(fmtDurationMs(dur));
+  const inp = Number(run.input_tokens);
+  const out = Number(run.output_tokens);
+  if (Number.isFinite(inp) || Number.isFinite(out)) {
+    const inT = Number.isFinite(inp) ? fmtInt(inp) : "?";
+    const outT = Number.isFinite(out) ? fmtInt(out) : "?";
+    parts.push(inT + " in / " + outT + " out");
+  }
+  const cost = Number(run.cost_usd);
+  if (run.cost_usd !== null && run.cost_usd !== undefined && Number.isFinite(cost)) {
+    parts.push(fmtUsd(cost));
+  }
+  return parts.join(" · ");
+}
+
+// Pick the agent_run that best matches a given transcript message. Matching is
+// best-effort: by agent_name + round_number, falling back to agent_name + role.
+function findRunForMessage(agentRuns, message) {
+  if (!Array.isArray(agentRuns) || !message) return null;
+  const agent = message.agent_name;
+  if (!agent) return null;
+  const round = Number(message.round_number);
+  const role = message.role || null;
+  let byAgentRound = null;
+  let byAgentRole = null;
+  let byAgent = null;
+  for (const r of agentRuns) {
+    if (!r || r.agent_name !== agent) continue;
+    byAgent = byAgent || r;
+    if (role && r.role === role && !byAgentRole) byAgentRole = r;
+    if (Number.isFinite(round) && Number(r.round_number) === round) {
+      // Prefer one whose role also matches when known.
+      if (!byAgentRound || (role && r.role === role)) byAgentRound = r;
+    }
+  }
+  return byAgentRound || byAgentRole || byAgent;
+}
+
+function renderUsageSummary(task, agentRuns) {
+  // Returns a node to append to the detail header, or null if there's nothing
+  // meaningful to show yet (e.g., pre-terminal with no data).
+  const isTerminal = task && task.status && State.terminalStatuses.has(task.status);
+  if (!isTerminal) return null;
+  if (!Array.isArray(agentRuns) || agentRuns.length === 0) return null;
+  const agg = aggregateUsage(agentRuns);
+  if (agg.runs === 0) return null;
+  if (!agg.hasTokenData && !agg.hasCostData && !agg.hasDuration) return null;
+
+  const parts = [];
+  if (agg.hasTokenData) {
+    parts.push(fmtInt(agg.inputTokens) + " input + "
+      + fmtInt(agg.outputTokens) + " output tokens");
+  }
+  if (agg.hasCostData) {
+    const costStr = "~" + fmtUsd(agg.cost)
+      + (agg.fullCostCoverage ? "" : " (partial coverage)");
+    parts.push(costStr);
+  }
+  parts.push(agg.runs + " agent call" + (agg.runs === 1 ? "" : "s"));
+  if (agg.hasDuration) parts.push(fmtDurationMs(agg.totalDurationMs) + " total");
+
+  const text = "Usage: " + parts.join(" · ");
+  return el("p", { class: "detail-usage muted", text });
+}
+
+function renderDecisionPanel(task) {
+  const panel = $("#decision-panel");
+  const inner = $("#decision-panel-inner");
+  if (!panel || !inner) return;
+
+  const isTerminal = task && task.status && State.terminalStatuses.has(task.status);
+  if (!isTerminal) {
+    panel.hidden = true;
+    inner.innerHTML = "";
+    // Reset editing state when leaving terminal status
+    State.decisionEditing = false;
+    State.decisionDraft = "";
+    return;
+  }
+
+  inner.innerHTML = "";
+  panel.hidden = false;
+
+  const existing = (task && typeof task.user_decision === "string") ? task.user_decision : "";
+  const hasDecision = existing.trim().length > 0;
+  const showForm = !hasDecision || State.decisionEditing;
+
+  if (showForm) {
+    renderDecisionForm(inner, task, existing);
+  } else {
+    renderDecisionDisplay(inner, task, existing);
+  }
+}
+
+function renderDecisionForm(inner, task, existing) {
+  inner.appendChild(el("h3", { class: "decision-title", text: "Your Decision" }));
+  inner.appendChild(el("p", {
+    class: "decision-help",
+    text: "The conclave produced a recommendation. Record your authoritative call here — what you decided, in your own words.",
+  }));
+
+  const form = el("form", { class: "decision-form", id: "decision-form" });
+  const initial = State.decisionEditing
+    ? (State.decisionDraft || existing || "")
+    : (existing || "");
+  const textarea = el("textarea", {
+    id: "decision-text",
+    class: "decision-textarea",
+    rows: 5,
+    placeholder: "Record your decision...",
+    required: true,
+  });
+  textarea.value = initial;
+  textarea.addEventListener("input", () => {
+    State.decisionDraft = textarea.value;
+  });
+  form.appendChild(textarea);
+
+  const actions = el("div", { class: "decision-actions" });
+  const submitBtn = el("button", {
+    type: "submit",
+    class: "btn btn-decision",
+    text: State.decisionEditing && existing ? "Update Decision" : "Record Decision",
+  });
+  actions.appendChild(submitBtn);
+
+  if (State.decisionEditing && existing) {
+    const cancelBtn = el("button", {
+      type: "button",
+      class: "btn btn-secondary",
+      text: "Cancel",
+    });
+    cancelBtn.addEventListener("click", () => {
+      State.decisionEditing = false;
+      State.decisionDraft = "";
+      renderDecisionPanel(task);
+    });
+    actions.appendChild(cancelBtn);
+  }
+
+  const status = el("span", { class: "form-status", id: "decision-status" });
+  actions.appendChild(status);
+  form.appendChild(actions);
+
+  form.addEventListener("submit", onSubmitDecision);
+  inner.appendChild(form);
+}
+
+function renderDecisionDisplay(inner, task, decisionText) {
+  // Card-level copy button anchored to the upper-right of the decision panel,
+  // matching the consistent placement used across the dashboard.
+  if (decisionText) {
+    inner.appendChild(makeCopyButton(decisionText, "decision",
+      { extraClass: "copy-btn-card" }));
+  }
+  const head = el("div", { class: "decision-display-head" });
+  head.appendChild(el("h3", { class: "decision-title", text: "Your Decision" }));
+  const actions = el("div", { class: "detail-meta" });
+  const editBtn = el("button", {
+    type: "button",
+    class: "decision-edit-btn",
+    text: "Edit",
+    "aria-label": "Edit decision",
+  });
+  editBtn.addEventListener("click", () => {
+    State.decisionEditing = true;
+    State.decisionDraft = decisionText;
+    renderDecisionPanel(task);
+    const ta = $("#decision-text");
+    if (ta) {
+      ta.focus();
+      try { ta.setSelectionRange(ta.value.length, ta.value.length); } catch (_) { /* ignore */ }
+    }
+  });
+  actions.appendChild(editBtn);
+  head.appendChild(actions);
+  inner.appendChild(head);
+
+  inner.appendChild(el("div", {
+    class: "decision-text-block",
+    text: decisionText,
+  }));
+
+  const ts = task && task.user_decided_at ? task.user_decided_at : "";
+  if (ts) {
+    inner.appendChild(el("p", {
+      class: "decision-timestamp",
+      text: "Decided at: " + fmtTime(ts),
+    }));
+  }
+}
+
+async function onSubmitDecision(ev) {
+  ev.preventDefault();
+  const status = $("#decision-status");
+  if (status) {
+    status.className = "form-status";
+    status.textContent = "";
+  }
+  const ta = $("#decision-text");
+  const text = ta ? ta.value.trim() : "";
+  if (!text) {
+    if (status) {
+      status.className = "form-status error";
+      status.textContent = "Please enter a decision.";
+    }
+    return;
+  }
+  const form = $("#decision-form");
+  const submitBtn = form ? form.querySelector("button[type='submit']") : null;
+  if (submitBtn) submitBtn.disabled = true;
+  try {
+    if (status) {
+      status.className = "form-status";
+      status.textContent = "Recording...";
+    }
+    await Api.decideTask(State.currentTaskId, text);
+    State.decisionEditing = false;
+    State.decisionDraft = "";
+    await refreshDetail();
+  } catch (e) {
+    if (status) {
+      status.className = "form-status error";
+      status.textContent = "Failed: " + e.message;
+    }
+    if (submitBtn) submitBtn.disabled = false;
+  }
+}
+
+function resetNewTaskForm() {
+  $("#question").value = "";
+  clearAttachments();
+  setProjectPath("");
+  setIncludeSandbox(false);
+  setSandboxWarning("");
+  const status = $("#form-status");
+  if (status) {
+    status.className = "form-status";
+    status.textContent = "";
+  }
+  // Default permissions whenever the form is reset.
+  setPermissionsToDefaults();
+}
+
+function showFollowupBanner(parentId) {
+  const banner = $("#followup-banner");
+  const text = $("#followup-banner-text");
+  if (!banner || !text) return;
+  text.innerHTML = "";
+  text.appendChild(document.createTextNode("Continuing thread from task "));
+  const code = el("code", { text: shortId(parentId) });
+  text.appendChild(code);
+  text.appendChild(document.createTextNode(
+    ". Mode and agents pre-selected; you can change them. The conclave will see this thread's prior context automatically."
+  ));
+  banner.hidden = false;
+}
+
+function hideFollowupBanner() {
+  const banner = $("#followup-banner");
+  if (banner) banner.hidden = true;
+}
+
+function clearFollowupParent() {
+  State.followupParentId = null;
+  hideFollowupBanner();
+}
+
+function onStartNewTask() {
+  // "Start New Task" is the clean-slate path: drop any pending parent linkage.
+  clearFollowupParent();
+  resetNewTaskForm();
+  switchView("new");
+  const q = $("#question");
+  if (q) q.focus();
+}
+
+function onSubmitFollowup() {
+  const data = State.currentTaskData;
+  const task = (data && data.task) || {};
+  const finalResult = (data && data.final_result) || null;
+  const taskId = task.id || State.currentTaskId || "";
+  const finalAnswer = (finalResult && typeof finalResult.final_answer === "string")
+    ? finalResult.final_answer : "";
+  const preview = finalAnswer.length > 200 ? finalAnswer.slice(0, 200) : finalAnswer;
+  const userDecision = (typeof task.user_decision === "string") ? task.user_decision : "";
+  const decisionPreview = userDecision.length > 200 ? userDecision.slice(0, 200) : userDecision;
+  // If a decision is recorded, it's the authoritative call — feed it to the next
+  // conclave as primary context, not just the prior conclave's recommendation.
+  const decisionLine = decisionPreview
+    ? `\nMy decision on that task: "${decisionPreview}"`
+    : "";
+  const prefill =
+    `Follow-up to task ${taskId}. Previous final answer: "${preview}"${decisionLine}\n\nNew question: `;
+
+  // Reset the form but DON'T clear followupParentId — we're setting it next.
+  resetNewTaskForm();
+
+  // Record parent for the next submission.
+  if (taskId) {
+    State.followupParentId = taskId;
+    showFollowupBanner(taskId);
+  } else {
+    clearFollowupParent();
+  }
+
+  // Pre-select mode to match the parent task.
+  const parentMode = task.mode;
+  const modeSelect = $("#mode");
+  if (modeSelect && parentMode) {
+    const hasOption = Array.from(modeSelect.options).some((o) => o.value === parentMode);
+    if (hasOption) modeSelect.value = parentMode;
+  }
+
+  // Pre-select agents to match the parent task. For consult/resolve/handoff,
+  // the primary agent goes first so the agent ordering matches buildPayload's
+  // "first agent is primary" convention.
+  const parentAgents = [];
+  const isPrimaryFirst = parentMode === "consult" || parentMode === "resolve" || parentMode === "handoff";
+  if (isPrimaryFirst && task.primary_agent) {
+    parentAgents.push(task.primary_agent);
+  }
+  if (Array.isArray(task.consultants)) {
+    for (const c of task.consultants) {
+      if (c && !parentAgents.includes(c)) parentAgents.push(c);
+    }
+  }
+  // For modes without a "primary first" ordering, still include the primary if present.
+  if (!isPrimaryFirst && task.primary_agent && !parentAgents.includes(task.primary_agent)) {
+    parentAgents.push(task.primary_agent);
+  }
+  State.selectedAgents = parentAgents.filter((a) => State.agents.includes(a));
+  updateModeHint();
+  renderAgentsList();
+
+  // Pre-fill permissions from the parent task if present, otherwise keep
+  // the defaults that resetNewTaskForm() applied above.
+  if (task && isPlainObject(task.permissions)) {
+    const merged = Object.assign({}, DEFAULT_PERMISSIONS);
+    for (const k of PERMISSION_KEYS) {
+      if (k in task.permissions) merged[k] = !!task.permissions[k];
+    }
+    writePermissions(merged);
+  }
+
+  // Pre-fill project_path and include_sandbox from the parent task.
+  if (task && typeof task.project_path === "string") {
+    setProjectPath(task.project_path);
+  }
+  const parentExtra = task && isPlainObject(task.context) && isPlainObject(task.context.extra)
+    ? task.context.extra : null;
+  if (parentExtra && parentExtra.include_sandbox === true) {
+    setIncludeSandbox(true);
+  }
+
+  switchView("new");
+  const q = $("#question");
+  if (q) {
+    q.value = prefill;
+    q.focus();
+    // Move caret to end
+    const end = q.value.length;
+    try { q.setSelectionRange(end, end); } catch (_) { /* ignore */ }
+  }
+}
+
+function renderAnswerPrompt(task, messages) {
+  const wrap = $("#answer-prompt");
+  if (task.status !== "awaiting_user_input") {
+    wrap.hidden = true;
+    return;
+  }
+  wrap.hidden = false;
+  // Find the most recent user_input_request (or any message asking for input)
+  let questionText = "An agent is requesting your input.";
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.message_type === "user_input_request") {
+      questionText = (m.structured && m.structured.question) || m.content || questionText;
+      break;
+    }
+    if (m.structured && m.structured.user_input_question) {
+      questionText = m.structured.user_input_question;
+      break;
+    }
+  }
+  $("#answer-question").textContent = questionText;
+}
+
+function groupMessagesByRound(messages) {
+  // Each round is delimited by a turn from every conclave participant; simpler:
+  // group consecutive messages until the same agent appears again.
+  const rounds = [];
+  let current = [];
+  const seenAgents = new Set();
+  for (const m of messages) {
+    if (m.message_type === "conclave_turn") {
+      if (seenAgents.has(m.agent_name) && current.length > 0) {
+        rounds.push(current);
+        current = [];
+        seenAgents.clear();
+      }
+      seenAgents.add(m.agent_name);
+    }
+    current.push(m);
+  }
+  if (current.length) rounds.push(current);
+  return rounds;
+}
+
+function renderTranscript(task, messages, agentRuns) {
+  const container = $("#transcript-container");
+  container.innerHTML = "";
+  if (!messages.length) {
+    container.appendChild(el("p", { class: "muted", text: "No messages yet." }));
+    return;
+  }
+
+  if (task.mode === "conclave") {
+    const rounds = groupMessagesByRound(messages);
+    rounds.forEach((roundMsgs, idx) => {
+      const block = el("div", { class: "round-block" });
+      block.appendChild(el("div", { class: "round-label", text: "Round " + (idx + 1) }));
+      for (const m of roundMsgs) block.appendChild(renderMessage(m, agentRuns));
+      container.appendChild(block);
+    });
+  } else {
+    for (const m of messages) container.appendChild(renderMessage(m, agentRuns));
+  }
+}
+
+function renderMessage(m, agentRuns) {
+  const classes = ["msg"];
+  const structured = isPlainObject(m.structured) ? m.structured : null;
+
+  if (m.message_type === "conclave_turn" && structured && structured.convergence) {
+    classes.push("conv-" + structured.convergence);
+  }
+  if (m.message_type === "consultant_critique" && structured && structured.agreement) {
+    classes.push("agree-" + structured.agreement);
+  }
+
+  const node = el("div", { class: classes.join(" ") });
+
+  // Card-level copy button anchored to the upper-right corner of the .msg card.
+  // (Consistent placement with every other panel/card copy button.)
+  const copyLabel = "message from " + (m.agent_name || "agent");
+  node.appendChild(makeCopyButton(
+    () => formatMessageAsText(m),
+    copyLabel,
+    { extraClass: "copy-btn-card" }
+  ));
+
+  // Header (badges only — copy button lives in the card corner, timestamp
+  // drops to its own muted line just below so neither overlaps the corner btn).
+  const head = el("div", { class: "msg-header" }, [
+    el("span", { class: "msg-agent", text: m.agent_name || "?" }),
+    roleBadge(m.role),
+    el("span", { class: "msg-type", text: m.message_type || "" }),
+  ]);
+  if (m.direction) head.appendChild(el("span", { class: "muted", text: m.direction }));
+  node.appendChild(head);
+  if (m.created_at) {
+    const timeRow = el("div", { class: "msg-time" }, [
+      document.createTextNode(fmtTime(m.created_at)),
+    ]);
+    // Per-run cost/usage details (when an agent_run can be matched to this message).
+    const runDetails = formatRunDetails(findRunForMessage(agentRuns, m));
+    if (runDetails) {
+      timeRow.appendChild(el("span", { class: "msg-run-sep", text: " · " }));
+      timeRow.appendChild(el("span", { class: "msg-run-details", text: runDetails }));
+    }
+    node.appendChild(timeRow);
+  }
+
+  // Fields
+  const fieldsWrap = el("div", { class: "msg-fields" });
+  if (structured) {
+    for (const [key, value] of Object.entries(structured)) {
+      if (value === null || value === undefined) continue;
+      if (Array.isArray(value) && value.length === 0) continue;
+      if (typeof value === "string" && value.trim() === "") continue;
+      fieldsWrap.appendChild(renderField(key, value));
+    }
+  }
+  if (typeof m.content === "string" && m.content.length > 0
+      && (!structured || Object.keys(structured).length === 0)) {
+    fieldsWrap.appendChild(renderField("content", m.content));
+  }
+  if (fieldsWrap.children.length === 0) {
+    fieldsWrap.appendChild(el("p", { class: "muted", text: "(no content)" }));
+  }
+  node.appendChild(fieldsWrap);
+
+  return node;
+}
+
+function renderField(key, value) {
+  const wrap = el("div", { class: "field" });
+  // For arrays of primitives (rendered as a <ul>) and plain objects (rendered
+  // as a JSON <pre>) we surface a copy button on the label row so the whole
+  // structured field can be copied as JSON in one click. Single primitives
+  // and plain strings don't need a button here.
+  const needsCopy = (Array.isArray(value) && value.length > 0)
+    || (isPlainObject(value) && Object.keys(value).length > 0);
+  if (needsCopy) {
+    const labelRow = el("div", { class: "field-label-row" });
+    labelRow.appendChild(el("div", { class: "field-label", text: prettifyKey(key) }));
+    labelRow.appendChild(makeCopyButton(
+      () => JSON.stringify(value, null, 2),
+      prettifyKey(key) + " as JSON"
+    ));
+    wrap.appendChild(labelRow);
+  } else {
+    wrap.appendChild(el("div", { class: "field-label", text: prettifyKey(key) }));
+  }
+  wrap.appendChild(renderFieldValue(value));
+  return wrap;
+}
+
+function prettifyKey(k) {
+  return String(k).replace(/_/g, " ");
+}
+
+function wrapWithCopy(innerNode, copyText, label) {
+  const wrap = el("div", { class: "copyable-box" });
+  wrap.appendChild(innerNode);
+  wrap.appendChild(makeCopyButton(copyText, label));
+  return wrap;
+}
+
+function renderFieldValue(value) {
+  if (typeof value === "number" || typeof value === "boolean") {
+    return el("div", { class: "field-value mono", text: String(value) });
+  }
+  if (typeof value === "string") {
+    return el("div", { class: "field-value", text: value });
+  }
+  if (Array.isArray(value)) {
+    // List of primitives -> ul; list of objects -> stringify each (with copy button)
+    const ul = el("ul", { class: "field-list" });
+    for (const item of value) {
+      if (item === null || item === undefined) continue;
+      if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
+        ul.appendChild(el("li", { text: String(item) }));
+      } else {
+        const li = el("li");
+        const pre = el("pre", { class: "field-value mono", text: JSON.stringify(item, null, 2) });
+        li.appendChild(wrapWithCopy(pre, JSON.stringify(item, null, 2), "JSON"));
+        ul.appendChild(li);
+      }
+    }
+    return ul;
+  }
+  if (isPlainObject(value)) {
+    const json = JSON.stringify(value, null, 2);
+    const pre = el("pre", { class: "field-value mono", text: json });
+    return wrapWithCopy(pre, json, "JSON");
+  }
+  return el("div", { class: "field-value", text: String(value) });
+}
+
+function renderFinalResult(fr) {
+  const section = $("#final-result-section");
+  const container = $("#final-result-container");
+  container.innerHTML = "";
+  const finalSlot = $("#final-result-copy-slot");
+  if (finalSlot) finalSlot.innerHTML = "";
+  if (!fr) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  if (finalSlot && typeof fr.final_answer === "string" && fr.final_answer.length > 0) {
+    finalSlot.appendChild(makeCopyButton(fr.final_answer, "final answer"));
+  }
+
+  const grid = el("div", { class: "final-grid" });
+
+  // Agreement + resolution status row
+  const agreement = (fr.agreement_level || "unknown").toString();
+  const agreementRow = el("div", { class: "agreement-display" }, [
+    el("span", { class: "agreement-label", text: "Agreement:" }),
+    el("span", { class: "agreement-pill agreement-" + agreement, text: agreement }),
+  ]);
+  if (fr.resolution_status) {
+    agreementRow.appendChild(el("span", { class: "agreement-label", text: "Resolution:" }));
+    agreementRow.appendChild(el("span", { class: "badge status-" + fr.resolution_status, text: fr.resolution_status }));
+  }
+  grid.appendChild(agreementRow);
+
+  // Final answer
+  grid.appendChild(el("div", { class: "field" }, [
+    el("div", { class: "field-label", text: "FINAL ANSWER" }),
+    el("div", { class: "final-answer-block", text: fr.final_answer || "(no final answer)" }),
+  ]));
+
+  // Disagreements - never summarize away
+  if (Array.isArray(fr.disagreements) && fr.disagreements.length > 0) {
+    const dis = el("div", { class: "disagreements" });
+    dis.appendChild(el("div", { class: "disagreements-title", text: "Disagreements (" + fr.disagreements.length + ")" }));
+    for (const d of fr.disagreements) {
+      const item = el("div", { class: "disagreement-item" });
+      // Card-level copy button in the upper-right corner of this disagreement card.
+      item.appendChild(makeCopyButton(
+        () => formatDisagreementAsText(d),
+        "disagreement",
+        { extraClass: "copy-btn-card" }
+      ));
+      const headRow = el("div", { class: "disagreement-head" });
+      if (d.topic) {
+        headRow.appendChild(el("div", { class: "disagreement-topic", text: d.topic }));
+      } else {
+        headRow.appendChild(el("div", { class: "disagreement-topic muted", text: "Disagreement" }));
+      }
+      item.appendChild(headRow);
+      // (topic already rendered in headRow above)
+      if (d.primary_position) {
+        item.appendChild(renderField("primary position", d.primary_position));
+      }
+      if (d.consultant_position) {
+        item.appendChild(renderField("consultant position", d.consultant_position));
+      }
+      // Surface any extra fields verbatim
+      for (const [k, v] of Object.entries(d)) {
+        if (["topic", "primary_position", "consultant_position"].includes(k)) continue;
+        if (v === null || v === undefined) continue;
+        item.appendChild(renderField(k, v));
+      }
+      dis.appendChild(item);
+    }
+    grid.appendChild(dis);
+  }
+
+  // Recommended actions
+  if (Array.isArray(fr.recommended_actions) && fr.recommended_actions.length > 0) {
+    grid.appendChild(renderField("recommended actions", fr.recommended_actions));
+  }
+  // Risks
+  if (Array.isArray(fr.risks) && fr.risks.length > 0) {
+    grid.appendChild(renderField("risks", fr.risks));
+  }
+  // Approval items
+  if (Array.isArray(fr.commands_requiring_approval) && fr.commands_requiring_approval.length > 0) {
+    grid.appendChild(renderField("commands requiring approval", fr.commands_requiring_approval));
+  }
+  if (Array.isArray(fr.patches_requiring_approval) && fr.patches_requiring_approval.length > 0) {
+    grid.appendChild(renderField("patches requiring approval", fr.patches_requiring_approval));
+  }
+
+  container.appendChild(grid);
+}
+
+function renderErrors(fr) {
+  const section = $("#errors-section");
+  const list = $("#errors-list");
+  list.innerHTML = "";
+  if (!fr || !Array.isArray(fr.errors) || fr.errors.length === 0) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  for (const err of fr.errors) {
+    if (typeof err === "string") {
+      list.appendChild(el("li", { text: err }));
+    } else {
+      list.appendChild(el("li", {}, [
+        el("pre", { class: "field-value mono", text: JSON.stringify(err, null, 2) }),
+      ]));
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// Cancel + Answer
+// ------------------------------------------------------------
+async function onCancelTask() {
+  if (!State.currentTaskId) return;
+  const ok = window.confirm("Cancel this task?");
+  if (!ok) return;
+  try {
+    await Api.cancelTask(State.currentTaskId);
+    refreshDetail();
+  } catch (e) {
+    alert("Cancel failed: " + e.message);
+  }
+}
+
+async function onSubmitAnswer(ev) {
+  ev.preventDefault();
+  const status = $("#answer-status");
+  status.className = "form-status";
+  status.textContent = "";
+  const text = $("#answer-text").value.trim();
+  if (!text) {
+    status.className = "form-status error";
+    status.textContent = "Please enter an answer.";
+    return;
+  }
+  try {
+    status.textContent = "Sending...";
+    await Api.answerTask(State.currentTaskId, text);
+    status.className = "form-status ok";
+    status.textContent = "Answer sent.";
+    $("#answer-text").value = "";
+    refreshDetail();
+  } catch (e) {
+    status.className = "form-status error";
+    status.textContent = "Failed: " + e.message;
+  }
+}
+
+// ------------------------------------------------------------
+// Export to decision record
+// ------------------------------------------------------------
+function hideExportFeedback() {
+  const fb = $("#export-feedback");
+  if (!fb) return;
+  fb.hidden = true;
+  fb.className = "export-feedback";
+  fb.innerHTML = "";
+}
+
+function showExportFeedback(path) {
+  const fb = $("#export-feedback");
+  if (!fb) return;
+  fb.className = "export-feedback";
+  fb.innerHTML = "";
+
+  const row = el("div", { class: "export-feedback-row" });
+  row.appendChild(el("span", {
+    class: "export-feedback-message",
+    text: "Exported to",
+  }));
+  row.appendChild(el("code", { class: "export-feedback-path", text: path }));
+  // Reuse the existing copy-button factory so the look matches the rest of the UI.
+  row.appendChild(makeCopyButton(path, "export path"));
+  fb.appendChild(row);
+
+  fb.appendChild(el("p", {
+    class: "export-feedback-note",
+    html: "Future versions may also write to <code>docs/decisions/</code> for "
+      + "consciously-archived task threads.",
+  }));
+  fb.hidden = false;
+}
+
+function showExportError(message) {
+  const fb = $("#export-feedback");
+  if (!fb) return;
+  fb.className = "export-feedback error";
+  fb.innerHTML = "";
+  fb.appendChild(el("div", { class: "export-feedback-row" }, [
+    el("span", {
+      class: "export-feedback-message",
+      text: "Export failed: " + (message || "unknown error"),
+    }),
+  ]));
+  fb.hidden = false;
+}
+
+async function onExportTask() {
+  if (!State.currentTaskId) return;
+  const btn = $("#export-btn");
+  // Reset prior feedback before kicking off a new export.
+  hideExportFeedback();
+  if (btn) {
+    btn.disabled = true;
+    btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
+    btn.textContent = "Exporting...";
+  }
+  let succeeded = false;
+  try {
+    const resp = await Api.exportTask(State.currentTaskId);
+    const path = (resp && resp.export_path) ? resp.export_path : "(unknown path)";
+    showExportFeedback(path);
+    succeeded = true;
+  } catch (e) {
+    showExportError(e && e.message ? e.message : String(e));
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      // On success, refreshDetail() below will re-render and set the correct
+      // "Re-export" label via updateExportButtonState. Restore the original
+      // text now so the "Exporting..." spinner state doesn't linger if the
+      // refresh fails or hasn't run yet.
+      btn.textContent = btn.dataset.originalText || "Export to decision record";
+    }
+  }
+  if (succeeded) {
+    // Pick up exported_at + export_path from the backend so the button flips
+    // to "Re-export" and the "Last exported" hint appears.
+    await refreshDetail();
+  }
+}
+
+// ------------------------------------------------------------
+// Wire-up
+// ------------------------------------------------------------
+function init() {
+  for (const t of $$(".tab")) {
+    t.addEventListener("click", () => switchView(t.dataset.view));
+  }
+
+  $("#mode").addEventListener("change", () => {
+    updateModeHint();
+    renderAgentsList();
+  });
+  updateModeHint();
+
+  $("#new-task-form").addEventListener("submit", onSubmitNewTask);
+  $("#answer-form").addEventListener("submit", onSubmitAnswer);
+  $("#cancel-btn").addEventListener("click", onCancelTask);
+
+  setupAttachmentsUI();
+  setupPermissionsUI();
+  setupProjectSourceUI();
+  setupGitDiffUI();
+  setupInboxFiltersUI();
+  const startNewBtn = $("#start-new-btn");
+  const followupBtn = $("#followup-btn");
+  const exportBtn = $("#export-btn");
+  if (startNewBtn) startNewBtn.addEventListener("click", onStartNewTask);
+  if (followupBtn) followupBtn.addEventListener("click", onSubmitFollowup);
+  if (exportBtn) exportBtn.addEventListener("click", onExportTask);
+  const followupDismiss = $("#followup-banner-dismiss");
+  if (followupDismiss) followupDismiss.addEventListener("click", clearFollowupParent);
+
+  loadAgents();
+  pollHealth();
+  setInterval(pollHealth, 15000);
+
+  switchView("new");
+}
+
+document.addEventListener("DOMContentLoaded", init);
