@@ -35,7 +35,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
 - **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **109 tests** across protocol, modes, threading, retention, attachments, sandbox, judge, DB concurrency, export tracking, exporter, and provenance.
+- **121 tests** across protocol, modes, threading, retention, attachments, sandbox, judge, DB concurrency, export tracking, exporter, provenance, and document export.
 
 ---
 
@@ -133,7 +133,7 @@ In-conclave execution was deliberately not built — the conclave's value depend
 pytest
 ```
 
-109 tests. Key files:
+121 tests. Key files:
 
 | File | Covers |
 |---|---|

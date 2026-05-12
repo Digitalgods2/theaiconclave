@@ -2855,6 +2855,88 @@ async function onExportTask() {
 }
 
 // ------------------------------------------------------------
+// Download task detail (PDF / DOCX / MD / TXT) via the browser Save dialog
+// ------------------------------------------------------------
+const DOWNLOAD_FORMAT_META = {
+  pdf:  { mime: "application/pdf", desc: "PDF document", ext: ".pdf" },
+  docx: { mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", desc: "Word document", ext: ".docx" },
+  md:   { mime: "text/markdown", desc: "Markdown file", ext: ".md" },
+  txt:  { mime: "text/plain", desc: "Text file", ext: ".txt" },
+};
+
+function filenameFromContentDisposition(header, fallback) {
+  if (!header) return fallback;
+  // Handle: attachment; filename="name.ext"  and  filename*=UTF-8''name.ext
+  const star = /filename\*=(?:UTF-8'')?["']?([^"';]+)/i.exec(header);
+  if (star && star[1]) { try { return decodeURIComponent(star[1]); } catch (e) { return star[1]; } }
+  const plain = /filename=["']?([^"';]+)/i.exec(header);
+  if (plain && plain[1]) return plain[1];
+  return fallback;
+}
+
+async function onDownloadDetail() {
+  if (!State.currentTaskId) return;
+  const sel = $("#download-format");
+  const fmt = (sel && sel.value) || "pdf";
+  const meta = DOWNLOAD_FORMAT_META[fmt] || DOWNLOAD_FORMAT_META.pdf;
+  const btn = $("#download-detail-btn");
+
+  hideExportFeedback();
+  if (btn) { btn.disabled = true; btn.dataset.originalText = btn.dataset.originalText || btn.textContent; btn.textContent = "Preparing…"; }
+
+  try {
+    const resp = await fetch(`/api/tasks/${encodeURIComponent(State.currentTaskId)}/download?format=${encodeURIComponent(fmt)}`);
+    if (!resp.ok) {
+      let detail = `HTTP ${resp.status}`;
+      try { const j = await resp.json(); if (j && j.detail) detail = j.detail; } catch (e) { /* not json */ }
+      throw new Error(detail);
+    }
+    const blob = await resp.blob();
+    const suggestedName = filenameFromContentDisposition(
+      resp.headers.get("Content-Disposition"),
+      `${State.currentTaskId}${meta.ext}`,
+    );
+
+    // Preferred: native Save dialog (Chromium). The user picks folder + filename.
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{ description: meta.desc, accept: { [meta.mime]: [meta.ext] } }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        showExportFeedback(`Saved as “${handle.name || suggestedName}”.`);
+        return;
+      } catch (e) {
+        // AbortError = user cancelled the dialog. Anything else: fall through to <a download>.
+        if (e && e.name === "AbortError") {
+          showExportFeedback("Download cancelled.");
+          return;
+        }
+      }
+    }
+
+    // Fallback: anchor download. The browser's own Save As dialog (if enabled)
+    // still lets the user choose the location.
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    showExportFeedback(`Downloaded “${suggestedName}”. Check your browser's downloads folder.`);
+  } catch (e) {
+    showExportError(e && e.message ? e.message : String(e));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.originalText || "Download…"; }
+  }
+}
+
+// ------------------------------------------------------------
 // Wire-up
 // ------------------------------------------------------------
 function init() {
@@ -2883,6 +2965,8 @@ function init() {
   if (startNewBtn) startNewBtn.addEventListener("click", onStartNewTask);
   if (followupBtn) followupBtn.addEventListener("click", onSubmitFollowup);
   if (exportBtn) exportBtn.addEventListener("click", onExportTask);
+  const downloadDetailBtn = $("#download-detail-btn");
+  if (downloadDetailBtn) downloadDetailBtn.addEventListener("click", onDownloadDetail);
   const followupDismiss = $("#followup-banner-dismiss");
   if (followupDismiss) followupDismiss.addEventListener("click", clearFollowupParent);
 

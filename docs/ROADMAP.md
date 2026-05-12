@@ -30,7 +30,8 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 | Tier 2 export tracking | `exported_at` + `export_path` columns on tasks; `POST /api/tasks/{id}/export` marks the task; `POST /api/tasks/export-batch` for bulk export of unexported terminal tasks; dashboard surfaces export indicator + "Re-export" label after first export. |
 | DB concurrency hardening | `busy_timeout=30s` on every connection + `with_retry()` decorator on the worker's claim and retention's VACUUM. |
 | Codex + Gemini slash-command parity | `clients/` source-of-truth dir; 8 slash commands in Codex (via `~/.codex/skills/switchboard-conclave/SKILL.md`) and Gemini (via `gemini extensions link` of the `switchboard-conclave` extension). Provenance: every call passes `--invoked-by <tool>`. See decision 0007. |
-| Test suite | 109 tests across protocol, modes, threading, retention, attachments, sandbox, judge, db concurrency, export tracking, exporter, provenance |
+| Detail export (PDF / DOCX / MD / TXT) | `GET /api/tasks/{id}/download?format=...` streams the full task detail; dashboard "Export detail as…" control uses the browser Save dialog (`showSaveFilePicker` where available). `app/services/doc_export.py`. See decision 0008. |
+| Test suite | 121 tests across protocol, modes, threading, retention, attachments, sandbox, judge, db concurrency, export tracking, exporter, provenance, doc export |
 
 ## Next (in priority order)
 

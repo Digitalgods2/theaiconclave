@@ -6,6 +6,7 @@ Every ratified decision lives in this directory. The keeper (`claude-code`) main
 
 | # | Date | Title | Mode | Outcome |
 |---|---|---|---|---|
+| **[0008](0008_export_detail_pdf_docx_text.md)** | 2026-05-12 | Export task detail as PDF / DOCX / Markdown / Text from the dashboard | Glen-directed | New `GET /api/tasks/{id}/download?format=...` endpoint + dashboard control; browser Save dialog for destination; `reportlab` + `python-docx` added |
 | **[0007](0007_codex_gemini_slash_command_parity.md)** | 2026-05-11 | Codex + Gemini slash-command parity + provenance tracking | Glen-directed | 8 slash commands now invokable from Codex and Gemini sessions; `source_agent` round-trips through API; first capability decision under Charter v1.2 |
 | **[0006](0006_charter_v1_2_operability_before_capability.md)** | 2026-05-11 | Charter v1.2: *Operability before capability* principle + Decision Records *Operability Impact* field | conclave 3-AI + Glen ratified | Charter amended; new principle binding on every future capability/infrastructure deliberation |
 | **[0005](0005_db_concurrency_and_tier2_archive.md)** | 2026-05-11 | DB concurrency hardening (busy_timeout + with_retry) + Tier 2 export/archive tracking | Glen-directed | `busy_timeout=30s` + retry wrapper; `exported_at` columns + bulk export endpoint + dashboard surface |
@@ -32,4 +33,4 @@ Decisions are append-only. Earlier decisions can be superseded by later ones (e.
 
 ## The conclave's own dogfooding
 
-Four of these seven decision records came out of the conclave deliberating about its own design (charter adoption, multimodal disagreement, retention, charter v1.2). The other three (sandbox, db concurrency + Tier 2 export, slash-command parity) were Glen-directed. The Switchboard product is, in part, a tool for designing itself. This index is part of the audit trail of that process.
+Four of these eight decision records came out of the conclave deliberating about its own design (charter adoption, multimodal disagreement, retention, charter v1.2). The other four (sandbox, db concurrency + Tier 2 export, slash-command parity, detail export) were Glen-directed. The Switchboard product is, in part, a tool for designing itself. This index is part of the audit trail of that process.

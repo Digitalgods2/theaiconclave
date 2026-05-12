@@ -337,9 +337,22 @@
                 Export to decision record
               </button>
               <span class="export-last-info" id="export-last-info" hidden></span>
+              <span class="download-detail-group">
+                <label for="download-format" class="download-detail-label">Export detail as</label>
+                <select id="download-format" class="download-detail-select">
+                  <option value="pdf">PDF (.pdf)</option>
+                  <option value="docx">Word (.docx)</option>
+                  <option value="md">Markdown (.md)</option>
+                  <option value="txt">Text (.txt)</option>
+                </select>
+                <button type="button" class="btn btn-secondary" id="download-detail-btn"
+                  title="Download the full task detail (transcript + final result + decision) in the selected format. Your browser's Save dialog lets you pick the folder and filename.">
+                  Download…
+                </button>
+              </span>
             </div>
             <p class="post-task-bar-help">
-              <strong>Continue this thread</strong> opens the New Task form pre-filled with this task's context (final answer and your decision) so the next conclave starts from where you left off. <strong>Start New Task</strong> opens a blank form. <strong>Export to decision record</strong> writes a markdown snapshot of this task to <code>data/exports/</code>.
+              <strong>Continue this thread</strong> opens the New Task form pre-filled with this task's context (final answer and your decision) so the next conclave starts from where you left off. <strong>Start New Task</strong> opens a blank form. <strong>Export to decision record</strong> writes a markdown snapshot of this task to <code>data/exports/</code>. <strong>Export detail as…</strong> downloads the full transcript + result + decision in PDF / Word / Markdown / Text — your browser's Save dialog picks where it goes.
             </p>
             <div class="export-feedback" id="export-feedback" hidden></div>
           </section>

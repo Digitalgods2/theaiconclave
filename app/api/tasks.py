@@ -7,10 +7,12 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Body, HTTPException
+from fastapi.responses import Response
 
 from app.database import connect, now_iso
 from app.protocol.validators import MessageType, TaskRequest
 from app.services.exporter import export_to_markdown
+from app.services import doc_export
 from app.utils.ids import message_id, task_id as new_task_id
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -546,6 +548,132 @@ async def export_batch(body: dict = Body(default={})) -> dict[str, Any]:
         "skipped": skipped,
         "errors": errors,
     }
+
+
+def _load_task_bundle(task_id: str) -> tuple[dict, list[dict], dict | None, list[dict]]:
+    """Load the full task envelope (task dict, messages, final_result, agent_runs)
+    in the shape the exporters expect. Raises HTTPException(404) if not found.
+
+    Unlike the markdown decision-record export, this does NOT require a terminal
+    status and does NOT mark the task as exported - it's a read-only snapshot.
+    """
+    with connect() as conn:
+        task_row = conn.execute("SELECT * FROM tasks WHERE id = ?", (task_id,)).fetchone()
+        if not task_row:
+            raise HTTPException(status_code=404, detail="task not found")
+        messages = conn.execute(
+            "SELECT * FROM agent_messages WHERE task_id = ? ORDER BY created_at",
+            (task_id,),
+        ).fetchall()
+        result_row = conn.execute(
+            "SELECT * FROM final_results WHERE task_id = ?", (task_id,)
+        ).fetchone()
+        runs = conn.execute(
+            """SELECT id, agent_name, role, round_number, started_at, finished_at,
+                      status, exit_code, duration_ms, error_code, error_message,
+                      input_tokens, output_tokens, cost_usd
+               FROM agent_runs WHERE task_id = ? ORDER BY started_at""",
+            (task_id,),
+        ).fetchall()
+
+    task_dict = {
+        "id": task_row["id"],
+        "status": task_row["status"],
+        "mode": task_row["mode"],
+        "task_type": task_row["task_type"],
+        "user_request": task_row["user_request"],
+        "primary_agent": task_row["primary_agent"],
+        "consultants": json.loads(task_row["consultants"]),
+        "project_path": task_row["project_path"],
+        "permissions": json.loads(task_row["permissions_json"]),
+        "limits": json.loads(task_row["limits_json"]),
+        "created_at": task_row["created_at"],
+        "updated_at": task_row["updated_at"],
+        "error_message": task_row["error_message"],
+        "user_decision": _column_or_none(task_row, "user_decision"),
+        "user_decided_at": _column_or_none(task_row, "user_decided_at"),
+        "parent_task_id": _column_or_none(task_row, "parent_task_id"),
+        "source": _column_or_none(task_row, "source"),
+        "source_agent": _column_or_none(task_row, "source_agent"),
+    }
+    messages_list = [
+        {
+            "id": m["id"],
+            "agent_name": m["agent_name"],
+            "role": m["role"],
+            "message_type": m["message_type"],
+            "direction": m["direction"],
+            "content": m["content"],
+            "structured": json.loads(m["structured_json"]) if m["structured_json"] else None,
+            "created_at": m["created_at"],
+        }
+        for m in messages
+    ]
+    final_result_dict = _row_to_final_result(result_row) if result_row else None
+    agent_runs_list = [
+        {
+            "id": r["id"],
+            "agent_name": r["agent_name"],
+            "role": r["role"],
+            "round_number": r["round_number"],
+            "started_at": r["started_at"],
+            "finished_at": r["finished_at"],
+            "status": r["status"],
+            "duration_ms": r["duration_ms"],
+            "error_code": r["error_code"],
+            "error_message": r["error_message"],
+            "input_tokens": _column_or_none(r, "input_tokens"),
+            "output_tokens": _column_or_none(r, "output_tokens"),
+            "cost_usd": _column_or_none(r, "cost_usd"),
+        }
+        for r in runs
+    ]
+    return task_dict, messages_list, final_result_dict, agent_runs_list
+
+
+_DOWNLOAD_FORMATS = {
+    "pdf": ("application/pdf", "pdf"),
+    "docx": ("application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"),
+    "md": ("text/markdown; charset=utf-8", "md"),
+    "txt": ("text/plain; charset=utf-8", "txt"),
+}
+
+
+@router.get("/{task_id}/download")
+async def download_task_detail(task_id: str, format: str = "pdf") -> Response:
+    """Stream the full task detail as a downloadable document.
+
+    Query param `format`: pdf | docx | md | txt (default pdf).
+
+    Returns the file with a Content-Disposition: attachment header and a
+    suggested filename derived from the mode + question + task id. The browser's
+    own Save dialog handles where it lands; this endpoint never writes to disk
+    and never modifies the task (distinct from POST /export, the Tier 2 archive).
+    """
+    fmt = (format or "pdf").lower()
+    if fmt not in _DOWNLOAD_FORMATS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported format '{format}'; choose one of: {', '.join(sorted(_DOWNLOAD_FORMATS))}",
+        )
+
+    task_dict, messages_list, final_result_dict, agent_runs_list = _load_task_bundle(task_id)
+
+    if fmt == "pdf":
+        data = doc_export.render_pdf(task_dict, messages_list, final_result_dict, agent_runs_list)
+    elif fmt == "docx":
+        data = doc_export.render_docx(task_dict, messages_list, final_result_dict, agent_runs_list)
+    else:  # md or txt
+        text = export_to_markdown(task_dict, messages_list, final_result_dict, agent_runs_list)
+        data = text.encode("utf-8")
+
+    media_type, ext = _DOWNLOAD_FORMATS[fmt]
+    filename = f"{doc_export.filename_stem(task_dict)}.{ext}"
+    return Response(
+        content=data,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/{task_id}/cancel")
