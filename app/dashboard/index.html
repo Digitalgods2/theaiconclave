@@ -6,6 +6,12 @@
   <link rel="stylesheet" href="/static/dashboard.css" />
 </head>
 <body>
+  <nav class="left-rail" aria-label="App navigation">
+    <button type="button" class="rail-btn" id="settings-toggle" title="Settings" aria-label="Settings">
+      <span aria-hidden="true">⚙</span>
+    </button>
+  </nav>
+
   <div class="app">
     <header class="topbar">
       <div class="brand">
@@ -357,6 +363,39 @@
             <div class="export-feedback" id="export-feedback" hidden></div>
           </section>
         </div>
+      </section>
+
+      <!-- ============ SETTINGS VIEW ============ -->
+      <section class="view settings-view" id="view-settings" hidden>
+        <div class="view-header">
+          <h2>Settings</h2>
+        </div>
+
+        <section class="settings-section">
+          <h3>API Keys</h3>
+
+          <div class="api-key-row">
+            <label for="ollama-key-input">Ollama Cloud API key</label>
+            <div class="api-key-input-group">
+              <input type="password" id="ollama-key-input" autocomplete="off" spellcheck="false"
+                placeholder="(not set)" />
+              <button type="button" class="eyeball-btn" id="ollama-key-eyeball"
+                title="Show / hide" aria-label="Show or hide the API key">👁</button>
+            </div>
+            <p class="api-key-status" id="ollama-key-status">Loading…</p>
+            <div class="api-key-actions">
+              <button type="button" class="btn btn-primary" id="ollama-key-save">Save</button>
+              <button type="button" class="btn btn-secondary" id="ollama-key-clear">Clear stored key</button>
+            </div>
+            <p class="hint">
+              Used by the Ollama Cloud council seats (<code>deepseek</code> / <code>glm</code> / <code>qwen</code>).
+              If the <code>OLLAMA_API_KEY</code> environment variable is set it takes precedence and this stored key
+              is ignored. The stored key lives in the local database (<code>data/switchboard.db</code>), not in any
+              config file. Create a key at <em>ollama.com → Settings → API keys</em>.
+            </p>
+            <div class="api-key-feedback" id="ollama-key-feedback" hidden></div>
+          </div>
+        </section>
       </section>
 
     </main>

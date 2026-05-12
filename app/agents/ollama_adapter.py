@@ -93,8 +93,18 @@ class OllamaCloudAdapter(BaseAdapter):
     # ------------------------------------------------------------------
 
     def _api_key(self) -> Optional[str]:
-        key = os.environ.get(_API_KEY_ENV)
-        return key.strip() if key and key.strip() else None
+        """Resolve the Ollama Cloud API key. Precedence: OLLAMA_API_KEY env var,
+        then the database-stored key (set via the dashboard's Settings panel).
+        Returns None if neither is present.
+        """
+        env_key = os.environ.get(_API_KEY_ENV)
+        if env_key and env_key.strip():
+            return env_key.strip()
+        # Lazy import: keeps the DB out of this module's hard dependencies, so
+        # unit tests that construct the adapter directly don't need a DB.
+        from app.services.settings_store import get_secret
+        db_key = get_secret("ollama_api_key")
+        return db_key.strip() if db_key and db_key.strip() else None
 
     async def is_available(self) -> bool:
         return self._api_key() is not None

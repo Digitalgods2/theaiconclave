@@ -23,7 +23,8 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 ### Highlights
 
 - **Three real AI adapters** — Codex (`codex exec --json`), Gemini (`gemini -p -o json`), Claude Code (`claude -p --output-format json`). All read-only by default, all JSON-output-disciplined.
-- **Pluggable open-weight council seats via Ollama Cloud** — DeepSeek / GLM / Qwen (and any model Ollama Cloud carries) appear in the same checkbox list as the CLI agents. One adapter, config-driven, auth via `OLLAMA_API_KEY`. Brings a genuinely outside-the-OpenAI/Google/Anthropic-axis voice to a deliberation.
+- **Pluggable open-weight council seats via Ollama Cloud** — DeepSeek / GLM / Qwen (and any model Ollama Cloud carries) appear in the same checkbox list as the CLI agents. One adapter, config-driven. Auth via the `OLLAMA_API_KEY` env var *or* the dashboard's Settings panel (env wins; the DB-stored key is the fallback). Brings a genuinely outside-the-OpenAI/Google/Anthropic-axis voice to a deliberation.
+- **Settings panel** — a narrow left rail with a gear icon → Settings → API Keys: store/reveal the Ollama Cloud key (password field + eyeball toggle), kept in the local DB.
 - **Charter v1.2**, embedded in every participant prompt. Amendments go through a conclave-mode deliberation, get ratified by the user, and land as a numbered decision record.
 - **Multimodal attachments** — text / Markdown / PDF inlined; images passed natively to each adapter (no lossy text conversion). The charter's *Multimodal Disagreement* section forbids synthesizing visual-perception disputes — they get escalated to the user instead.
 - **Project sandbox** — a per-task read-only copy of your code project so agents can browse source during a deliberation without write/execute risk. (In-conclave write/execute — "Layer 2" — was [considered and intentionally not built](docs/ROADMAP.md).)
@@ -36,7 +37,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
 - **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **137 tests** across protocol, modes, threading, retention, attachments, sandbox, judge, DB concurrency, export tracking, exporter, provenance, document export, and the Ollama adapter.
+- **148 tests** across protocol, modes, threading, retention, attachments, sandbox, judge, DB concurrency, export tracking, exporter, provenance, document export, the Ollama adapter, and the settings API.
 
 ---
 
@@ -134,7 +135,7 @@ In-conclave execution was deliberately not built — the conclave's value depend
 pytest
 ```
 
-137 tests. Key files:
+148 tests. Key files:
 
 | File | Covers |
 |---|---|

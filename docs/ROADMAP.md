@@ -32,7 +32,8 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 | Codex + Gemini slash-command parity | `clients/` source-of-truth dir; 8 slash commands in Codex (via `~/.codex/skills/switchboard-conclave/SKILL.md`) and Gemini (via `gemini extensions link` of the `switchboard-conclave` extension). Provenance: every call passes `--invoked-by <tool>`. See decision 0007. |
 | Detail export (PDF / DOCX / MD / TXT) | `GET /api/tasks/{id}/download?format=...` streams the full task detail; dashboard "Export detail as…" control uses the browser Save dialog (`showSaveFilePicker` where available). `app/services/doc_export.py`. See decision 0008. |
 | Ollama Cloud council seats | `OllamaCloudAdapter` — pluggable, config-driven open-weight seats (deepseek / glm / qwen by default) that appear in the dashboard checkbox list alongside the CLI agents. Auth via `OLLAMA_API_KEY`; `ollama_cloud:` section in config. See decision 0009. |
-| Test suite | 137 tests across protocol, modes, threading, retention, attachments, sandbox, judge, db concurrency, export tracking, exporter, provenance, doc export, ollama adapter |
+| Settings panel + DB-stored API keys | Dashboard left rail → gear → Settings → API Keys; Ollama Cloud key stored in the `settings` table with an eyeball reveal. Rule: `OLLAMA_API_KEY` env var wins, else the DB value. `app/api/settings.py`, `app/services/settings_store.py`. See decision 0010. |
+| Test suite | 148 tests across protocol, modes, threading, retention, attachments, sandbox, judge, db concurrency, export tracking, exporter, provenance, doc export, ollama adapter, settings API |
 
 ## Next (in priority order)
 

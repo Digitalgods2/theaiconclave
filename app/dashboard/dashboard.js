@@ -373,6 +373,10 @@ const Api = {
   decideTask: (id, decision) => api(`/api/tasks/${id}/decide`,
     { method: "POST", body: JSON.stringify({ decision }) }),
   exportTask: (id) => api(`/api/tasks/${id}/export`, { method: "POST" }),
+  getApiKeys: () => api("/api/settings/api-keys"),
+  setApiKey: (name, value) => api(`/api/settings/api-keys/${name}`,
+    { method: "POST", body: JSON.stringify({ value }) }),
+  revealApiKey: (name) => api(`/api/settings/api-keys/${name}/reveal`),
   exportBatchTasks: (body) => api("/api/tasks/export-batch",
     { method: "POST", body: JSON.stringify(body || {}) }),
   uploadFile: async (file) => {
@@ -399,13 +403,16 @@ const Api = {
 // ------------------------------------------------------------
 function switchView(name) {
   State.view = name;
-  for (const v of ["new", "inbox", "detail"]) {
+  for (const v of ["new", "inbox", "detail", "settings"]) {
     const section = $("#view-" + v);
     if (section) section.hidden = (v !== name);
   }
   for (const t of $$(".tab")) {
     t.classList.toggle("active", t.dataset.view === name);
   }
+  const railSettings = $("#settings-toggle");
+  if (railSettings) railSettings.classList.toggle("active", name === "settings");
+
   // Manage polling lifecycles
   if (name === "inbox") startInboxPolling(); else stopInboxPolling();
   if (name === "detail") startDetailPolling(); else stopDetailPolling();
@@ -413,6 +420,7 @@ function switchView(name) {
   // Trigger immediate fetches when entering a view
   if (name === "inbox") refreshInbox();
   if (name === "detail" && State.currentTaskId) refreshDetail();
+  if (name === "settings") loadApiKeysSettings();
 }
 
 // ------------------------------------------------------------
@@ -2937,12 +2945,146 @@ async function onDownloadDetail() {
 }
 
 // ------------------------------------------------------------
+// Settings view — API keys
+// ------------------------------------------------------------
+// Tracks whether the Ollama key field currently holds a real (revealed or typed)
+// value vs. just a masked placeholder, so the eyeball knows whether to fetch.
+const SettingsState = { ollamaRevealed: false, ollamaSource: "none" };
+
+function _ollamaKeyFeedback(msg, kind) {
+  const fb = $("#ollama-key-feedback");
+  if (!fb) return;
+  fb.hidden = false;
+  fb.className = "api-key-feedback " + (kind || "ok");
+  fb.textContent = msg;
+}
+function _clearOllamaKeyFeedback() {
+  const fb = $("#ollama-key-feedback");
+  if (fb) { fb.hidden = true; fb.textContent = ""; }
+}
+
+async function loadApiKeysSettings() {
+  const statusEl = $("#ollama-key-status");
+  const input = $("#ollama-key-input");
+  const eyeball = $("#ollama-key-eyeball");
+  _clearOllamaKeyFeedback();
+  if (input) { input.value = ""; input.type = "password"; }
+  if (eyeball) eyeball.classList.remove("revealed");
+  SettingsState.ollamaRevealed = false;
+  if (statusEl) { statusEl.textContent = "Loading…"; statusEl.className = "api-key-status"; }
+  try {
+    const data = await Api.getApiKeys();
+    const o = (data && data.ollama) || { set: false, source: "none", masked: null };
+    SettingsState.ollamaSource = o.source || "none";
+    if (input) input.placeholder = o.masked ? o.masked : "(not set)";
+    if (!statusEl) return;
+    if (o.source === "env") {
+      statusEl.textContent = "Currently set via the OLLAMA_API_KEY environment variable — the stored key is ignored. (Saving here changes the stored key but won't take effect until the env var is unset.)";
+      statusEl.className = "api-key-status is-env";
+    } else if (o.source === "db") {
+      statusEl.textContent = `Currently using the stored database key (${o.masked || "set"}). Click the eyeball to reveal it.`;
+      statusEl.className = "api-key-status is-set";
+    } else {
+      statusEl.textContent = "Not set. Paste an Ollama Cloud API key and click Save, or export OLLAMA_API_KEY in the environment.";
+      statusEl.className = "api-key-status";
+    }
+  } catch (e) {
+    if (statusEl) { statusEl.textContent = "Could not load settings: " + (e && e.message ? e.message : e); statusEl.className = "api-key-status"; }
+  }
+}
+
+async function onToggleOllamaKeyVisibility() {
+  const input = $("#ollama-key-input");
+  const eyeball = $("#ollama-key-eyeball");
+  if (!input) return;
+  // Toggle off if already showing.
+  if (input.type === "text") {
+    input.type = "password";
+    if (eyeball) eyeball.classList.remove("revealed");
+    return;
+  }
+  // Showing: if the field is empty and the key lives in the DB, fetch the plaintext.
+  if (!input.value && SettingsState.ollamaSource === "db" && !SettingsState.ollamaRevealed) {
+    try {
+      const r = await Api.revealApiKey("ollama");
+      if (r && typeof r.value === "string") {
+        input.value = r.value;
+        SettingsState.ollamaRevealed = true;
+      } else if (r && r.note) {
+        _ollamaKeyFeedback(r.note, "ok");
+      }
+    } catch (e) {
+      _ollamaKeyFeedback("Could not reveal: " + (e && e.message ? e.message : e), "error");
+      return;
+    }
+  } else if (!input.value && SettingsState.ollamaSource === "env") {
+    _ollamaKeyFeedback("This key is set via the OLLAMA_API_KEY environment variable; its value isn't stored here and can't be shown.", "ok");
+    return;
+  }
+  input.type = "text";
+  if (eyeball) eyeball.classList.add("revealed");
+}
+
+async function onSaveOllamaKey() {
+  const input = $("#ollama-key-input");
+  const btn = $("#ollama-key-save");
+  if (!input) return;
+  const value = input.value.trim();
+  if (!value) {
+    _ollamaKeyFeedback("Nothing to save — the field is empty. Use “Clear stored key” to remove a stored key.", "error");
+    return;
+  }
+  if (btn) { btn.disabled = true; btn.dataset.originalText = btn.dataset.originalText || btn.textContent; btn.textContent = "Saving…"; }
+  try {
+    const r = await Api.setApiKey("ollama", value);
+    if (r && r.ok) {
+      _ollamaKeyFeedback("Saved to the database.", "ok");
+      await loadApiKeysSettings();
+    } else {
+      _ollamaKeyFeedback("Save failed: " + (r && r.error ? r.error : "unknown error"), "error");
+    }
+  } catch (e) {
+    _ollamaKeyFeedback("Save failed: " + (e && e.message ? e.message : e), "error");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = btn.dataset.originalText || "Save"; }
+  }
+}
+
+async function onClearOllamaKey() {
+  const btn = $("#ollama-key-clear");
+  if (!confirm("Remove the stored Ollama Cloud API key from the database?")) return;
+  if (btn) { btn.disabled = true; }
+  try {
+    const r = await Api.setApiKey("ollama", "");
+    if (r && r.ok) {
+      _ollamaKeyFeedback("Stored key cleared.", "ok");
+      await loadApiKeysSettings();
+    } else {
+      _ollamaKeyFeedback("Clear failed: " + (r && r.error ? r.error : "unknown error"), "error");
+    }
+  } catch (e) {
+    _ollamaKeyFeedback("Clear failed: " + (e && e.message ? e.message : e), "error");
+  } finally {
+    if (btn) { btn.disabled = false; }
+  }
+}
+
+// ------------------------------------------------------------
 // Wire-up
 // ------------------------------------------------------------
 function init() {
   for (const t of $$(".tab")) {
     t.addEventListener("click", () => switchView(t.dataset.view));
   }
+
+  const settingsToggle = $("#settings-toggle");
+  if (settingsToggle) settingsToggle.addEventListener("click", () => switchView("settings"));
+  const ollamaSaveBtn = $("#ollama-key-save");
+  if (ollamaSaveBtn) ollamaSaveBtn.addEventListener("click", onSaveOllamaKey);
+  const ollamaClearBtn = $("#ollama-key-clear");
+  if (ollamaClearBtn) ollamaClearBtn.addEventListener("click", onClearOllamaKey);
+  const ollamaEyeball = $("#ollama-key-eyeball");
+  if (ollamaEyeball) ollamaEyeball.addEventListener("click", onToggleOllamaKeyVisibility);
 
   $("#mode").addEventListener("change", () => {
     updateModeHint();
