@@ -2439,20 +2439,55 @@ function renderAnswerPrompt(task, messages) {
     return;
   }
   wrap.hidden = false;
-  // Find the most recent user_input_request (or any message asking for input)
-  let questionText = "An agent is requesting your input.";
+
+  // The actual question lives in structured.user_input_question (conclave) or
+  // structured.question on a turn — the bare "user_input_request" marker
+  // messages are usually empty, so DON'T stop at one; keep walking back until
+  // we find real question text. Take the most recent one.
+  let questionText = null, askedBy = null, context = null;
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
-    if (m.message_type === "user_input_request") {
-      questionText = (m.structured && m.structured.question) || m.content || questionText;
-      break;
-    }
-    if (m.structured && m.structured.user_input_question) {
-      questionText = m.structured.user_input_question;
+    const s = (m && typeof m.structured === "object" && m.structured) ? m.structured : {};
+    const q = s.user_input_question || s.question
+      || (m.message_type === "user_input_request" ? m.content : null);
+    if (q && String(q).trim()) {
+      questionText = String(q).trim();
+      askedBy = m.agent_name || null;
+      context = (s.summary && String(s.summary).trim())
+        || (s.position && String(s.position).trim())
+        || (s.analysis && String(s.analysis).trim())
+        || null;
       break;
     }
   }
-  $("#answer-question").textContent = questionText;
+
+  const qEl = $("#answer-question");
+  const askedByEl = $("#answer-asked-by");
+  const ctxWrap = $("#answer-context");
+  const ctxText = $("#answer-context-text");
+
+  if (questionText) {
+    qEl.textContent = questionText;
+    qEl.classList.remove("answer-question-missing");
+  } else {
+    qEl.textContent = "An agent paused the deliberation for your input, but no question text was recorded — check the latest agent turn in the Transcript below.";
+    qEl.classList.add("answer-question-missing");
+  }
+
+  if (askedBy) {
+    askedByEl.hidden = false;
+    askedByEl.textContent = `Asked by ${askedBy}`;
+  } else {
+    askedByEl.hidden = true;
+  }
+
+  if (context) {
+    ctxWrap.hidden = false;
+    ctxText.textContent = context;
+  } else {
+    ctxWrap.hidden = true;
+    ctxText.textContent = "";
+  }
 }
 
 function groupMessagesByRound(messages) {
