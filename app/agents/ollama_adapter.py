@@ -52,11 +52,15 @@ from app.services.prompt_builder import (
     build_primary_prompt,
 )
 from app.utils.json_tools import extract_json_object
+from app.utils.sandbox_inline import build_sandbox_section
 
 
 _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _API_KEY_ENV = "OLLAMA_API_KEY"
 _DEFAULT_ENDPOINT = "https://ollama.com"
+# Reserve this many chars below max_context_chars for the response + tokenizer slop
+# when sizing an inlined sandbox.
+_SANDBOX_HEADROOM = 16_000
 
 
 class OllamaCloudAdapter(BaseAdapter):
@@ -105,6 +109,23 @@ class OllamaCloudAdapter(BaseAdapter):
         from app.services.settings_store import get_secret
         db_key = get_secret("ollama_api_key")
         return db_key.strip() if db_key and db_key.strip() else None
+
+    def _append_sandbox(self, prompt: str, ctx: AdapterContext) -> str:
+        """If the task has a project sandbox, inline a read-only file tree +
+        file contents into the prompt (this adapter can't browse files)."""
+        try:
+            sandbox_path = ctx.task.context.extra.get("sandbox_path")
+        except Exception:  # noqa: BLE001
+            sandbox_path = None
+        if not sandbox_path:
+            return prompt
+        budget = max(0, self.max_context_chars - len(prompt) - _SANDBOX_HEADROOM)
+        if budget < 2000:
+            return prompt
+        section = build_sandbox_section(str(sandbox_path), budget)
+        if not section:
+            return prompt
+        return prompt + "\n\n" + section
 
     async def is_available(self) -> bool:
         return self._api_key() is not None
@@ -222,7 +243,7 @@ class OllamaCloudAdapter(BaseAdapter):
             task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
             prior_messages=ctx.prior_messages,
         )
-        text = await self._invoke(prompt, ctx.timeout_seconds)
+        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
         data = _parse_and_coerce(text, ctx.task_id, self.name,
                                  role="primary",
                                  default_message_type=MessageType.PRIMARY_PROPOSAL.value)
@@ -233,7 +254,7 @@ class OllamaCloudAdapter(BaseAdapter):
             task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
             prior_messages=ctx.prior_messages,
         )
-        text = await self._invoke(prompt, ctx.timeout_seconds)
+        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
         data = _parse_and_coerce(text, ctx.task_id, self.name,
                                  role="consultant",
                                  default_message_type=MessageType.CONSULTANT_CRITIQUE.value)
@@ -244,7 +265,7 @@ class OllamaCloudAdapter(BaseAdapter):
             task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
             prior_messages=ctx.prior_messages,
         )
-        text = await self._invoke(prompt, ctx.timeout_seconds)
+        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
         data = _parse_and_coerce(text, ctx.task_id, self.name,
                                  role="primary",
                                  default_message_type=MessageType.PRIMARY_FINAL.value)
@@ -252,7 +273,7 @@ class OllamaCloudAdapter(BaseAdapter):
 
     async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
         prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name)
-        text = await self._invoke(prompt, ctx.timeout_seconds)
+        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
         data = _parse_and_coerce(text, ctx.task_id, self.name,
                                  role="peer",
                                  default_message_type=MessageType.PEER_ANSWER.value)
@@ -264,7 +285,7 @@ class OllamaCloudAdapter(BaseAdapter):
             task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
             prior_messages=ctx.prior_messages, other_participants=others,
         )
-        text = await self._invoke(prompt, ctx.timeout_seconds)
+        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
         data = _parse_and_coerce(text, ctx.task_id, self.name,
                                  role="participant",
                                  default_message_type=MessageType.CONCLAVE_TURN.value)

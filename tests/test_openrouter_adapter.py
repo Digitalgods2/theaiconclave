@@ -238,6 +238,38 @@ async def test_run_conclave_turn_parses_mocked_response(monkeypatch):
     turn = await a.run_conclave_turn(ctx)
     assert turn.agent == "deepseek"
     assert turn.convergence.value == "i_am_done"
+    # No sandbox on the task -> the request prompt has no PROJECT FILES section.
+    assert "PROJECT FILES" not in _FakeClient.last["json"]["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
+async def test_run_conclave_turn_inlines_sandbox(monkeypatch, tmp_path):
+    """When the task carries a project sandbox, the OpenRouter prompt gets the
+    read-only file tree + contents appended (this adapter can't browse files)."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    sandbox = tmp_path / "proj"
+    sandbox.mkdir()
+    (sandbox / "main.py").write_text("print('SANDBOX_MARKER_CONTENT')\n", encoding="utf-8")
+    _patch_httpx(monkeypatch, resp=_FakeResp(200, _chat_body(json.dumps(_VALID_TURN))))
+    a = OpenRouterAdapter(name="deepseek", model_slug="deepseek/deepseek-chat", max_context_chars=400_000)
+    task = TaskRequest.model_validate({
+        "protocol_version": "1.0", "source": "cli", "mode": "conclave",
+        "task_type": "code_review", "user_request": "Examine this project.",
+        "primary_agent": None, "consultants": ["deepseek", "codex"],
+        "context": {"files": [], "error": None, "git_diff": None, "extra": {"sandbox_path": str(sandbox)}},
+        "permissions": {"can_read_files": True, "can_write_files": False, "can_run_commands": False,
+                        "can_access_network": False, "can_install_packages": False, "can_apply_patches": False,
+                        "can_read_env_files": False, "can_read_secrets": False},
+        "limits": {"max_rounds": 5, "timeout_seconds": 180, "max_seconds": 600,
+                   "max_context_tokens": None, "convergence_threshold": 1.0},
+    })
+    ctx = AdapterContext(task=task, task_id="tsk_y", prior_messages=[],
+                         permissions=task.permissions, timeout_seconds=30, working_directory=".")
+    await a.run_conclave_turn(ctx)
+    sent = _FakeClient.last["json"]["messages"][0]["content"]
+    assert "PROJECT FILES" in sent
+    assert "main.py" in sent
+    assert "SANDBOX_MARKER_CONTENT" in sent
 
 
 # ---------------------------------------------------------------------------
