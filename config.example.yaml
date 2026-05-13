@@ -119,22 +119,6 @@ agents:
     supported_task_types: []
     timeout_seconds: 180
 
-  openclaw:
-    enabled: false
-    command: openclaw
-    args: []
-    supported_modes: []
-    supported_task_types: []
-    timeout_seconds: 180
-
-  openclaw:
-    enabled: false
-    command: openclaw
-    args: []
-    supported_modes: []
-    supported_task_types: []
-    timeout_seconds: 180
-
   fake:
     enabled: true                   # used by tests; safe to leave on
     command: ""                     # not invoked; fake adapter returns canned data
