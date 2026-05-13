@@ -242,26 +242,44 @@ class OpenRouterAdapter(BaseAdapter):
         prompt = self._compose_prompt(base_prompt, sandbox_path, ceiling)
         resp = await self._post_chat(prompt, key, timeout_seconds)
 
-        # Auto-shrink + retry on context overflow.
-        if resp.status_code == 400 and "maximum context length" in (resp.text or "").lower():
-            learned = _learn_ceiling_from_body(self.model_slug, resp.text)
-            if learned and learned < ceiling:
-                new_ceiling = min(self.max_context_chars, learned)
+        # Auto-shrink + retry on context overflow. Run this check on EVERY
+        # response (HTTP 400 with the OpenAI-style body, OR HTTP 200 with a
+        # nested provider error like vLLM's "max_num_tokens (32768)"). One
+        # retry only — if that one also overflows, surface the actionable error.
+        body_for_check: Any = None
+        try:
+            body_for_check = resp.json()
+        except Exception:  # noqa: BLE001
+            body_for_check = None
+        limit_tokens = _check_overflow_response(resp.status_code, resp.text or "", body_for_check)
+        if limit_tokens:
+            learned_chars = int(limit_tokens * _TOKENS_TO_CHARS * _CEILING_SAFETY)
+            _LEARNED_CEILINGS[self.model_slug] = learned_chars
+            if learned_chars < ceiling:
                 logger.info(
-                    "openrouter[%s] context overflow: learned ceiling %d chars (was using %d); "
-                    "retrying once with a tighter prompt.",
-                    self.model_slug, learned, ceiling,
+                    "openrouter[%s] context overflow: learned ceiling %d chars (was using %d, "
+                    "real limit %d tokens); retrying once with a tighter prompt.",
+                    self.model_slug, learned_chars, ceiling, limit_tokens,
                 )
+                new_ceiling = min(self.max_context_chars, learned_chars)
                 prompt = self._compose_prompt(base_prompt, sandbox_path, new_ceiling)
                 if len(prompt) < len(base_prompt) + 2:
-                    # No sandbox was attached to trim; the base prompt itself overflows.
+                    # No sandbox attached to trim — base prompt itself overflows.
                     raise AdapterError(
                         ErrorCode.AGENT_ERROR,
-                        _http_error_message(self.model_slug, resp.status_code, resp.text),
-                        details={"status_code": resp.status_code, "body_tail": resp.text[-2000:],
-                                 "learned_ceiling_chars": learned},
+                        _overflow_message(self.model_slug, limit_tokens, learned_chars,
+                                          had_sandbox=False),
+                        details={"status_code": resp.status_code,
+                                 "body_tail": (resp.text or "")[-2000:],
+                                 "learned_ceiling_chars": learned_chars,
+                                 "real_token_limit": limit_tokens},
                     )
                 resp = await self._post_chat(prompt, key, timeout_seconds)
+                # Re-parse body for the post-retry flow below.
+                try:
+                    body_for_check = resp.json()
+                except Exception:  # noqa: BLE001
+                    body_for_check = None
 
         if resp.status_code != 200:
             raise AdapterError(
@@ -270,16 +288,16 @@ class OpenRouterAdapter(BaseAdapter):
                 details={"status_code": resp.status_code, "body_tail": resp.text[-2000:]},
             )
 
-        try:
-            body = resp.json()
-        except ValueError as e:
+        body = body_for_check
+        if body is None:
             raise AdapterError(
                 ErrorCode.AGENT_ERROR,
-                f"openrouter[{self.model_slug}] response was not JSON: {e}",
-                details={"body_tail": resp.text[-2000:]},
+                f"openrouter[{self.model_slug}] response was not JSON",
+                details={"body_tail": (resp.text or "")[-2000:]},
             )
 
-        # OpenRouter sometimes nests an error in a 200 body.
+        # OpenRouter sometimes nests an error in a 200 body (the vLLM-via-502
+        # case we just retried, or anything else the provider surfaces).
         if isinstance(body.get("error"), dict):
             err = body["error"]
             raise AdapterError(
@@ -367,32 +385,85 @@ class OpenRouterAdapter(BaseAdapter):
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Multiple overflow-error formats seen in the wild routed through OpenRouter:
+#   - OpenAI-style:  "maximum context length is 163840 tokens. However, you
+#                     requested about 212253 tokens (212253 of text input)."
+#   - vLLM-style:    "The sum of prompt length (95448.0), query length (0)
+#                     should not exceed max_num_tokens (32768)"
+#   - Generic loose: "...maximum context length is 50000 tokens..."
+# All three end up giving us a single integer to learn.
 _CTX_LIMIT_RE = re.compile(
     r"maximum context length is\s+(?P<limit>[\d,]+)\s+tokens.*?requested\s+about\s+(?P<used>[\d,]+)\s+tokens",
     re.IGNORECASE | re.DOTALL,
 )
-# A looser pattern for bodies that mention the limit but not "requested" exactly.
 _CTX_LIMIT_LOOSE_RE = re.compile(
     r"maximum context length is\s+(?P<limit>[\d,]+)\s+tokens",
     re.IGNORECASE,
 )
+_CTX_LIMIT_VLLM_RE = re.compile(
+    r"max_num_tokens\s*\(\s*(?P<limit>\d+)\s*\)",
+    re.IGNORECASE,
+)
+# Combined overflow indicators — these strings appearing anywhere in the error
+# text strongly suggest a context-window failure, even if the limit is unparseable.
+_OVERFLOW_HINTS = ("maximum context length", "max_num_tokens", "context window",
+                   "context length exceeded", "context_length_exceeded")
+
+
+def _parse_token_limit(text: str) -> Optional[int]:
+    """Return the model's real token limit from an error message, or None."""
+    if not text:
+        return None
+    for rx in (_CTX_LIMIT_VLLM_RE, _CTX_LIMIT_RE, _CTX_LIMIT_LOOSE_RE):
+        m = rx.search(text)
+        if m:
+            try:
+                return int(m.group("limit").replace(",", ""))
+            except (ValueError, IndexError):
+                continue
+    return None
+
+
+def _looks_like_overflow(text: str) -> bool:
+    if not text:
+        return False
+    low = text.lower()
+    return any(h in low for h in _OVERFLOW_HINTS)
+
+
+def _check_overflow_response(status: int, body_text: str,
+                             body_json: Any) -> Optional[int]:
+    """If the response represents a context overflow (HTTP 400 with an OpenAI-
+    style body, OR HTTP 200 with a nested provider error in body.error.message),
+    return the model's real token limit; else None."""
+    candidates: list[str] = []
+    if body_text:
+        candidates.append(body_text)
+    if isinstance(body_json, dict):
+        err = body_json.get("error")
+        if isinstance(err, dict):
+            msg = err.get("message")
+            if isinstance(msg, str):
+                candidates.append(msg)
+    for text in candidates:
+        if _looks_like_overflow(text):
+            tok = _parse_token_limit(text)
+            if tok and tok > 0:
+                return tok
+    return None
 
 
 def _learn_ceiling_from_body(model_slug: str, body: str) -> Optional[int]:
-    """Extract the model's real token limit from a 400 body and cache it as a
-    char-budget under _LEARNED_CEILINGS[model_slug]. Returns the cached chars or None."""
+    """Back-compat helper used by tests: parse a raw body string for an overflow
+    limit and cache it as a char budget. Returns the cached chars or None."""
     if not body:
         return None
-    m = _CTX_LIMIT_RE.search(body) or _CTX_LIMIT_LOOSE_RE.search(body)
-    if not m:
-        return None
-    try:
-        limit_tokens = int(m.group("limit").replace(",", ""))
-    except (ValueError, IndexError):
-        return None
-    if limit_tokens <= 0:
-        return None
-    chars = int(limit_tokens * _TOKENS_TO_CHARS * _CEILING_SAFETY)
+    tok = _parse_token_limit(body)
+    if not tok or tok <= 0:
+        if not _looks_like_overflow(body):
+            return None
+        return None  # body says overflow but no parseable number
+    chars = int(tok * _TOKENS_TO_CHARS * _CEILING_SAFETY)
     _LEARNED_CEILINGS[model_slug] = chars
     return chars
 
@@ -408,19 +479,30 @@ def _http_error_message(model_slug: str, status: int, body: str) -> str:
         return f"openrouter[{model_slug}]: model not found — check the slug at openrouter.ai/models"
     if status == 429:
         return f"openrouter[{model_slug}]: rate limited (free-tier limit or provider throttling)"
-    if status == 400 and "maximum context length" in low:
-        m = _CTX_LIMIT_RE.search(body or "")
-        if m:
-            limit = m.group("limit").replace(",", "")
-            used = m.group("used").replace(",", "")
-            # 3 chars/token is a safe rule of thumb for code-heavy prompts.
-            recommended = int(int(limit) * 3 * 0.85)
+    # Any overflow-shaped body (HTTP 400 OpenAI-style OR HTTP 200 nested vLLM-style).
+    if _looks_like_overflow(body):
+        tok = _parse_token_limit(body)
+        if tok:
+            recommended = int(tok * _TOKENS_TO_CHARS * _CEILING_SAFETY)
             return (f"openrouter[{model_slug}]: prompt overflowed the model's context "
-                    f"({used} tokens sent, limit {limit}). Lower `max_context_chars` for "
+                    f"(real limit {tok:,} tokens). Lower `max_context_chars` for "
                     f"this seat in config.yaml — try around {recommended:,} or less.")
         return (f"openrouter[{model_slug}]: prompt overflowed the model's context. "
                 f"Lower `max_context_chars` for this seat in config.yaml.")
     return f"openrouter[{model_slug}] returned HTTP {status}"
+
+
+def _overflow_message(model_slug: str, limit_tokens: int, learned_chars: int,
+                      had_sandbox: bool) -> str:
+    """Actionable message for the case where the retry can't help (no sandbox to trim)."""
+    if had_sandbox:
+        return (f"openrouter[{model_slug}]: prompt still overflowed after a sandbox-trim "
+                f"retry (real limit {limit_tokens:,} tokens, learned {learned_chars:,} chars). "
+                f"The base prompt + transcript is itself too large.")
+    return (f"openrouter[{model_slug}]: prompt overflowed the model's context "
+            f"(real limit {limit_tokens:,} tokens). No sandbox attached to trim; the "
+            f"base prompt + transcript exceeds the limit. Set `max_context_chars` for "
+            f"this seat to around {learned_chars:,} in config.yaml.")
 
 
 def _parse_and_coerce(

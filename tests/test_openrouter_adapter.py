@@ -243,11 +243,11 @@ def test_http_error_message_context_overflow_extracts_limits():
     body = ('{"error":{"message":"This endpoint\'s maximum context length is 163840 '
             'tokens. However, you requested about 212253 tokens (212253 of text input)."}}')
     msg = _http_error_message("deepseek/deepseek-chat", 400, body)
-    assert "163840" in msg and "212253" in msg
+    assert "163,840" in msg
     assert "max_context_chars" in msg
     assert "config.yaml" in msg
     # The recommended ceiling should be sensible (well under the real limit).
-    assert "417,792" in msg or "417792" in msg.replace(",", "")  # 163840 * 3 * 0.85 = 417,792
+    assert "417,792" in msg  # 163840 * 3 * 0.85
 
 
 def test_http_error_message_context_overflow_without_numbers():
@@ -255,6 +255,16 @@ def test_http_error_message_context_overflow_without_numbers():
     msg = _http_error_message("deepseek/deepseek-chat", 400, body)
     assert "overflowed" in msg
     assert "max_context_chars" in msg
+
+
+def test_http_error_message_vllm_overflow_format():
+    """vLLM-style provider error (routed through OpenRouter, often wrapped in 502)."""
+    body = ('ConnectionError: {"object":"error","message":"The sum of prompt length '
+            '(95448.0), query length (0) should not exceed max_num_tokens (32768)"}')
+    msg = _http_error_message("deepseek/deepseek-chat", 502, body)
+    assert "32,768" in msg
+    assert "overflowed" in msg
+    assert "config.yaml" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -346,6 +356,44 @@ async def test_overflow_without_sandbox_raises_actionable_error(monkeypatch):
     assert "max_context_chars" in ei.value.message
     # Only one POST — no retry since there was nothing to trim.
     assert len(_SequencedClient.posts) == 1
+
+
+@pytest.mark.asyncio
+async def test_vllm_overflow_in_200_triggers_shrink_and_retry(monkeypatch, tmp_path):
+    """The real-world failure mode: HTTP 200 with a nested provider error
+    (vLLM-style, max_num_tokens (X)). The adapter must detect this, learn the
+    real limit, shrink the sandbox, and retry. Previously this wasn't caught
+    because the regex only matched 'maximum context length is X tokens'."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    sandbox = tmp_path / "proj"
+    sandbox.mkdir()
+    for i in range(20):
+        (sandbox / f"f{i}.py").write_text(("X" * 5000) + "\n", encoding="utf-8")
+
+    overflow_200 = _FakeResp(200, {"error": {
+        "code": 502,
+        "message": ('ConnectionError: {"object":"error","message":"The sum of prompt length '
+                    '(95448.0), query length (0) should not exceed max_num_tokens (32768)",'
+                    '"type":"BadRequestError","param":null,"code":400}')
+    }})
+    valid_response = _FakeResp(200, _chat_body(json.dumps(_VALID_TURN)))
+    _patch_httpx_sequence(monkeypatch, [overflow_200, valid_response])
+
+    a = OpenRouterAdapter(name="deepseek", model_slug="deepseek/deepseek-chat",
+                          max_context_chars=400_000)
+    task = _minimal_conclave_task(["deepseek", "codex"])
+    object.__setattr__(task.context, "extra",
+                       {**task.context.extra, "sandbox_path": str(sandbox)})
+    ctx = AdapterContext(task=task, task_id="tsk_v", prior_messages=[],
+                         permissions=task.permissions, timeout_seconds=30,
+                         working_directory=".")
+    turn = await a.run_conclave_turn(ctx)
+    assert turn.agent == "deepseek"
+    # Two POSTs were made; the second one was smaller than the first.
+    assert len(_SequencedClient.posts) == 2
+    assert _SequencedClient.posts[1]["prompt_chars"] < _SequencedClient.posts[0]["prompt_chars"]
+    # 32768 tokens * 3 * 0.85 = 83,558 chars
+    assert _LEARNED_CEILINGS["deepseek/deepseek-chat"] == 83_558
 
 
 @pytest.mark.asyncio

@@ -1973,9 +1973,28 @@ function renderLiveActivity(task, agentRuns) {
     if (startedMs !== null) startLiveTicker(startedMs);
     else stopLiveTicker();
   } else {
-    row.appendChild(el("span", { class: "live-activity-main",
-      text: "Deliberating..." }));
+    // No active run: distinguish "haven't started any agent yet" (prep / first
+    // dispatch) from "between rounds" (some finished runs already on file).
+    const noRunsYet = agentRuns.length === 0;
+    const text = noRunsYet
+      ? "Preparing the task (sandbox + prompt) and dispatching to agents…"
+      : "Between rounds…";
+    row.appendChild(el("span", { class: "live-activity-main", text }));
     stopLiveTicker();
+    // For the prep phase, show an elapsed counter from task.created_at so the
+    // user can see something is moving rather than feeling stuck.
+    if (noRunsYet && task.created_at) {
+      const createdMs = parseIsoMs(task.created_at);
+      if (createdMs !== null) {
+        row.appendChild(el("span", { class: "live-activity-sep", text: "—" }));
+        row.appendChild(el("span", { class: "live-activity-prefix", text: "elapsed" }));
+        row.appendChild(el("span", {
+          id: "live-activity-elapsed", class: "live-activity-elapsed",
+          text: fmtDurationMs(Date.now() - createdMs),
+        }));
+        startLiveTicker(createdMs);
+      }
+    }
   }
   inner.appendChild(row);
 
