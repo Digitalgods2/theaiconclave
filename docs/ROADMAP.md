@@ -40,11 +40,13 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 
 1. **Crash-safe worker / orphan task reaper** — if the worker dies mid-task, the task stays in `running` forever. Implement a startup sweep that resets tasks stuck in `running` for more than a configurable threshold (e.g., 1 hour) back to `pending` or marks them `failed` with an explanatory error_message. (Operability item — favored under charter v1.2.)
 
-2. **Trim Tier 2 after export (opt-in)** — the retention policy says Tier 2 is "retain indefinitely until exported." With export tracking now in place, an optional retention amendment could allow Tier 2 trim after an explicit export, freeing the corresponding `final_results` row. (Operability item.)
+2. **Tool-loop architecture for the API-based council seats** — let the OpenRouter / Ollama seats *pull specific files on demand* instead of getting the whole sandbox pre-inlined. The CLI seats already do this natively (Codex's `-C`, Claude's `--add-dir` + `Read` tool, Gemini's `--include-directories`); the API seats currently inline everything into the prompt, which is the right v1 but degrades when the codebase exceeds the model's effective attention budget (~50–80K tokens). Real-world evidence: on a code-review task with ~95K-token inlined prompts, the open-weight seats fell back to template best-practices instead of citing specific files — the attention budget, not the parameter count, was the bottleneck. Shape: a `read_file` / `list_dir` tool offered to the agent as an OpenAI-style function-call; the adapter intercepts the tool call, reads from the sandbox, returns the content, repeats until the agent produces its structured turn JSON. Bounded by per-turn iteration cap and a total-bytes-read budget. Operability impact: positive (better signal per quota dollar on the metered seats); flagged as the natural follow-up in decision 0012's Open Questions. (Capability addition; would get a decision record + Operability Impact when planned.)
 
-3. **Modularize dashboard.js** — file is approaching 2000 lines; still maintainable but ripe for splitting into per-view modules without adopting a framework. Defer until it actively bites.
+3. **Trim Tier 2 after export (opt-in)** — the retention policy says Tier 2 is "retain indefinitely until exported." With export tracking now in place, an optional retention amendment could allow Tier 2 trim after an explicit export, freeing the corresponding `final_results` row. (Operability item.)
 
-4. **Inbox tagging** — letting the user attach freeform tags to tasks would scale browsing better than filters alone once the inbox has hundreds of tasks.
+4. **Modularize dashboard.js** — file is approaching 2000 lines; still maintainable but ripe for splitting into per-view modules without adopting a framework. Defer until it actively bites.
+
+5. **Inbox tagging** — letting the user attach freeform tags to tasks would scale browsing better than filters alone once the inbox has hundreds of tasks.
 
 ## Considered and Intentionally Not Built
 
