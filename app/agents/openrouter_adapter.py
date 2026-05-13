@@ -300,6 +300,12 @@ class OpenRouterAdapter(BaseAdapter):
 # Helpers
 # ---------------------------------------------------------------------------
 
+_CTX_LIMIT_RE = re.compile(
+    r"maximum context length is\s+(?P<limit>[\d,]+)\s+tokens.*?requested\s+about\s+(?P<used>[\d,]+)\s+tokens",
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def _http_error_message(model_slug: str, status: int, body: str) -> str:
     """Turn a non-200 into a message that says something useful."""
     low = (body or "").lower()
@@ -311,6 +317,18 @@ def _http_error_message(model_slug: str, status: int, body: str) -> str:
         return f"openrouter[{model_slug}]: model not found — check the slug at openrouter.ai/models"
     if status == 429:
         return f"openrouter[{model_slug}]: rate limited (free-tier limit or provider throttling)"
+    if status == 400 and "maximum context length" in low:
+        m = _CTX_LIMIT_RE.search(body or "")
+        if m:
+            limit = m.group("limit").replace(",", "")
+            used = m.group("used").replace(",", "")
+            # 3 chars/token is a safe rule of thumb for code-heavy prompts.
+            recommended = int(int(limit) * 3 * 0.85)
+            return (f"openrouter[{model_slug}]: prompt overflowed the model's context "
+                    f"({used} tokens sent, limit {limit}). Lower `max_context_chars` for "
+                    f"this seat in config.yaml — try around {recommended:,} or less.")
+        return (f"openrouter[{model_slug}]: prompt overflowed the model's context. "
+                f"Lower `max_context_chars` for this seat in config.yaml.")
     return f"openrouter[{model_slug}] returned HTTP {status}"
 
 

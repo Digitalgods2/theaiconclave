@@ -197,6 +197,24 @@ def test_http_error_message(status, body, needle):
     assert needle in msg
 
 
+def test_http_error_message_context_overflow_extracts_limits():
+    body = ('{"error":{"message":"This endpoint\'s maximum context length is 163840 '
+            'tokens. However, you requested about 212253 tokens (212253 of text input)."}}')
+    msg = _http_error_message("deepseek/deepseek-chat", 400, body)
+    assert "163840" in msg and "212253" in msg
+    assert "max_context_chars" in msg
+    assert "config.yaml" in msg
+    # The recommended ceiling should be sensible (well under the real limit).
+    assert "417,792" in msg or "417792" in msg.replace(",", "")  # 163840 * 3 * 0.85 = 417,792
+
+
+def test_http_error_message_context_overflow_without_numbers():
+    body = '{"error":{"message":"This endpoint\'s maximum context length is exceeded"}}'
+    msg = _http_error_message("deepseek/deepseek-chat", 400, body)
+    assert "overflowed" in msg
+    assert "max_context_chars" in msg
+
+
 # ---------------------------------------------------------------------------
 # _parse_and_coerce
 # ---------------------------------------------------------------------------

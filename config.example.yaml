@@ -172,15 +172,19 @@ openrouter:
   endpoint: "https://openrouter.ai/api/v1"
   data_collection: deny
   models:
+    # max_context_chars caps the prompt size; the adapter uses it to budget the
+    # inlined sandbox. Set conservatively below each model's true token window
+    # (code-heavy prompts can hit ~3 chars/token, worse than prose's ~4) — raise
+    # in config.yaml if you need more headroom for a big codebase.
     - name: deepseek
       model_slug: "deepseek/deepseek-chat"     # DeepSeek V3.x — strongest open reasoner; verify slug
-      max_context_chars: 800000
+      max_context_chars: 400000                # real limit ~164K tokens; this ≈ 100-130K tokens
     - name: glm
       model_slug: "z-ai/glm-4.6"               # Z.ai GLM — reasoning + agentic; verify slug
-      max_context_chars: 400000
+      max_context_chars: 400000                # real limit ~200K tokens
     - name: qwen
       model_slug: "qwen/qwen3-coder"           # Alibaba Qwen3 — best JSON discipline of the bunch; verify slug
-      max_context_chars: 400000
+      max_context_chars: 500000                # real limit ~262K tokens; can hold a bit more code
 
 # -----------------------------------------------------------------------------
 # Ollama Cloud — alternative open-weight seats. DISABLED by default: the big
