@@ -22,12 +22,15 @@ the answer; we strip it before parsing so the JSON survives.
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
 from typing import Any, Optional
 
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from app.agents.base import (
     AdapterContext,
@@ -64,6 +67,18 @@ _API_KEY_ENV = "OPENROUTER_API_KEY"
 _DB_KEY = "openrouter_api_key"
 _DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
 _APP_TITLE = "AI Switchboard Conclave"
+
+# Per-process cache of each model's true input-char ceiling, learned from a 400
+# "maximum context length" response. Subsequent calls use the learned (lower)
+# ceiling, so the user never has to edit config.yaml. Chars, not tokens —
+# already converted at write time. Keyed by model_slug.
+_LEARNED_CEILINGS: dict[str, int] = {}
+
+# Code-heavy prompts tokenise at roughly 3 chars/token; multiply by this and
+# pad down 15% for tokenizer overhead + response headroom when converting a
+# token-limit reported by the API into a usable char-budget.
+_TOKENS_TO_CHARS = 3
+_CEILING_SAFETY = 0.85
 
 
 class OpenRouterAdapter(BaseAdapter):
@@ -119,23 +134,35 @@ class OpenRouterAdapter(BaseAdapter):
             "X-Title": _APP_TITLE,
         }
 
-    def _append_sandbox(self, prompt: str, ctx: AdapterContext) -> str:
-        """If the task has a project sandbox, inline a read-only file tree +
-        file contents into the prompt (this adapter can't browse files). Sized
-        to fit within max_context_chars with headroom for the response."""
+    def _effective_max_chars(self) -> int:
+        """Return the smaller of the configured ceiling and the learned-from-API
+        ceiling (if any). The learned value is per-process and per-model_slug."""
+        learned = _LEARNED_CEILINGS.get(self.model_slug)
+        if learned is not None:
+            return min(self.max_context_chars, learned)
+        return self.max_context_chars
+
+    def _sandbox_path_from(self, ctx: AdapterContext) -> Optional[str]:
         try:
-            sandbox_path = ctx.task.context.extra.get("sandbox_path")
+            v = ctx.task.context.extra.get("sandbox_path")
         except Exception:  # noqa: BLE001
-            sandbox_path = None
+            return None
+        return str(v) if v else None
+
+    def _compose_prompt(self, base_prompt: str, sandbox_path: Optional[str],
+                       ceiling_chars: int) -> str:
+        """Return base_prompt, optionally with an inlined sandbox section sized
+        to fit under `ceiling_chars` minus headroom. Returns base_prompt
+        unchanged if there's no sandbox or no budget left."""
         if not sandbox_path:
-            return prompt
-        budget = max(0, self.max_context_chars - len(prompt) - _SANDBOX_HEADROOM)
+            return base_prompt
+        budget = max(0, ceiling_chars - len(base_prompt) - _SANDBOX_HEADROOM)
         if budget < 2000:
-            return prompt
-        section = build_sandbox_section(str(sandbox_path), budget)
+            return base_prompt
+        section = build_sandbox_section(sandbox_path, budget)
         if not section:
-            return prompt
-        return prompt + "\n\n" + section
+            return base_prompt
+        return base_prompt + "\n\n" + section
 
     async def is_available(self) -> bool:
         return self._api_key() is not None
@@ -168,14 +195,9 @@ class OpenRouterAdapter(BaseAdapter):
 
     # ------------------------------------------------------------------
 
-    async def _invoke(self, prompt: str, timeout_seconds: int) -> str:
-        key = self._api_key()
-        if key is None:
-            raise AdapterError(
-                ErrorCode.AGENT_UNAVAILABLE,
-                f"{_API_KEY_ENV} not set; configure an OpenRouter API key (env var or Settings → API Keys)",
-            )
-
+    async def _post_chat(self, prompt: str, key: str, timeout_seconds: int):
+        """One HTTP POST; returns the httpx Response or raises AdapterError on
+        transport-level failures. The caller inspects status_code."""
         payload: dict[str, Any] = {
             "model": self.model_slug,
             "messages": [{"role": "user", "content": prompt}],
@@ -185,7 +207,7 @@ class OpenRouterAdapter(BaseAdapter):
         }
         try:
             async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-                resp = await client.post(
+                return await client.post(
                     f"{self.endpoint}/chat/completions",
                     headers=self._headers(key),
                     json=payload,
@@ -200,6 +222,46 @@ class OpenRouterAdapter(BaseAdapter):
                 ErrorCode.AGENT_ERROR,
                 f"openrouter[{self.model_slug}] HTTP error: {e}",
             )
+
+    async def _invoke(self, base_prompt: str, timeout_seconds: int,
+                      sandbox_path: Optional[str] = None) -> str:
+        """Send `base_prompt` (with the sandbox inlined under the current
+        ceiling, if a sandbox path is supplied). On HTTP 400 "maximum context
+        length", parse the model's real limit from the body, cache it, shrink
+        the prompt to fit, and retry ONCE. Subsequent calls in this process use
+        the cached ceiling automatically — the user doesn't have to edit config.
+        """
+        key = self._api_key()
+        if key is None:
+            raise AdapterError(
+                ErrorCode.AGENT_UNAVAILABLE,
+                f"{_API_KEY_ENV} not set; configure an OpenRouter API key (env var or Settings → API Keys)",
+            )
+
+        ceiling = self._effective_max_chars()
+        prompt = self._compose_prompt(base_prompt, sandbox_path, ceiling)
+        resp = await self._post_chat(prompt, key, timeout_seconds)
+
+        # Auto-shrink + retry on context overflow.
+        if resp.status_code == 400 and "maximum context length" in (resp.text or "").lower():
+            learned = _learn_ceiling_from_body(self.model_slug, resp.text)
+            if learned and learned < ceiling:
+                new_ceiling = min(self.max_context_chars, learned)
+                logger.info(
+                    "openrouter[%s] context overflow: learned ceiling %d chars (was using %d); "
+                    "retrying once with a tighter prompt.",
+                    self.model_slug, learned, ceiling,
+                )
+                prompt = self._compose_prompt(base_prompt, sandbox_path, new_ceiling)
+                if len(prompt) < len(base_prompt) + 2:
+                    # No sandbox was attached to trim; the base prompt itself overflows.
+                    raise AdapterError(
+                        ErrorCode.AGENT_ERROR,
+                        _http_error_message(self.model_slug, resp.status_code, resp.text),
+                        details={"status_code": resp.status_code, "body_tail": resp.text[-2000:],
+                                 "learned_ceiling_chars": learned},
+                    )
+                resp = await self._post_chat(prompt, key, timeout_seconds)
 
         if resp.status_code != 200:
             raise AdapterError(
@@ -258,7 +320,8 @@ class OpenRouterAdapter(BaseAdapter):
     async def run_primary(self, ctx: AdapterContext) -> PrimaryResponse:
         prompt = build_primary_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                       prior_messages=ctx.prior_messages)
-        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
+        text = await self._invoke(prompt, ctx.timeout_seconds,
+                                  sandbox_path=self._sandbox_path_from(ctx))
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="primary",
                                  default_message_type=MessageType.PRIMARY_PROPOSAL.value)
         return PrimaryResponse.model_validate(data)
@@ -266,7 +329,8 @@ class OpenRouterAdapter(BaseAdapter):
     async def run_consultant(self, ctx: AdapterContext) -> ConsultantCritique:
         prompt = build_consultant_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                          prior_messages=ctx.prior_messages)
-        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
+        text = await self._invoke(prompt, ctx.timeout_seconds,
+                                  sandbox_path=self._sandbox_path_from(ctx))
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="consultant",
                                  default_message_type=MessageType.CONSULTANT_CRITIQUE.value)
         return ConsultantCritique.model_validate(data)
@@ -274,14 +338,16 @@ class OpenRouterAdapter(BaseAdapter):
     async def run_final(self, ctx: AdapterContext) -> PrimaryResponse:
         prompt = build_final_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                     prior_messages=ctx.prior_messages)
-        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
+        text = await self._invoke(prompt, ctx.timeout_seconds,
+                                  sandbox_path=self._sandbox_path_from(ctx))
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="primary",
                                  default_message_type=MessageType.PRIMARY_FINAL.value)
         return PrimaryResponse.model_validate(data)
 
     async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
         prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name)
-        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
+        text = await self._invoke(prompt, ctx.timeout_seconds,
+                                  sandbox_path=self._sandbox_path_from(ctx))
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="peer",
                                  default_message_type=MessageType.PEER_ANSWER.value)
         return PeerAnswer.model_validate(data)
@@ -290,7 +356,8 @@ class OpenRouterAdapter(BaseAdapter):
         others = [c for c in ctx.task.consultants if c != self.name]
         prompt = build_conclave_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                        prior_messages=ctx.prior_messages, other_participants=others)
-        text = await self._invoke(self._append_sandbox(prompt, ctx), ctx.timeout_seconds)
+        text = await self._invoke(prompt, ctx.timeout_seconds,
+                                  sandbox_path=self._sandbox_path_from(ctx))
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="participant",
                                  default_message_type=MessageType.CONCLAVE_TURN.value)
         return ConclaveTurn.model_validate(data)
@@ -304,6 +371,30 @@ _CTX_LIMIT_RE = re.compile(
     r"maximum context length is\s+(?P<limit>[\d,]+)\s+tokens.*?requested\s+about\s+(?P<used>[\d,]+)\s+tokens",
     re.IGNORECASE | re.DOTALL,
 )
+# A looser pattern for bodies that mention the limit but not "requested" exactly.
+_CTX_LIMIT_LOOSE_RE = re.compile(
+    r"maximum context length is\s+(?P<limit>[\d,]+)\s+tokens",
+    re.IGNORECASE,
+)
+
+
+def _learn_ceiling_from_body(model_slug: str, body: str) -> Optional[int]:
+    """Extract the model's real token limit from a 400 body and cache it as a
+    char-budget under _LEARNED_CEILINGS[model_slug]. Returns the cached chars or None."""
+    if not body:
+        return None
+    m = _CTX_LIMIT_RE.search(body) or _CTX_LIMIT_LOOSE_RE.search(body)
+    if not m:
+        return None
+    try:
+        limit_tokens = int(m.group("limit").replace(",", ""))
+    except (ValueError, IndexError):
+        return None
+    if limit_tokens <= 0:
+        return None
+    chars = int(limit_tokens * _TOKENS_TO_CHARS * _CEILING_SAFETY)
+    _LEARNED_CEILINGS[model_slug] = chars
+    return chars
 
 
 def _http_error_message(model_slug: str, status: int, body: str) -> str:

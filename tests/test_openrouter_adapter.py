@@ -19,8 +19,22 @@ import httpx
 import pytest
 
 from app.agents.base import AdapterContext, AdapterError
-from app.agents.openrouter_adapter import OpenRouterAdapter, _parse_and_coerce, _http_error_message
+from app.agents.openrouter_adapter import (
+    OpenRouterAdapter,
+    _parse_and_coerce,
+    _http_error_message,
+    _learn_ceiling_from_body,
+    _LEARNED_CEILINGS,
+)
 from app.protocol.validators import ErrorCode, TaskRequest
+
+
+@pytest.fixture(autouse=True)
+def _clear_learned_ceilings():
+    """Ensure the module-level learned-ceiling cache doesn't leak between tests."""
+    _LEARNED_CEILINGS.clear()
+    yield
+    _LEARNED_CEILINGS.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -56,6 +70,34 @@ class _FakeClient:
 
 def _patch_httpx(monkeypatch, resp=None, raise_exc=None):
     monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **kw: _FakeClient(resp, raise_exc))
+
+
+class _SequencedClient:
+    """Fake httpx client that returns responses from a SHARED queue (one per
+    call). The adapter re-creates the client per request inside `async with`,
+    so the queue is shared across instances via the same list reference."""
+    posts: list = []
+
+    def __init__(self, responses):
+        # IMPORTANT: share the reference, don't copy — so successive AsyncClient
+        # instances pop from the same queue.
+        self._responses = responses
+
+    async def __aenter__(self): return self
+    async def __aexit__(self, *a): return False
+
+    async def post(self, url, **kw):
+        _SequencedClient.posts.append({"url": url, "json": kw.get("json"),
+                                       "prompt_chars": len(kw["json"]["messages"][0]["content"])})
+        if not self._responses:
+            raise RuntimeError("ran out of mocked responses")
+        return self._responses.pop(0)
+
+
+def _patch_httpx_sequence(monkeypatch, responses):
+    _SequencedClient.posts = []
+    shared = list(responses)
+    monkeypatch.setattr(httpx, "AsyncClient", lambda *a, **kw: _SequencedClient(shared))
 
 
 _VALID_TURN = {
@@ -213,6 +255,125 @@ def test_http_error_message_context_overflow_without_numbers():
     msg = _http_error_message("deepseek/deepseek-chat", 400, body)
     assert "overflowed" in msg
     assert "max_context_chars" in msg
+
+
+# ---------------------------------------------------------------------------
+# Self-discovering ceiling + auto-retry on context overflow
+# ---------------------------------------------------------------------------
+
+def test_learn_ceiling_from_body_parses_token_limit():
+    body = ('{"error":{"message":"This endpoint\'s maximum context length is 163840 '
+            'tokens. However, you requested about 212253 tokens (212253 of text input)."}}')
+    chars = _learn_ceiling_from_body("deepseek/deepseek-chat", body)
+    # 163840 tokens × 3 chars/token × 0.85 = 417,792 chars
+    assert chars == 417_792
+    assert _LEARNED_CEILINGS["deepseek/deepseek-chat"] == 417_792
+
+
+def test_learn_ceiling_from_body_handles_loose_format():
+    """Some error bodies omit the 'requested about' clause."""
+    body = 'maximum context length is 100000 tokens'
+    chars = _learn_ceiling_from_body("m", body)
+    assert chars == int(100_000 * 3 * 0.85)
+
+
+def test_learn_ceiling_from_body_returns_none_on_unparseable():
+    assert _learn_ceiling_from_body("m", "") is None
+    assert _learn_ceiling_from_body("m", "some other error") is None
+
+
+@pytest.mark.asyncio
+async def test_overflow_triggers_shrink_and_retry(monkeypatch, tmp_path):
+    """First POST gets a 400 'maximum context length' → adapter learns the real
+    ceiling, shrinks the sandbox section, and retries. Second POST succeeds."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+
+    # Build a sandbox big enough that the FIRST attempt sends the full thing,
+    # then the retry trims it (smaller prompt the second time around).
+    sandbox = tmp_path / "proj"
+    sandbox.mkdir()
+    (sandbox / "main.py").write_text("M\n", encoding="utf-8")
+    # Add files until total content easily exceeds the learned ceiling.
+    for i in range(20):
+        (sandbox / f"f{i}.py").write_text(("X" * 5000) + "\n", encoding="utf-8")
+
+    overflow_body = ('{"error":{"message":"This endpoint\'s maximum context length is '
+                     '50000 tokens. However, you requested about 80000 tokens (80000 of '
+                     'text input)."}}')
+    valid_response = _FakeResp(200, _chat_body(json.dumps(_VALID_TURN)))
+    overflow_response = _FakeResp(400, text=overflow_body)
+    _patch_httpx_sequence(monkeypatch, [overflow_response, valid_response])
+
+    a = OpenRouterAdapter(name="deepseek", model_slug="deepseek/deepseek-chat",
+                          max_context_chars=400_000)
+    task = _minimal_conclave_task(["deepseek", "codex"])
+    # Attach the sandbox so the adapter has something to trim.
+    object.__setattr__(task.context, "extra",
+                       {**task.context.extra, "sandbox_path": str(sandbox)})
+    ctx = AdapterContext(task=task, task_id="tsk_z", prior_messages=[],
+                         permissions=task.permissions, timeout_seconds=30,
+                         working_directory=".")
+
+    turn = await a.run_conclave_turn(ctx)
+    assert turn.agent == "deepseek"
+    # Two POSTs were made.
+    assert len(_SequencedClient.posts) == 2
+    # The retry's prompt is smaller than the first attempt's.
+    first_len = _SequencedClient.posts[0]["prompt_chars"]
+    second_len = _SequencedClient.posts[1]["prompt_chars"]
+    assert second_len < first_len, f"retry should shrink the prompt: {first_len=} {second_len=}"
+    # The learned ceiling was cached (50000 tokens × 3 × 0.85 = 127,500 chars).
+    assert _LEARNED_CEILINGS["deepseek/deepseek-chat"] == 127_500
+
+
+@pytest.mark.asyncio
+async def test_overflow_without_sandbox_raises_actionable_error(monkeypatch):
+    """If there's no sandbox to trim, the retry can't help — surface the actionable error."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    overflow_body = ('{"error":{"message":"This endpoint\'s maximum context length is '
+                     '50000 tokens. However, you requested about 80000 tokens (80000 of '
+                     'text input)."}}')
+    _patch_httpx_sequence(monkeypatch, [_FakeResp(400, text=overflow_body)])
+    a = OpenRouterAdapter(name="deepseek", model_slug="deepseek/deepseek-chat",
+                          max_context_chars=400_000)
+    task = _minimal_conclave_task(["deepseek", "codex"])  # no sandbox
+    ctx = AdapterContext(task=task, task_id="tsk_n", prior_messages=[],
+                         permissions=task.permissions, timeout_seconds=30,
+                         working_directory=".")
+    with pytest.raises(AdapterError) as ei:
+        await a.run_conclave_turn(ctx)
+    assert "overflowed" in ei.value.message
+    assert "max_context_chars" in ei.value.message
+    # Only one POST — no retry since there was nothing to trim.
+    assert len(_SequencedClient.posts) == 1
+
+
+@pytest.mark.asyncio
+async def test_learned_ceiling_used_on_subsequent_calls(monkeypatch, tmp_path):
+    """Once a ceiling is learned, the NEXT call uses it from the start — no
+    wasted 400 round-trip per call."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
+    sandbox = tmp_path / "proj"
+    sandbox.mkdir()
+    for i in range(20):
+        (sandbox / f"f{i}.py").write_text(("X" * 5000) + "\n", encoding="utf-8")
+
+    # Pre-populate the cache as if a previous call learned it.
+    _LEARNED_CEILINGS["deepseek/deepseek-chat"] = 50_000  # tight
+
+    _patch_httpx_sequence(monkeypatch, [_FakeResp(200, _chat_body(json.dumps(_VALID_TURN)))])
+    a = OpenRouterAdapter(name="deepseek", model_slug="deepseek/deepseek-chat",
+                          max_context_chars=400_000)
+    task = _minimal_conclave_task(["deepseek", "codex"])
+    object.__setattr__(task.context, "extra",
+                       {**task.context.extra, "sandbox_path": str(sandbox)})
+    ctx = AdapterContext(task=task, task_id="tsk_q", prior_messages=[],
+                         permissions=task.permissions, timeout_seconds=30,
+                         working_directory=".")
+    await a.run_conclave_turn(ctx)
+    # Only one POST, and its prompt was already sized to the 50K-char ceiling.
+    assert len(_SequencedClient.posts) == 1
+    assert _SequencedClient.posts[0]["prompt_chars"] <= 50_000 + 1000  # small slop
 
 
 # ---------------------------------------------------------------------------
