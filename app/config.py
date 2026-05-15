@@ -77,6 +77,11 @@ class AgentConfig(BaseModel):
     command: str = ""
     args: list[str] = Field(default_factory=list)
     model: Optional[str] = None
+    # OpenRouter slug for pricing lookup. Each frontier CLI represents one
+    # declared model in the conclave — set this to the slug OpenRouter uses
+    # for that exact model (e.g. "anthropic/claude-sonnet-4.6") so the
+    # Pricing view shows accurate $/M rates when the seat is in API mode.
+    model_slug: Optional[str] = None
     endpoint: Optional[str] = None
     supported_modes: list[str] = Field(default_factory=list)
     supported_task_types: list[str] = Field(default_factory=list)

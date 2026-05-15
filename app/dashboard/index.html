@@ -6,10 +6,8 @@
   <link rel="stylesheet" href="/static/dashboard.css" />
 </head>
 <body>
-  <nav class="left-rail" aria-label="App navigation">
-    <button type="button" class="rail-btn" id="settings-toggle" title="Settings" aria-label="Settings">
-      <span aria-hidden="true">⚙</span>
-    </button>
+  <nav class="left-rail" id="left-rail" aria-label="App navigation">
+    <!-- Rendered by renderSidebar() in dashboard.js from the SIDEBAR_ITEMS list. -->
   </nav>
 
   <div class="app">
@@ -33,15 +31,17 @@
         <div class="followup-banner" id="followup-banner" hidden>
           <div class="followup-banner-text" id="followup-banner-text"></div>
           <button type="button" class="followup-banner-dismiss" id="followup-banner-dismiss"
-            aria-label="Dismiss thread continuation" title="Treat this as a fresh task instead">×</button>
+            aria-label="Submit as a fresh task instead" title="Unlink the parent task — submit this as a fresh task with no thread context.">
+            Submit as fresh task
+          </button>
         </div>
         <form id="new-task-form" class="form">
           <div class="form-row">
             <label for="mode">Mode</label>
             <select id="mode" name="mode">
-              <option value="conclave" selected>conclave</option>
-              <option value="consult">consult</option>
-              <option value="resolve">resolve</option>
+              <option value="conclave" selected>conclave — peer deliberation (equal voices)</option>
+              <option value="consult">consult — one primary + critics</option>
+              <option value="resolve">resolve — one decides, others advise</option>
             </select>
             <p class="hint" id="mode-hint"></p>
           </div>
@@ -72,14 +72,14 @@
                       <small>Read files inside project_path (default ON)</small>
                     </span>
                   </label>
-                  <label class="permission-check">
+                  <label class="permission-check permission-future">
                     <input type="checkbox" id="perm-can_write_files" data-perm="can_write_files" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_write_files</span>
                       <small>Modify files (currently no adapter uses this; defer to Layer 2)</small>
                     </span>
                   </label>
-                  <label class="permission-check">
+                  <label class="permission-check permission-future">
                     <input type="checkbox" id="perm-can_run_commands" data-perm="can_run_commands" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_run_commands</span>
@@ -93,14 +93,14 @@
                       <small>Outbound HTTP/HTTPS</small>
                     </span>
                   </label>
-                  <label class="permission-check">
+                  <label class="permission-check permission-future">
                     <input type="checkbox" id="perm-can_install_packages" data-perm="can_install_packages" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_install_packages</span>
                       <small>Install dependencies (implies run + network)</small>
                     </span>
                   </label>
-                  <label class="permission-check">
+                  <label class="permission-check permission-future">
                     <input type="checkbox" id="perm-can_apply_patches" data-perm="can_apply_patches" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_apply_patches</span>
@@ -153,8 +153,11 @@
             <div class="question-label-row">
               <label for="question">Question</label>
               <button type="button" class="btn btn-secondary git-diff-btn" id="attach-git-diff-btn"
-                disabled title="Set project_path to enable.">Attach current git diff</button>
+                disabled>Attach git diff (current changes)</button>
             </div>
+            <p class="hint git-diff-caption" id="git-diff-caption">
+              Attaches a <code>git diff</code> of your in-progress changes (uncommitted + staged) to the question. Set <strong>Project path</strong> above to enable.
+            </p>
             <textarea id="question" name="question" rows="10" placeholder="Describe the problem or question for the agents..." required></textarea>
             <p class="form-status" id="git-diff-status"></p>
           </div>
@@ -167,6 +170,9 @@
                 <button type="button" class="link-btn" id="browse-btn">browse</button>
               </p>
               <p class="hint">Supported: .txt, .md, .pdf, .json, .py, .js, .ts, .png, .jpg, .jpeg, .gif, .webp and other text/code files. Max 20 MiB per file. Or drop an entire project folder &mdash; standard ignore patterns (.git, node_modules, etc.) are applied automatically.</p>
+              <p class="hint dropzone-keyboard-hint" style="font-size: 11.5px; margin-top: 2px; opacity: 0;">
+                Press <kbd>Enter</kbd> or <kbd>Space</kbd> to open the file picker.
+              </p>
               <input type="file" id="attachments-input" multiple hidden
                      accept=".txt,.md,.pdf,.json,.py,.js,.ts,.tsx,.jsx,.go,.rs,.rb,.java,.c,.cpp,.h,.hpp,.cs,.html,.css,.xml,.yaml,.yml,.toml,.ini,.sh,.bat,.ps1,.sql,.log,.csv,.tsv,.png,.jpg,.jpeg,.gif,.webp,image/*,text/*,application/pdf,application/json" />
             </div>
@@ -193,21 +199,21 @@
             <label for="filter-status">Status</label>
             <select id="filter-status">
               <option value="">(all statuses)</option>
-              <option value="pending">pending</option>
-              <option value="running">running</option>
-              <option value="awaiting_user_input">awaiting_user_input</option>
-              <option value="completed">completed</option>
-              <option value="failed">failed</option>
-              <option value="cancelled">cancelled</option>
+              <option value="pending">Pending</option>
+              <option value="running">Running</option>
+              <option value="awaiting_user_input">Awaiting your reply</option>
+              <option value="completed">Completed</option>
+              <option value="failed">Failed</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
           <div class="inbox-filter-field">
             <label for="filter-mode">Mode</label>
             <select id="filter-mode">
               <option value="">(all modes)</option>
-              <option value="conclave">conclave</option>
-              <option value="consult">consult</option>
-              <option value="resolve">resolve</option>
+              <option value="conclave">Conclave (peer deliberation)</option>
+              <option value="consult">Consult (one + critics)</option>
+              <option value="resolve">Resolve (one drives)</option>
             </select>
           </div>
           <div class="inbox-filter-field">
@@ -223,7 +229,7 @@
             <div class="inbox-search-row">
               <input type="text" id="filter-search" placeholder="Search by ID or text..." autocomplete="off" />
               <button type="button" class="btn btn-secondary inbox-clear-btn" id="inbox-clear-btn"
-                title="Reset all filters to defaults" aria-label="Clear all filters">X</button>
+                title="Reset all filters to defaults" aria-label="Clear all filters">Clear filters</button>
             </div>
           </div>
           <div class="inbox-filter-field">
@@ -241,11 +247,18 @@
           <span class="inbox-counter muted" id="inbox-counter">Showing 0 of 0 tasks</span>
           <div class="inbox-bulk-actions">
             <button type="button" class="btn btn-secondary inbox-bulk-export-btn" id="inbox-bulk-export-btn"
-              title="Export every unexported terminal task to data/exports/ as a markdown decision record.">
+              title="Writes a markdown decision record to data/exports/ for every completed / failed / cancelled task that hasn't been exported yet.">
               Bulk export unexported
             </button>
             <span class="inbox-bulk-export-status" id="inbox-bulk-export-status" hidden></span>
           </div>
+          <span class="export-dot-legend" style="font-size: 11.5px; color: #6b7280; display: inline-flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10b981;"></span>
+            = exported to <code>data/exports/</code>
+          </span>
+          <p class="hint" style="grid-column: 1 / -1; margin: 4px 0 0;">
+            Bulk export writes a markdown decision record to <code>data/exports/</code> for every completed / failed / cancelled task that hasn't already been exported.
+          </p>
         </div>
         <div class="inbox-bulk-export-errors" id="inbox-bulk-export-errors" hidden></div>
         <div class="table-wrap tasks-scroll">
@@ -294,10 +307,13 @@
             <h3>The council is asking for your input</h3>
             <p class="answer-asked-by" id="answer-asked-by" hidden></p>
             <blockquote class="answer-question-box" id="answer-question">(no question text found)</blockquote>
-            <details class="answer-context" id="answer-context" hidden>
+            <details class="answer-context" id="answer-context" open hidden>
               <summary>Why they're asking / what they said leading up to this</summary>
               <p class="muted" id="answer-context-text"></p>
             </details>
+            <p class="hint" style="margin-top: 10px; margin-bottom: 6px;">
+              Your reply unblocks the deliberation and is sent to every agent currently waiting on you.
+            </p>
             <form id="answer-form">
               <textarea id="answer-text" rows="5" placeholder="Type your reply for the council..." required></textarea>
               <div class="form-actions">
@@ -336,13 +352,16 @@
 
           <section class="post-task-bar" id="post-task-bar" hidden>
             <div class="post-task-bar-inner">
+              <p class="hint" style="grid-column: 1 / -1; margin: 0 0 6px; width: 100%;">
+                Done with this task? Start fresh, carry the context forward into a new task, or save a record of what happened.
+              </p>
               <button type="button" class="btn btn-primary" id="start-new-btn"
                 title="Start a clean new task with an empty question form">
                 Start New Task
               </button>
               <button type="button" class="btn btn-secondary" id="followup-btn"
                 title="Start a new task with this task's question, answer, and your decision pre-loaded as context. Useful when the resolution was ambiguous and you want to dig further on the same topic.">
-                Continue this thread
+                Continue thread (new task)
               </button>
               <button type="button" class="btn btn-secondary" id="export-btn"
                 title="Export this task's question, transcript, final result, and decision to a markdown file in data/exports/.">
@@ -350,7 +369,7 @@
               </button>
               <span class="export-last-info" id="export-last-info" hidden></span>
               <span class="download-detail-group">
-                <label for="download-format" class="download-detail-label">Export detail as</label>
+                <label for="download-format" class="download-detail-label">Download a copy</label>
                 <select id="download-format" class="download-detail-select">
                   <option value="pdf">PDF (.pdf)</option>
                   <option value="docx">Word (.docx)</option>
@@ -368,6 +387,39 @@
             </p>
             <div class="export-feedback" id="export-feedback" hidden></div>
           </section>
+        </div>
+      </section>
+
+      <!-- ============ HELP VIEW (lazy-loaded fragment) ============ -->
+      <section class="view help-view" id="view-help" hidden>
+        <p class="loading" id="help-loading-msg">Loading help…</p>
+      </section>
+
+      <!-- ============ PRICING VIEW ============ -->
+      <section class="view pricing-view" id="view-pricing" hidden>
+        <div class="view-header">
+          <h2>Model pricing</h2>
+          <span class="muted" id="pricing-status">Click a column header to sort. OpenRouter prices cached for 5 min.</span>
+        </div>
+        <p class="hint" id="pricing-basis-note" style="margin-top: -4px;"></p>
+        <div class="table-wrap pricing-scroll">
+          <table class="pricing-table" id="pricing-table">
+            <thead>
+              <tr>
+                <th data-sort="name">Agent</th>
+                <th data-sort="kind">Type</th>
+                <th data-sort="model_id">Model in use</th>
+                <th data-sort="context_length" class="num">Context</th>
+                <th data-sort="input_per_million_usd" class="num">Input $/M</th>
+                <th data-sort="output_per_million_usd" class="num">Output $/M</th>
+                <th data-sort="per_turn_estimate_usd" class="num">Est. per turn</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="pricing-tbody">
+              <tr><td colspan="8" class="loading">Loading pricing…</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -390,7 +442,9 @@
               <input type="password" id="openrouter-key-input" autocomplete="off" spellcheck="false"
                 placeholder="(not set)" />
               <button type="button" class="eyeball-btn" id="openrouter-key-eyeball"
-                title="Show / hide" aria-label="Show or hide the API key">👁</button>
+                title="Show / hide the API key in plain text" aria-label="Show or hide the API key" aria-pressed="false">
+                <span aria-hidden="true">👁</span> <span class="eyeball-label">Show</span>
+              </button>
             </div>
             <p class="api-key-status" id="openrouter-key-status">Loading…</p>
             <div class="api-key-actions">
@@ -413,7 +467,9 @@
               <input type="password" id="ollama-key-input" autocomplete="off" spellcheck="false"
                 placeholder="(not set)" />
               <button type="button" class="eyeball-btn" id="ollama-key-eyeball"
-                title="Show / hide" aria-label="Show or hide the API key">👁</button>
+                title="Show / hide the API key in plain text" aria-label="Show or hide the API key" aria-pressed="false">
+                <span aria-hidden="true">👁</span> <span class="eyeball-label">Show</span>
+              </button>
             </div>
             <p class="api-key-status" id="ollama-key-status">Loading…</p>
             <div class="api-key-actions">

@@ -90,6 +90,7 @@ agents:
     enabled: true
     command: codex                  # absolute path or $PATH lookup
     args: []                        # baseline args; adapter appends prompt-specific flags
+    model_slug: "openai/gpt-5.5"         # top-tier general flagship (set `model = "gpt-5.5"` in ~/.codex/config.toml to match)
     supported_modes: [consult, handoff]
     supported_task_types:
       - debug
@@ -102,6 +103,7 @@ agents:
     enabled: true
     command: claude
     args: []
+    model_slug: "anthropic/claude-opus-4.7"   # top-tier reasoning (run `/model opus` in Claude Code to match)
     supported_modes: [consult, handoff]
     supported_task_types:
       - debug
@@ -115,6 +117,7 @@ agents:
     enabled: false
     command: gemini
     args: []
+    model_slug: "google/gemini-2.5-pro"   # OpenRouter slug used for pricing lookup when in API mode
     supported_modes: []
     supported_task_types: []
     timeout_seconds: 180
@@ -169,6 +172,9 @@ openrouter:
     - name: qwen
       model_slug: "qwen/qwen3-coder"           # Alibaba Qwen3 — best JSON discipline of the bunch; verify slug
       max_context_chars: 500000                # real limit ~262K tokens; can hold a bit more code
+    - name: kimi
+      model_slug: "moonshotai/kimi-k2.6"       # Moonshot Kimi K2.6 — outside-axis voice (Chinese training data); strong long-context
+      max_context_chars: 700000                # real limit ~262K tokens; ~2× the per-token cost of the others, still ~$0.005–$0.015/turn
 
 # -----------------------------------------------------------------------------
 # Ollama Cloud — alternative open-weight seats. DISABLED by default: the big

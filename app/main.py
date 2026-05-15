@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.api import agents as agents_api
 from app.api import git as git_api
 from app.api import health as health_api
+from app.api import help as help_api
 from app.api import settings as settings_api
 from app.api import tasks as tasks_api
 from app.api import uploads as uploads_api
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
     logger = logging.getLogger("switchboard")
 
     init_database(config.database.path)
+    help_api.sync_help_metadata_from_file()
     agent_registry.clear()
     agent_registry.init_registry()
     agent_registry.register_ollama_cloud_models(config)
@@ -80,6 +82,7 @@ app.include_router(agents_api.router)
 app.include_router(uploads_api.router)
 app.include_router(git_api.router)
 app.include_router(settings_api.router)
+app.include_router(help_api.router)
 
 _DASHBOARD_DIR = Path(__file__).resolve().parent / "dashboard"
 app.mount("/static", StaticFiles(directory=str(_DASHBOARD_DIR)), name="static")

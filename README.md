@@ -129,6 +129,45 @@ In-conclave execution was deliberately not built — the conclave's value depend
 
 ---
 
+## Model selection and pricing
+
+The design rule for this app is **top-shelf model quality over per-token cost**. The conclave's value depends on each agent reasoning well — saving a few cents per turn by picking a weaker model defeats the purpose. The shipped defaults are the current top-tier model in each provider's lineup:
+
+| Seat | Declared model | Per-million $ in · out | Rationale |
+|---|---|---|---|
+| `codex` | `openai/gpt-5.5` | $5 · $30 | Flagship general. `gpt-5.5-pro` is 6× the cost for marginal gains. |
+| `claude-code` | `anthropic/claude-opus-4.7` | $5 · $25 | Top reasoning. The `-fast` variant is 6× the cost for marginal speed. |
+| `gemini` | `google/gemini-2.5-pro` | $1.25 · $10 | Stable flagship. `3.1-pro-preview` is newer but preview-tagged. |
+| Open-weight (OpenRouter) | `deepseek-chat`, `glm-4.6`, `qwen3-coder`, `kimi-k2.6` | $0.22–$0.73 · $0.89–$3.49 | Outside-axis voices — different training data, different blind spots. |
+
+Override any of these by editing `agents.<name>.model_slug` (for CLIs) or `openrouter.models[]` (for open-weight seats) in `config.yaml` and restarting.
+
+### The Pricing view
+
+The violet `$` glyph in the dashboard sidebar opens a sortable pricing table. It shows, per seat:
+
+- The **type** (CLI in subscription mode, CLI in API mode, OpenRouter, Ollama Cloud)
+- The **model in use** (detected from the CLI's own config when possible, otherwise declared in `config.yaml`)
+- **$/M input + output rates** (pulled live from OpenRouter's catalog; cached 5 minutes)
+- **Estimated per-turn cost** (input × 5K + output × 1K tokens)
+- A **drift indicator** when the CLI's actually-configured model disagrees with `config.yaml`
+
+### Auth-mode detection (subscription vs API)
+
+Each frontier CLI can authenticate via OAuth/subscription (default — your Claude Pro / ChatGPT Plus / Gemini Advanced subscription) or via API key (per-token billing at provider rates). The dashboard detects which mode each CLI is currently in by reading the CLI's own auth-state file:
+
+- **Codex** — `~/.codex/auth.json` carries an explicit `auth_mode` field (`"apikey"` = API, `"chatgpt"` = subscription)
+- **Gemini** — `~/.gemini/settings.json` has `security.auth.selectedType` (substrings `"api"` or `"key"` = API, `"oauth-personal"` = subscription)
+- **Claude Code** — `~/.claude/.credentials.json` presence = OAuth subscription. (If Claude Code introduces an explicit mode marker in a future version, the detection logic in `app/api/agents.py` extends the same way as Codex's.)
+
+Env vars (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_API_KEY`) are a **fallback signal** of API intent only when the file gives no clear answer — the file's explicit selection wins.
+
+Switching auth modes on the CLI side (e.g., `codex logout` + log back in with API) requires a Switchboard service restart to be reflected in the dashboard. The auth files are re-read on every request, but uvicorn doesn't auto-reload Python source unless launched with `--reload`.
+
+See [`docs/help` section 4.5–4.8](app/dashboard/help.html) for the full operational reference, including caveats on each CLI's file format and how to extend detection when a CLI version ships a new schema.
+
+---
+
 ## Running the tests
 
 ```bash

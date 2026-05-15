@@ -1,0 +1,1065 @@
+<!-- HELP_DOC_VERSION: 1.1.0 -->
+<!-- HELP_COVERED_APP_VERSION: 0.1.0 -->
+<!-- HELP_LAST_UPDATED: 2026-05-15 -->
+
+<div class="help-doc">
+  <header class="help-doc-header">
+    <div class="help-doc-titlebar">
+      <h2 class="help-doc-title">
+        Help &amp; Reference
+        <span class="help-doc-version-tag" id="help-doc-version-tag" title="Documentation version">v…</span>
+      </h2>
+      <span class="help-doc-currency" id="help-doc-currency" data-state="unknown" title="Checking documentation currency...">checking…</span>
+    </div>
+    <div class="help-doc-version" id="help-doc-version-strip">
+      <span><strong>Covers app</strong> <span id="help-doc-covered-val">…</span></span>
+      <span class="help-doc-sep" aria-hidden="true">·</span>
+      <span><strong>Updated</strong> <span id="help-doc-updated-val">…</span></span>
+      <span class="help-doc-sep" aria-hidden="true">·</span>
+      <span><strong>Running app</strong> <span id="help-doc-appver-val">…</span></span>
+    </div>
+  </header>
+
+  <div class="help-doc-layout">
+    <nav class="help-doc-toc" aria-label="Help table of contents">
+      <ol class="help-toc-list">
+        <li><a href="#help-about">1. About AI Switchboard</a>
+          <ol>
+            <li><a href="#help-about-what">1.1 What it is, what it isn't</a></li>
+            <li><a href="#help-about-local">1.2 Single-user, local-only</a></li>
+            <li><a href="#help-about-provenance">1.3 Provenance and audit philosophy</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-quickstart">2. Quick Start</a>
+          <ol>
+            <li><a href="#help-quickstart-smoke">2.1 First task (fake-adapter smoke test)</a></li>
+            <li><a href="#help-quickstart-real">2.2 First real conclave</a></li>
+            <li><a href="#help-quickstart-decide">2.3 Recording your first decision</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-modes">3. The Three Modes</a>
+          <ol>
+            <li><a href="#help-modes-conclave">3.1 conclave</a></li>
+            <li><a href="#help-modes-resolve">3.2 resolve</a></li>
+            <li><a href="#help-modes-consult">3.3 consult</a></li>
+            <li><a href="#help-modes-pick">3.4 Picking the right mode</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-council">4. The Council</a>
+          <ol>
+            <li><a href="#help-council-cli">4.1 CLI seats</a></li>
+            <li><a href="#help-council-api">4.2 Open-weight API seats</a></li>
+            <li><a href="#help-council-manage">4.3 Adding or disabling a seat</a></li>
+            <li><a href="#help-council-pertask">4.4 Per-task seat selection</a></li>
+            <li><a href="#help-council-philosophy">4.5 Model selection philosophy</a></li>
+            <li><a href="#help-council-authmodes">4.6 CLI auth modes (subscription vs API)</a></li>
+            <li><a href="#help-council-pricing-view">4.7 The Pricing view</a></li>
+            <li><a href="#help-council-detection">4.8 How model &amp; auth detection works</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-charter">5. The Charter</a>
+          <ol>
+            <li><a href="#help-charter-operability">5.1 Operability before capability</a></li>
+            <li><a href="#help-charter-multimodal">5.2 Multimodal disagreement</a></li>
+            <li><a href="#help-charter-keeper">5.3 The keeper role</a></li>
+            <li><a href="#help-charter-amend">5.4 Amendment process</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-dashboard">6. Using the Dashboard</a>
+          <ol>
+            <li><a href="#help-dashboard-inbox">6.1 Inbox</a></li>
+            <li><a href="#help-dashboard-newtask">6.2 New Task form</a></li>
+            <li><a href="#help-dashboard-detail">6.3 Detail view</a></li>
+            <li><a href="#help-dashboard-settings">6.4 Settings</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-slash">7. Slash Commands</a>
+          <ol>
+            <li><a href="#help-slash-conclave">7.1 /conclave, /consult, /secondopinion</a></li>
+            <li><a href="#help-slash-decide">7.2 /decide, /decision</a></li>
+            <li><a href="#help-slash-continue">7.3 /continue, /thread, /answer</a></li>
+            <li><a href="#help-slash-provenance">7.4 The --invoked-by flag</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-loop">8. Decisions &amp; the Coding Loop</a>
+          <ol>
+            <li><a href="#help-loop-four">8.1 Deliberate → Decide → Execute → Record</a></li>
+            <li><a href="#help-loop-nolayer2">8.2 Why in-conclave execution wasn't built</a></li>
+            <li><a href="#help-loop-record">8.3 Decision record fields</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-attachments">9. Attachments &amp; Multimodal</a>
+          <ol>
+            <li><a href="#help-attachments-text">9.1 Text, Markdown, PDF</a></li>
+            <li><a href="#help-attachments-images">9.2 Images</a></li>
+            <li><a href="#help-attachments-folder">9.3 Drag-folder upload</a></li>
+            <li><a href="#help-attachments-gitdiff">9.4 Git-diff attachment</a></li>
+            <li><a href="#help-attachments-mmdisagree">9.5 When agents disagree on what they see</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-sandbox">10. Project Sandbox</a>
+          <ol>
+            <li><a href="#help-sandbox-copy">10.1 The read-only copy</a></li>
+            <li><a href="#help-sandbox-inline">10.2 Inline file tree for API seats</a></li>
+            <li><a href="#help-sandbox-cleanup">10.3 Cleanup and orphan sweep</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-ops">11. Cost, Tokens &amp; Retention</a>
+          <ol>
+            <li><a href="#help-ops-cost">11.1 Per-message and aggregate cost</a></li>
+            <li><a href="#help-ops-retention">11.2 Tier-based retention</a></li>
+            <li><a href="#help-ops-export-tier">11.3 Tier 2 export tracking</a></li>
+            <li><a href="#help-ops-never-trim">11.4 What is never auto-trimmed</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-exports">12. Exports</a>
+          <ol>
+            <li><a href="#help-exports-detail">12.1 Per-task detail export</a></li>
+            <li><a href="#help-exports-decision">12.2 Decision record export</a></li>
+            <li><a href="#help-exports-bulk">12.3 Bulk export</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-trouble">13. Troubleshooting</a>
+          <ol>
+            <li><a href="#help-trouble-unavail">13.1 Agent unavailable</a></li>
+            <li><a href="#help-trouble-json">13.2 JSON parse failures</a></li>
+            <li><a href="#help-trouble-stuck">13.3 Stuck tasks</a></li>
+            <li><a href="#help-trouble-overflow">13.4 Context-overflow errors</a></li>
+            <li><a href="#help-trouble-sandbox">13.5 Sandbox cap exceeded</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-reference">14. Reference</a>
+          <ol>
+            <li><a href="#help-reference-glossary">14.1 Glossary</a></li>
+            <li><a href="#help-reference-shortcuts">14.2 Keyboard shortcuts</a></li>
+            <li><a href="#help-reference-files">14.3 File locations</a></li>
+            <li><a href="#help-reference-docs">14.4 Links to deep docs</a></li>
+          </ol>
+        </li>
+        <li><a href="#help-about-docs">15. About This Documentation</a>
+          <ol>
+            <li><a href="#help-about-docs-version">15.1 Version history</a></li>
+            <li><a href="#help-about-docs-currency">15.2 How currency is detected</a></li>
+          </ol>
+        </li>
+      </ol>
+    </nav>
+
+    <div class="help-doc-splitter" id="help-doc-splitter" role="separator" aria-orientation="vertical"
+      aria-label="Drag to resize the table of contents" tabindex="0" title="Drag to resize"></div>
+
+    <article class="help-doc-content" id="help-doc-content">
+
+      <section id="help-about" class="help-section">
+        <h3>1. About AI Switchboard</h3>
+
+        <section id="help-about-what" class="help-subsection">
+          <h4>1.1 What it is, what it isn't</h4>
+          <!-- BEGIN:section-1.1 -->
+<p><strong>AI Switchboard</strong> (a.k.a. the AI Conclave) is a local background service that lets AI coding agents — Codex, Gemini, and Claude Code — consult one another through structured deliberation instead of free-form chat. You ask a question; the conclave deliberates; you get a structured verdict with disagreements surfaced verbatim, not flattened.</p>
+
+<p>It offers three deliberation modes:</p>
+<ul>
+  <li><code>conclave</code> — N equal participants, full-mesh visibility, no primary. Use for genuine multi-AI deliberation.</li>
+  <li><code>resolve</code> — open-ended, primary-driven loop that terminates when the primary signals it's done. Use to drill to an answer.</li>
+  <li><code>consult</code> — fixed three-step exchange for a quick second opinion.</li>
+</ul>
+
+<p>What it deliberately is <em>not</em>: it is not an autonomous code-execution system. The conclave is the <strong>deliberation layer</strong>. The interactive CLI you're already driving — Claude Code, Codex, or Gemini — is the <strong>execution layer</strong>. Switchboard talks, records, surfaces disagreement, and keeps the audit trail. Your CLI session does the actual editing, running, and iterating. Trying to merge those two roles was considered and explicitly declined; see <code>docs/ROADMAP.md</code>.</p>
+<!-- END:section-1.1 -->
+        </section>
+        <section id="help-about-local" class="help-subsection">
+          <h4>1.2 Single-user, local-only</h4>
+          <!-- BEGIN:section-1.2 -->
+<p>Switchboard runs as a FastAPI service bound to <code>127.0.0.1:8787</code>. It is single-user and local-only. There is no authentication layer because there is no remote surface — the service does not bind to a public interface, and nothing in the design assumes more than one user.</p>
+
+<p>State lives in a SQLite database at <code>data/switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, and exports also live under <code>data/</code>. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
+
+<p><strong>What this does and doesn't mean for privacy.</strong> The orchestration plane — the service, the dashboard, transcripts, decision records, and API keys — never leaves your machine. The deliberation content itself does: every prompt sent to a CLI seat traverses that CLI's provider (OpenAI for Codex, Anthropic for Claude Code, Google for Gemini), and every prompt to an open-weight seat traverses OpenRouter (and then whichever provider hosts the model). Switchboard does not <em>add</em> a third party — it uses the providers you already have a relationship with — but it does not <em>remove</em> one either. The meaningful claim here is <strong>control of the audit trail and orchestration state</strong>, not privacy of the prompt content.</p>
+
+<p>One bounded privacy lever does exist: OpenRouter requests go out with <code>provider.data_collection: "deny"</code> by default in <code>config.example.yaml</code>, which keeps prompts off the OpenRouter providers that retain or train on them. This applies only to the open-weight seats; the CLI seats are governed by whatever terms you have with OpenAI / Anthropic / Google.</p>
+<!-- END:section-1.2 -->
+        </section>
+        <section id="help-about-provenance" class="help-subsection">
+          <h4>1.3 Provenance and audit philosophy</h4>
+          <!-- BEGIN:section-1.3 -->
+<p>Every task carries a <code>source_agent</code> field recording which CLI submitted it — <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>. Every slash command passes <code>--invoked-by &lt;tool&gt;</code> so provenance is recorded accurately, not guessed.</p>
+
+<p>Inside a task, every prompt and every response is written to <code>agent_messages</code>, with per-call metadata in <code>agent_runs</code> (token counts, USD-equivalent cost where the provider reports it, timing, errors). Every message names its sender, its role, and its message type. Nothing is anonymized; nothing is summarized away.</p>
+
+<p>Decisions you record via <code>/decide</code> are <strong>permanent</strong>. They become the binding artifact on the task, surface in the dashboard's Decision panel, and get auto-injected into any threaded follow-up via <code>/continue</code> so the next conclave sees what you actually chose last time.</p>
+
+<p>The point of all this: reasoning is <em>inspectable</em> (you can read the full transcript), <em>revisable</em> (you can <code>/continue</code> a thread with new context), and <em>reusable</em> (decision records in <code>docs/decisions/</code> become context for future work).</p>
+<!-- END:section-1.3 -->
+        </section>
+      </section>
+
+      <section id="help-quickstart" class="help-section">
+        <h3>2. Quick Start</h3>
+        <section id="help-quickstart-smoke" class="help-subsection">
+          <h4>2.1 First task (fake-adapter smoke test)</h4>
+          <!-- BEGIN:section-2.1 -->
+<p>Before you spend any real-CLI quota, run a smoke test against the bundled <code>fake</code> adapter. It is an API-only adapter (hidden from the dashboard's agent list by default) that returns a deterministic response without calling out to any model — it exists specifically to confirm the orchestrator, worker, and database wiring all work end-to-end.</p>
+<p>With the service running on <code>127.0.0.1:8787</code>, open a PowerShell terminal in the project root and submit the bundled fake-adapter task:</p>
+<pre><code>curl.exe -X POST http://127.0.0.1:8787/api/tasks `
+  -H "Content-Type: application/json" `
+  --data "@examples/task_request_fake.json"</code></pre>
+<p>You will get back a JSON body of the shape <code>{"task_id": "tsk_...", "status": "pending", ...}</code>. Within about 2 seconds the background worker claims the task; within another 1 to 2 seconds the fake adapter completes the <code>consult</code>-mode exchange defined in <code>examples/task_request_fake.json</code>.</p>
+<p>Open the dashboard's <code>Inbox</code> tab. The new task appears at the top in <code>completed</code> status. Click into it and you will see a populated transcript and a final result panel. If that worked, the orchestrator is healthy and you can move on to a real conclave with confidence.</p>
+<!-- END:section-2.1 -->
+        </section>
+        <section id="help-quickstart-real" class="help-subsection">
+          <h4>2.2 First real conclave</h4>
+          <!-- BEGIN:section-2.2 -->
+<p>Once at least one real CLI adapter (Codex, Gemini, or Claude Code) reports as available, you can submit a real conclave from the dashboard.</p>
+<p>Open <code>http://127.0.0.1:8787/</code> in your browser and click the <code>New Task</code> tab in the top bar. In the form:</p>
+<ol>
+  <li>Set <code>Mode</code> to <code>conclave</code>.</li>
+  <li>Under <code>Agents</code>, check the seats you want at the table. The default 3-AI deliberation is <code>codex</code>, <code>gemini</code>, and <code>claude-code</code>. Only agents the orchestrator can currently reach show up in this list.</li>
+  <li>Leave <code>Permissions</code> on the <code>read-only</code> preset unless you have a reason to widen it.</li>
+  <li>Optionally fill in <code>Project path</code> and tick <code>Provide a read-only sandbox copy</code> if the agents should be able to browse your source while deliberating.</li>
+  <li>Type your question in the <code>Question</code> textarea.</li>
+  <li>Click <code>Submit task</code>.</li>
+</ol>
+<p>The form redirects you into the <code>Detail</code> view for the new task. While the conclave is in flight, the <code>live activity</code> banner at the top of the detail panel shows which agent is currently being called and how long the current call has been running. The transcript fills in below as each agent responds. When the conclave converges (or a backstop fires), a <code>Final result</code> panel appears.</p>
+<!-- END:section-2.2 -->
+        </section>
+        <section id="help-quickstart-decide" class="help-subsection">
+          <h4>2.3 Recording your first decision</h4>
+          <!-- BEGIN:section-2.3 -->
+<p>The conclave's job ends at a recommendation. The decision is still yours — and recording it is what turns a transient deliberation into a permanent piece of the project record.</p>
+<p>After the task completes, scroll past the <code>Final result</code> panel in the <code>Detail</code> view. You will see a <code>Decision</code> panel. Type your decision in your own words — what you are choosing, and (optionally) why, what you are rejecting, known risks, and open questions. The Conclave Charter suggests this fuller shape, but a single-line decision is acceptable too.</p>
+<p>Click <code>Save</code>. Your text is now the task's permanent decision record. From this point on:</p>
+<ul>
+  <li>The decision is visible in the <code>Detail</code> view above the post-task action bar.</li>
+  <li>The decision is included as auto-context in any threaded follow-up you start with <code>/continue</code> or the dashboard's <code>Continue this thread</code> button — every participant in the follow-up conclave sees your prior call.</li>
+  <li><code>/decision &lt;task&gt;</code> fetches it back later along with the original question and final answer, ready to act on.</li>
+  <li>If you click <code>Export to decision record</code>, the decision is written into the exported markdown alongside the transcript and final result.</li>
+</ul>
+<p>Recording a decision does not lock anything — you can edit and save again at any time.</p>
+<!-- END:section-2.3 -->
+        </section>
+      </section>
+
+      <section id="help-modes" class="help-section">
+        <h3>3. The Three Modes</h3>
+        <section id="help-modes-conclave" class="help-subsection">
+          <h4>3.1 conclave</h4>
+          <!-- BEGIN:section-3.1 -->
+<p><code>conclave</code> mode runs N equal participants with full-mesh visibility. There is no primary and no consultant — every participant sees every other participant's previous turn, every round.</p>
+
+<p>Each round, each participant posts one <code>ConclaveTurn</code> containing their current <code>position</code> plus a <code>convergence</code> signal: <code>i_am_done</code>, <code>still_thinking</code>, or <code>need_user_input</code>. The mode terminates when at least <code>convergence_threshold</code> of the participants signal <code>i_am_done</code> in the same round. The default threshold is <code>1.0</code> — unanimous agreement.</p>
+
+<p>If convergence is weak (some say done, others still thinking), the orchestrator runs <strong>one focused synthesis round</strong>, then hands the result to a <strong>convergence judge</strong> — one participant arbitrates whether the remaining differences are semantically equivalent, and the orchestrator upgrades <code>agreement_level</code> accordingly. The orchestrator never picks a winner on substance; if real disagreement persists, every position is surfaced to you.</p>
+
+<p>Use <code>conclave</code> for genuine multi-AI deliberation: architecture choices, contentious refactors, library selections, security calls — anything where you want three independent perspectives reasoning about the same stable situation, with disagreements preserved rather than averaged away.</p>
+<!-- END:section-3.1 -->
+        </section>
+        <section id="help-modes-resolve" class="help-subsection">
+          <h4>3.2 resolve</h4>
+          <!-- BEGIN:section-3.2 -->
+<p><code>resolve</code> mode is open-ended and primary-driven. One agent is the <code>primary</code>; others (optional) are consultants who critique each round. Each turn the primary picks one of four <code>resolution_status</code> values:</p>
+
+<ul>
+  <li><code>resolved</code> — primary believes the task is done. Consultants get one more round to push back via <code>wants_continuation</code>.</li>
+  <li><code>needs_more_rounds</code> — primary explicitly wants another iteration.</li>
+  <li><code>needs_user_input</code> — primary cannot proceed without info from you. The task pauses at <code>awaiting_user_input</code> until you answer; then it resumes.</li>
+  <li><code>cannot_resolve</code> — primary determined the task cannot be solved with available tools, permissions, or info. The loop terminates immediately.</li>
+</ul>
+
+<p>Termination is goal-based, not turn-capped — but there are three backstops to bound cost: <code>max_seconds</code> (total task wall time), <code>max_rounds</code> (round count), and a <strong>repetition guard</strong> that stops the loop if agents start repeating prior content.</p>
+
+<p>Use <code>resolve</code> when you want one agent to drive ("let Codex handle this") and the others to act as checks per round. It's the right mode for debugging, deep dives, and tasks where you expect iteration toward a real answer rather than a vote.</p>
+<!-- END:section-3.2 -->
+        </section>
+        <section id="help-modes-consult" class="help-subsection">
+          <h4>3.3 consult</h4>
+          <!-- BEGIN:section-3.3 -->
+<p><code>consult</code> mode is a bounded three-step exchange: the <strong>primary proposes</strong>, the <strong>consultant(s) critique</strong>, the <strong>primary finalizes</strong>. That's it. After the primary's <code>primary_final</code> message, the task terminates.</p>
+
+<p>Unlike <code>resolve</code>, the primary's <code>resolution_status</code> is ignored — the shape is fixed at three steps regardless of how confident anyone is. Unlike <code>conclave</code>, the consultants do not get equal standing; they critique once and the primary owns the final answer.</p>
+
+<p>Use <code>consult</code> when you want a <em>quick</em> second (or third) opinion rather than a full deliberation. Code review of a small change, a sanity check on a design sketch, a "did I miss anything obvious" pass — anything where one or two critique rounds is enough and you don't want to spend the time or quota on a full convergence loop.</p>
+
+<p>From the CLI: <code>/consult &lt;agent&gt; &lt;question&gt;</code> picks one consultant; <code>/secondopinion</code> targets the current conversation.</p>
+<!-- END:section-3.3 -->
+        </section>
+        <section id="help-modes-pick" class="help-subsection">
+          <h4>3.4 Picking the right mode</h4>
+          <!-- BEGIN:section-3.4 -->
+<p>Pick the mode by what kind of answer you want:</p>
+
+<table>
+  <tr><th>You want…</th><th>Use</th></tr>
+  <tr><td>Three independent perspectives, with disagreements preserved verbatim and a real convergence signal</td><td><code>conclave</code></td></tr>
+  <tr><td>One agent driving to a concrete answer, with others acting as checks, iterating until done</td><td><code>resolve</code></td></tr>
+  <tr><td>A fast sanity check or second opinion on something you've mostly figured out</td><td><code>consult</code></td></tr>
+</table>
+
+<p>Heuristics that work in practice:</p>
+
+<ul>
+  <li><strong>Architecture / library / refactor debates</strong> where multiple paths are defensible — <code>conclave</code>. You want the disagreements.</li>
+  <li><strong>Debugging a real failure</strong> or chasing down a root cause — <code>resolve</code>. You want iteration.</li>
+  <li><strong>"Does this PR design look right?"</strong> — <code>consult</code>. You want one critique pass, not a debate.</li>
+  <li><strong>"Did I miss a risk in this decision I already mostly made?"</strong> — <code>consult</code> or <code>/secondopinion</code>.</li>
+</ul>
+
+<p>If you're unsure, default to <code>conclave</code> for design questions and <code>resolve</code> for execution-style questions. You can always re-submit in a different mode; the threading machinery (<code>/continue</code>) keeps prior context intact.</p>
+<!-- END:section-3.4 -->
+        </section>
+      </section>
+
+      <section id="help-council" class="help-section">
+        <h3>4. The Council</h3>
+        <section id="help-council-cli" class="help-subsection">
+          <h4>4.1 CLI seats</h4>
+          <!-- BEGIN:section-4.1 -->
+<p>Three of the four built-in council seats are <strong>CLI seats</strong> — local-machine command-line tools the adapter shells out to. They are:</p>
+<ul>
+  <li><strong>Codex</strong> — invoked as <code>codex exec --json</code>.</li>
+  <li><strong>Gemini</strong> — invoked as <code>gemini -p -o json</code>.</li>
+  <li><strong>Claude Code</strong> — invoked as <code>claude -p --output-format json</code>.</li>
+</ul>
+<p>All three are <strong>read-only by default</strong>. The adapter never grants write or execute permissions during a deliberation — that's a Charter-level decision, not a configuration toggle (see the ROADMAP's "Layer 2" section for why in-conclave execution was intentionally not built). The CLIs read files when the task has a sandbox, but they cannot patch them.</p>
+<p>All three are also <strong>JSON-output-disciplined</strong>: every adapter asks the CLI for structured JSON and refuses to fabricate structure if it gets prose back. If a CLI returns something unparseable, the orchestrator records an <code>agent_error</code> rather than guessing.</p>
+<p>Because these are CLIs and not API calls, each seat defaults to your <strong>existing subscription</strong> on that tool — your ChatGPT Plus / Pro plan for Codex, your Gemini Advanced plan for Gemini, your Claude Pro / Max plan for Claude Code. Switchboard doesn't bill anything; the CLI you already pay for handles auth and quota. The adapter just speaks to the binary on <code>$PATH</code>.</p>
+<!-- END:section-4.1 -->
+        </section>
+        <section id="help-council-api" class="help-subsection">
+          <h4>4.2 Open-weight API seats</h4>
+          <!-- BEGIN:section-4.2 -->
+<p>Alongside the three CLI seats, you can mount one or more <strong>open-weight API seats</strong> — non-frontier (mostly) open-weight models reached over HTTP. These bring a voice from outside the OpenAI / Google / Anthropic axis into the deliberation: different training data, different priors, different blind spots.</p>
+<p>The default backing is <strong>OpenRouter</strong>, a unified gateway to many providers (DeepSeek, Qwen, Z.ai/GLM, and more). The shipped <code>config.example.yaml</code> registers three seats out of the box — <code>deepseek</code>, <code>glm</code>, and <code>qwen</code> — and you can add or rename any of them. OpenRouter is <strong>pay-per-token, no subscription</strong>; a single conclave turn costs roughly <strong>$0.001–$0.02</strong>. Auth is via <code>OPENROUTER_API_KEY</code> (env var wins) or the dashboard's Settings → API Keys panel.</p>
+<p>By default, OpenRouter requests are sent with <code>provider.data_collection: "deny"</code>, which keeps prompts off providers that retain or train on them — appropriate when the conclave is reviewing your code. Flip <code>data_collection: allow</code> in the <code>openrouter:</code> config section if you want to opt back in.</p>
+<p>An alternative backing, <strong>Ollama Cloud</strong>, ships in the codebase as <code>OllamaCloudAdapter</code> and is <strong>disabled by default</strong>. Its big models (DeepSeek 671B, GLM-5, …) require a paid Ollama Cloud subscription, so OpenRouter is the preferred path unless you already have that subscription. Auth is <code>OLLAMA_API_KEY</code> or the same Settings → API Keys panel.</p>
+<!-- END:section-4.2 -->
+        </section>
+        <section id="help-council-manage" class="help-subsection">
+          <h4>4.3 Adding or disabling a seat</h4>
+          <!-- BEGIN:section-4.3 -->
+<p>Seats are <strong>config-driven</strong>. To add one, edit <code>config.yaml</code> under <code>openrouter.models[]</code> (or <code>ollama_cloud.models[]</code> if you're on the Ollama Cloud path) and append an entry. The shape is:</p>
+<pre><code>openrouter:
+  enabled: true
+  data_collection: deny
+  models:
+    - name: deepseek
+      model_slug: "deepseek/deepseek-chat"
+      max_context_chars: 400000
+    - name: glm
+      model_slug: "z-ai/glm-4.6"
+      max_context_chars: 400000</code></pre>
+<p>The three fields are:</p>
+<ul>
+  <li><code>name</code> — the friendly council label that appears on the New Task checkbox list.</li>
+  <li><code>model_slug</code> (OpenRouter) or <code>model_id</code> (Ollama Cloud) — the provider's model identifier.</li>
+  <li><code>max_context_chars</code> — your declared prompt-size ceiling for that seat. The adapter uses it to budget the inlined sandbox. Set it conservatively below the model's true token window; the OpenRouter adapter also <em>learns</em> a tighter ceiling automatically if the provider rejects an over-long request.</li>
+</ul>
+<p><strong>Restart the service</strong> after editing — the registry reads <code>config.yaml</code> at startup. The new seat then appears as a checkbox on the New Task form alongside <code>codex</code>, <code>gemini</code>, and <code>claude-code</code>.</p>
+<p>To <strong>disable</strong> a seat, either remove its entry from <code>models[]</code>, or set the whole adapter's <code>enabled: false</code> (e.g. <code>openrouter.enabled: false</code>). A disabled adapter stays registered but reports <code>agent_unavailable</code>.</p>
+<!-- END:section-4.3 -->
+        </section>
+        <section id="help-council-pertask" class="help-subsection">
+          <h4>4.4 Per-task seat selection</h4>
+          <!-- BEGIN:section-4.4 -->
+<p>You do not have to use every available seat on every task. The <strong>New Task form</strong> shows every registered, available agent as a checkbox — the three CLI seats plus any OpenRouter / Ollama Cloud seats you've configured. You tick the boxes for the seats you want to sit on this particular conclave.</p>
+<p>A <strong>two-agent conclave is valid</strong>. So is a three-agent or five-agent one. The convergence machinery doesn't assume a fixed N — it works off the threshold (default unanimous) over whichever participants you selected. A consult-mode task uses one primary plus one or more consultants; a resolve-mode task uses one primary; a conclave-mode task uses everyone you ticked, equally.</p>
+<p>Reasons you might trim the roster:</p>
+<ul>
+  <li><strong>Cost.</strong> The CLI seats use your existing subscriptions; the API seats meter tokens. Leaving the API seats off keeps a task strictly free.</li>
+  <li><strong>Speed.</strong> Fewer participants means fewer parallel calls per round and a shorter critical path.</li>
+  <li><strong>Topical fit.</strong> If a model is weak on your domain, leaving it off the panel is cleaner than discounting its vote.</li>
+  <li><strong>Availability.</strong> A seat with a missing API key or an unavailable CLI shows up disabled; you simply don't tick it.</li>
+</ul>
+<p>The task's recorded transcript and decision reflect only the seats you selected — the deliberation is shaped by who's actually in the room.</p>
+<!-- END:section-4.4 -->
+        </section>
+
+        <section id="help-council-philosophy" class="help-subsection">
+          <h4>4.5 Model selection philosophy</h4>
+<p>This system prioritizes <strong>top-shelf model quality over per-token cost</strong>. The conclave's value depends on each agent reasoning genuinely well about your question — saving a few cents per turn by picking a weaker model defeats the purpose. The shipped defaults are the top-tier model in each provider's lineup at the time of writing.</p>
+<table>
+  <thead><tr><th>Provider (seat)</th><th>Declared model</th><th>$/M in · out</th><th>Why this one</th></tr></thead>
+  <tbody>
+    <tr><td>OpenAI (<code>codex</code>)</td><td><code>openai/gpt-5.5</code></td><td>$5 · $30</td><td>Flagship general model. <code>gpt-5.5-pro</code> is ~6× the cost for marginal gains; not worth it.</td></tr>
+    <tr><td>Anthropic (<code>claude-code</code>)</td><td><code>anthropic/claude-opus-4.7</code></td><td>$5 · $25</td><td>Top reasoning model. The <code>-fast</code> variant is ~6× the cost for marginal speed.</td></tr>
+    <tr><td>Google (<code>gemini</code>)</td><td><code>google/gemini-2.5-pro</code></td><td>$1.25 · $10</td><td>Current stable flagship. <code>3.1-pro-preview</code> is newer but preview-tagged.</td></tr>
+    <tr><td>OpenRouter open-weight</td><td><code>deepseek/deepseek-chat</code>, <code>z-ai/glm-4.6</code>, <code>qwen/qwen3-coder</code>, <code>moonshotai/kimi-k2.6</code></td><td>$0.22–$0.73 · $0.89–$3.49</td><td>Outside-axis voices — different training data, different blind spots than the OpenAI/Anthropic/Google trio.</td></tr>
+  </tbody>
+</table>
+<p>To change any of these: edit <code>agents.&lt;name&gt;.model_slug</code> in <code>config.yaml</code> for a CLI seat, or edit/append <code>openrouter.models[]</code> for an open-weight seat. Restart the service to pick up the change.</p>
+        </section>
+
+        <section id="help-council-authmodes" class="help-subsection">
+          <h4>4.6 CLI auth modes (subscription vs API)</h4>
+<p>Each frontier CLI can authenticate two ways:</p>
+<ul>
+  <li><strong>Subscription / OAuth (default).</strong> You log in via the CLI itself — <code>claude /login</code>, <code>codex login</code>, <code>gemini /auth</code>. No per-token charges; your provider subscription absorbs the cost (Claude Pro/Max, ChatGPT Plus/Pro, Gemini Advanced).</li>
+  <li><strong>API key.</strong> You log in via API key inside the CLI's auth flow, or set the corresponding env var. The CLI then bills per token at the provider's published rates. Significantly more expensive than subscription on heavy use, but useful if you don't have a subscription or want explicit per-token visibility.</li>
+</ul>
+<p>You can switch between the two at any time from inside the CLI's own auth menu (it tends to be something like <code>/login</code>, <code>/auth</code>, or <code>logout</code> + re-login with the alternative method). The Pricing view detects which mode each CLI is currently in and labels its row accordingly — see <em>4.8 How model &amp; auth detection works</em> for the technical detail of how this is detected.</p>
+<p><strong>Important:</strong> CLI changes require a Switchboard service restart to be reflected in the Pricing view. The auth-state files are re-read on every request, but the Python process holds its own image of the code path; the restart isn't for the auth detection itself, it's a general fact of how uvicorn runs without <code>--reload</code>.</p>
+        </section>
+
+        <section id="help-council-pricing-view" class="help-subsection">
+          <h4>4.7 The Pricing view</h4>
+<p>Click the violet <code>$</code> glyph in the sidebar (between the help <code>?</code> and the gear) to open a sortable pricing table. Columns:</p>
+<ul>
+  <li><strong>Agent</strong> — the council seat name as configured.</li>
+  <li><strong>Type</strong> — a colored pill: <code>cli</code> (CLI in subscription mode, green), <code>cli-api</code> (CLI in API mode, amber), <code>openrouter</code> (open-weight pay-per-token, violet), <code>ollama_cloud</code> (subscription, cyan).</li>
+  <li><strong>Model in use</strong> — the detected slug from the CLI's own config when available, otherwise the slug declared in <code>config.yaml</code>. A small "detected · &lt;source&gt;" caption shows where the value came from. If declared and detected disagree, a yellow <em>drift</em> chip appears with hover text explaining how to resolve it.</li>
+  <li><strong>Context</strong> — the model's context window from OpenRouter's catalog.</li>
+  <li><strong>Input $/M, Output $/M</strong> — per-million-token rates pulled live from OpenRouter (which carries Anthropic, OpenAI, Google, and open-weight pricing in one unified catalog). Cached server-side for 5 minutes so view-open is near-instant after first load.</li>
+  <li><strong>Est. per turn</strong> — input × 5,000 tokens + output × 1,000 tokens (typical conclave turn). Click the column header to sort; the default sort is most expensive first.</li>
+  <li><strong>Notes</strong> — explains the detected source for transparency: e.g. <em>"API mode (~/.codex/auth.json (auth_mode=apikey))"</em> or <em>"Subscription mode (~/.gemini/settings.json (selectedType=oauth-personal)) — no per-token charges."</em></li>
+</ul>
+<p>Subscription-mode rows leave the cost columns blank because there is no per-token rate — your subscription pays.</p>
+        </section>
+
+        <section id="help-council-detection" class="help-subsection">
+          <h4>4.8 How model &amp; auth detection works</h4>
+<p>Detection runs server-side on every request to <code>/api/agents/pricing</code>. The OpenRouter pricing catalog is cached for 5 minutes; the CLI auth-state files are read fresh on every request.</p>
+<p><strong>Auth mode resolution order</strong>:</p>
+<ol>
+  <li>The CLI's own auth-state file (most authoritative — reflects what you actually selected via the CLI's login flow).</li>
+  <li>Env var presence (fallback signal of API intent if the file gives no clear answer).</li>
+  <li>Default to subscription.</li>
+</ol>
+<p><strong>Per-CLI signals</strong>:</p>
+<table>
+  <thead><tr><th>CLI</th><th>File</th><th>API-mode signal</th><th>Subscription-mode signal</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>Codex</td>
+      <td><code>~/.codex/auth.json</code></td>
+      <td><code>auth_mode: "apikey"</code></td>
+      <td><code>auth_mode: "chatgpt"</code> (or any non-apikey value)</td>
+    </tr>
+    <tr>
+      <td>Gemini</td>
+      <td><code>~/.gemini/settings.json</code></td>
+      <td><code>security.auth.selectedType</code> contains "api" or "key" (e.g. <code>"gemini-api-key"</code>)</td>
+      <td><code>selectedType: "oauth-personal"</code> (or any other non-API value). Falls back to <code>~/.gemini/oauth_creds.json</code> existence if <code>selectedType</code> is missing.</td>
+    </tr>
+    <tr>
+      <td>Claude Code</td>
+      <td><code>~/.claude/.credentials.json</code></td>
+      <td>(no explicit marker known yet — falls through to env var)</td>
+      <td>File presence with non-zero size</td>
+    </tr>
+  </tbody>
+</table>
+<p><strong>Model identity resolution</strong>:</p>
+<table>
+  <thead><tr><th>CLI</th><th>Where the model lives</th><th>What's read</th></tr></thead>
+  <tbody>
+    <tr><td>Codex</td><td><code>~/.codex/config.toml</code></td><td><code>model = "..."</code> at the top level. Prepended with <code>openai/</code> to form an OpenRouter slug.</td></tr>
+    <tr><td>Claude Code</td><td><code>~/.claude/settings.json</code></td><td><code>model</code> field if present (written by the <code>/model &lt;name&gt;</code> command inside Claude Code). Aliases like <code>opus</code> / <code>sonnet</code> / <code>haiku</code> are mapped to current OpenRouter slugs.</td></tr>
+    <tr><td>Gemini</td><td>(no persistent model preference detected)</td><td>Falls back to the slug declared in <code>config.yaml</code>.</td></tr>
+  </tbody>
+</table>
+<p>When the detected model differs from the declared one, the Pricing view shows the <strong>detected</strong> value (because it reflects what your CLI is actually using) and flags the mismatch with a "drift" chip. To resolve drift, either change the CLI's model (e.g. <code>/model opus</code> inside Claude Code) to match the declared slug, or edit <code>agents.&lt;name&gt;.model_slug</code> in <code>config.yaml</code> to match the detected one.</p>
+<p><strong>Caveats:</strong></p>
+<ul>
+  <li>CLI auth file formats can change between CLI versions; if a detection stops working, check the file's current shape and update <code>_detect_cli_auth_from_files</code> in <code>app/api/agents.py</code> accordingly.</li>
+  <li>The env-var fallback only applies if the file gives no clear signal — it does <em>not</em> override an explicit file-based selection.</li>
+  <li>Switchboard's CLI adapters do not pass <code>--bare</code> or equivalent flags that would force a specific auth mode; the adapter trusts the CLI's own current selection.</li>
+</ul>
+        </section>
+      </section>
+
+      <section id="help-charter" class="help-section">
+        <h3>5. The Charter</h3>
+        <section id="help-charter-operability" class="help-subsection">
+          <h4>5.1 Operability before capability</h4>
+          <!-- BEGIN:section-5.1 -->
+<p>Charter v1.2 codifies a principle the conclave converged on after deliberating its own evolution: <strong>operability before capability</strong>. When the conclave evaluates a proposal to add a new feature, mode, agent type, permission layer, or piece of heavy infrastructure, it must first weigh the impact on the trust foundations of the existing system — <em>observability, durability, recoverability, audit trail, retention,</em> and <em>export</em>.</p>
+
+<p>A <em>material tension</em> exists when a proposed capability would degrade those foundations, conflict architecturally with them, raise state/permission/coordination complexity beyond what they can support, or crowd out a named operability gap. In material tension, unresolved conflict resolves in favor of operability unless you (Glen) explicitly approve a bounded exception.</p>
+
+<p>This isn't only a deliberation rule — it has a paper trail requirement. Every significant Switchboard capability or infrastructure decision record must include an <strong>Operability Impact</strong> field covering effects on those foundations, accepted risks, mitigations, any approved exceptions, and follow-up review points. See <code>docs/CONCLAVE_CHARTER.md</code> for the binding text.</p>
+<!-- END:section-5.1 -->
+        </section>
+        <section id="help-charter-multimodal" class="help-subsection">
+          <h4>5.2 Multimodal disagreement</h4>
+          <!-- BEGIN:section-5.2 -->
+<p>When the conclave is reasoning about an image and participants describe what they literally see <em>differently</em> — not differing opinions but differing perception of pixels, of text, of layout — the system <strong>does not run a synthesis round and does not force consensus</strong>. Visual perception is a matter of fact, not deliberation; one model updating its description after seeing another's is conformity, not better seeing, and produces a less reliable answer than transparent disagreement.</p>
+
+<p>Instead, the participant that detects the divergence (or the final-round participants collectively) sets <code>convergence: need_user_input</code> and emits a structured <code>user_input_question</code> containing:</p>
+<ul>
+  <li><strong>Consensus observations</strong> — visual elements every participant reported.</li>
+  <li><strong>Disputed observations</strong> — what each participant reported about specific elements, attributed by name.</li>
+  <li><strong>Type of claim</strong> for each — literal observation, OCR/text reading, or interpretation.</li>
+  <li><strong>Confidence</strong>, when supplied.</li>
+  <li><strong>Suspected cause of divergence</strong> and a concrete question for you.</li>
+</ul>
+
+<p>Your answer becomes the authoritative resolution for that image. A participant whose perception was wrong does not have its non-perceptual contributions discarded — the final agreement level reflects that the disagreement was perceptual, not analytical. Visual perception disputes are first-class.</p>
+<!-- END:section-5.2 -->
+        </section>
+        <section id="help-charter-keeper" class="help-subsection">
+          <h4>5.3 The keeper role</h4>
+          <!-- BEGIN:section-5.3 -->
+<p>You are <strong>the keeper</strong>. The Conclave Charter (<code>docs/CONCLAVE_CHARTER.md</code>) names you as the final authority: you provide intent, context, judgment, validation, and approval. The conclave provides alternatives, critique, synthesis, and reusable decision records.</p>
+
+<p>The keeper's primary act on a completed task is <code>/decide</code>. You record one of three outcomes:</p>
+<ul>
+  <li><strong>Ratify</strong> — accept the conclave's converged answer as your decision.</li>
+  <li><strong>Reject</strong> — decline the conclave's answer; your decision text states what you're doing instead.</li>
+  <li><strong>Return to conclave</strong> — kick the question back via <code>/continue</code> with new framing or evidence.</li>
+</ul>
+
+<p>The keeper <strong>does not edit conclave output</strong>. Once the conclave has converged, the transcript and final answer are immutable artifacts. Your decision is a separate, authoritative record placed alongside them — not a rewrite of what the agents said. This separation is what keeps the audit trail clean: the conclave's reasoning is preserved verbatim, and your binding call is preserved verbatim, and the two are distinguishable forever.</p>
+
+<p>Note: within the charter itself, the <code>claude-code</code> adapter is the keeper of the <em>charter document</em> — meaning it maintains the canonical file, tracks amendments, and restates working rules when participants drift. That is a continuity role, not authority. Authority is yours.</p>
+<!-- END:section-5.3 -->
+        </section>
+        <section id="help-charter-amend" class="help-subsection">
+          <h4>5.4 Amendment process</h4>
+          <!-- BEGIN:section-5.4 -->
+<p>The Conclave Charter is binding and embedded in every prompt to every participant in every mode. Changes are not edited in place by anyone acting alone — they go through a formal amendment process defined in the charter itself.</p>
+
+<p>The process:</p>
+<ol>
+  <li>Any participant, or you, proposes an amendment.</li>
+  <li>The amendment is debated in a <code>conclave</code>-mode task on Switchboard. The three AIs deliberate on the proposed wording.</li>
+  <li>You ratify or reject the outcome via <code>/decide</code>.</li>
+  <li>On ratification, the keeper bumps the version number and updates the canonical file at <code>skills/generic/conclave_charter.md</code> (with the human-readable mirror at <code>docs/CONCLAVE_CHARTER.md</code>).</li>
+  <li>A numbered decision record is filed at <code>docs/decisions/&lt;NNNN&gt;_&lt;slug&gt;.md</code>.</li>
+</ol>
+
+<p>This is how the charter actually got from v1.0 to v1.2: the Multimodal Disagreement section (v1.1) and the Operability-before-capability principle (v1.2) were each proposed in conclave deliberations, ratified, versioned, and recorded as decisions 0002 and 0006. The charter is a living document; conflicts between it and updated practice should be raised and resolved through amendment, not by quietly editing files.</p>
+<!-- END:section-5.4 -->
+        </section>
+      </section>
+
+      <section id="help-dashboard" class="help-section">
+        <h3>6. Using the Dashboard</h3>
+        <section id="help-dashboard-inbox" class="help-subsection">
+          <h4>6.1 Inbox</h4>
+          <!-- BEGIN:section-6.1 -->
+<p>The <code>Inbox</code> tab is the primary list view for every task the orchestrator knows about. It auto-refreshes every 5 seconds and uses a sticky table header so the column labels stay visible as you scroll through long lists.</p>
+<p>The filter bar above the table lets you narrow the view:</p>
+<table>
+  <thead><tr><th>Filter</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>Status</code></td><td>Limit to <code>pending</code>, <code>running</code>, <code>awaiting_user_input</code>, <code>completed</code>, <code>failed</code>, or <code>cancelled</code>.</td></tr>
+    <tr><td><code>Mode</code></td><td>Limit to <code>conclave</code>, <code>consult</code>, or <code>resolve</code>.</td></tr>
+    <tr><td><code>Export status</code></td><td><code>Exported</code> shows only tasks already written to <code>data/exports/</code>; <code>Not exported</code> shows only terminal tasks that have not been exported yet.</td></tr>
+    <tr><td><code>Search</code></td><td>Case-insensitive substring match against task ID and the user request text.</td></tr>
+    <tr><td><code>Show last</code></td><td>How many rows to fetch: 50, 100, 500, 1000, or 5000.</td></tr>
+  </tbody>
+</table>
+<p>The <code>X</code> button beside the search box resets all filters to defaults. A counter under the filter bar shows how many tasks are visible out of the total fetched.</p>
+<p>The <code>Bulk export unexported</code> button writes every unexported terminal task (<code>completed</code>, <code>failed</code>, or <code>cancelled</code>) to <code>data/exports/</code> as a markdown decision record. Tasks that succeed are marked exported so the next bulk run skips them.</p>
+<!-- END:section-6.1 -->
+        </section>
+        <section id="help-dashboard-newtask" class="help-subsection">
+          <h4>6.2 New Task form</h4>
+          <!-- BEGIN:section-6.2 -->
+<p>The <code>New Task</code> tab is where you compose and submit a new deliberation. Every field maps directly onto the task request the orchestrator stores in SQLite.</p>
+<ul>
+  <li><code>Mode</code> — one of <code>conclave</code> (N equal participants, deliberate to convergence), <code>consult</code> (primary proposes, consultant critiques, primary finalizes), or <code>resolve</code> (primary-driven loop with backstops). The hint line under the dropdown summarizes the selected mode.</li>
+  <li><code>Agents</code> — a checkbox list of every agent the orchestrator can currently reach. Real CLI agents (<code>codex</code>, <code>gemini</code>, <code>claude-code</code>) appear only if their adapters report available; configured OpenRouter / Ollama seats appear too.</li>
+  <li><code>Permissions</code> — collapsed by default. Inside, three preset buttons quickly set the checkboxes: <code>Read-only</code>, <code>Read + .env</code>, and <code>Read everything</code>. You can also tick individual permissions by hand.</li>
+  <li><code>Project path</code> — optional. When set, the orchestrator scopes permissions to this directory. Tick <code>Provide a read-only sandbox copy</code> to give each agent a per-task read-only snapshot of the project.</li>
+  <li><code>Question</code> — the prompt itself. The <code>Attach current git diff</code> button beside the label is enabled once <code>Project path</code> is set.</li>
+  <li><code>Attachments</code> — drag files onto the dropzone, or click <code>browse</code>. Text, Markdown, PDF, code, and image files are supported up to 20 MiB each.</li>
+</ul>
+<p>Click <code>Submit task</code>. You are redirected to the <code>Detail</code> view for the new task.</p>
+<!-- END:section-6.2 -->
+        </section>
+        <section id="help-dashboard-detail" class="help-subsection">
+          <h4>6.3 Detail view</h4>
+          <!-- BEGIN:section-6.3 -->
+<p>The <code>Detail</code> view is where you watch a task run, read the transcript, record a decision, and act on the result. From top to bottom:</p>
+<ul>
+  <li><strong>Thread breadcrumb</strong> — appears only if the task is part of a thread; shows the ancestry chain so you can jump back to any prior node.</li>
+  <li><strong>Live activity</strong> — visible while the task is running. Shows the currently-active agent and elapsed time on the current call, so you always know whether the conclave is making progress or stuck.</li>
+  <li><strong>User request</strong> — the question exactly as submitted.</li>
+  <li><strong>Answer prompt</strong> — appears only when the task pauses with <code>status: awaiting_user_input</code>. Shows the council's question, optional context for why they are asking, and a textarea to send your reply.</li>
+  <li><strong>Transcript</strong> — every message in the deliberation, including each agent's position and convergence signal per round.</li>
+  <li><strong>Final result</strong> — the structured outcome once the task terminates.</li>
+  <li><strong>Decision panel</strong> — your authoritative decision in your own words; save and edit at any time.</li>
+  <li><strong>Post-task action bar</strong> — <code>Start New Task</code>, <code>Continue this thread</code>, <code>Export to decision record</code> (writes markdown to <code>data/exports/</code>), and <code>Download…</code> for the full detail as PDF, DOCX, MD, or TXT.</li>
+</ul>
+<!-- END:section-6.3 -->
+        </section>
+        <section id="help-dashboard-settings" class="help-subsection">
+          <h4>6.4 Settings</h4>
+          <!-- BEGIN:section-6.4 -->
+<p>The <code>Settings</code> view is where you store API keys for the pluggable open-weight council seats. Open the left rail, click the gear icon, and choose <code>Settings</code>. The <code>API Keys</code> panel has two rows — one for OpenRouter, one for Ollama Cloud.</p>
+<p>Each row has the same shape:</p>
+<ul>
+  <li>A password input (the key is masked by default).</li>
+  <li>An eyeball button that toggles the input between password and plain text so you can verify what you pasted.</li>
+  <li>A <code>Save</code> button (writes the key to the local SQLite database at <code>data/switchboard.db</code>).</li>
+  <li>A <code>Clear stored key</code> button (removes it from the database).</li>
+</ul>
+<p><strong>Precedence rule.</strong> The environment variable always wins over the stored value. If <code>OPENROUTER_API_KEY</code> is set in the shell you launched the service from, that key is used for OpenRouter calls regardless of what is saved in the database. Likewise <code>OLLAMA_API_KEY</code> for Ollama Cloud. The database entry is a fallback used only when the env var is absent.</p>
+<p>OpenRouter is the default backing for the open-weight seats (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>); a conclave turn typically costs $0.001–$0.02 pay-per-token. The Ollama Cloud key is only needed if you enable the Ollama Cloud seats in <code>config.yaml</code>, which is disabled by default.</p>
+<!-- END:section-6.4 -->
+        </section>
+      </section>
+
+      <section id="help-slash" class="help-section">
+        <h3>7. Slash Commands</h3>
+        <section id="help-slash-conclave" class="help-subsection">
+          <h4>7.1 /conclave, /consult, /secondopinion</h4>
+          <!-- BEGIN:section-7.1 -->
+<p>You can submit tasks to Switchboard without leaving the CLI session you are already coding in. From your Claude Code, Codex, or Gemini session, the same three commands cover the most common cases.</p>
+<ul>
+  <li><code>/conclave &lt;question&gt;</code> — runs a 3-AI conclave deliberation with <code>codex</code>, <code>gemini</code>, and <code>claude-code</code>. This is the full deliberation: every agent posts one position per round, signals convergence, and the loop terminates when participants agree (or a synthesis round plus judge pass resolves a weak convergence). Use it for design questions, architectural calls, and anything where you want disagreements surfaced verbatim instead of flattened.</li>
+  <li><code>/consult &lt;agent&gt; &lt;question&gt;</code> — a quick second opinion from one named agent. The CLI you ran the command from acts as the primary (drafts the answer); the named agent acts as the consultant (critiques it); the primary finalizes. Three-step exchange, no convergence loop. Use it for review, sanity checks, and "is this refactor safe" questions.</li>
+  <li><code>/secondopinion [topic]</code> — runs a second opinion on the current conversation context. If you omit <code>[topic]</code>, the command uses the last substantive question or proposal in your session as the topic. Defaults to <code>claude-code</code> as primary (which has your full conversation context) and <code>codex</code> as consultant, but you can name a different consultant in your phrasing.</li>
+</ul>
+<p>Codex does not have literal <code>/</code> slash commands — it activates the equivalent skill via trigger phrases ("ask the conclave", "get a second opinion"). Claude Code and Gemini get literal slash commands.</p>
+<!-- END:section-7.1 -->
+        </section>
+        <section id="help-slash-decide" class="help-subsection">
+          <h4>7.2 /decide, /decision</h4>
+          <!-- BEGIN:section-7.2 -->
+<p>These two commands let you record and retrieve your authoritative decision on a task from inside the CLI session, without opening the dashboard.</p>
+<ul>
+  <li><code>/decide &lt;task|latest&gt; &lt;text&gt;</code> — records your final decision on a completed task. The first argument is the task ID (typically <code>tsk_...</code>) or the literal word <code>latest</code> to target the most recent task. Everything after it is the decision body — free-form text, in your own words. The Conclave Charter suggests structuring it (what was chosen, why, what was rejected, known risks, open questions, who keeps continuity), but a one-liner is accepted.</li>
+  <li><code>/decision &lt;task|latest&gt;</code> — fetches a recorded decision back along with the original question, the conclave's final answer, and the conclave's agreement level. The CLI typically follows the fetch by asking you what you want to do next; if the decision implies a concrete code change or follow-up, the CLI will surface the next step.</li>
+</ul>
+<p>A recorded decision is the same record whether you wrote it via <code>/decide</code> or in the dashboard's <code>Decision</code> panel — they read and write the same field. Once recorded, the decision is auto-injected as context into every threaded follow-up you submit with <code>/continue</code>, and is included in markdown exports.</p>
+<p>If no decision is recorded yet, <code>/decision</code> says so and points you back to <code>/decide</code> or the dashboard.</p>
+<!-- END:section-7.2 -->
+        </section>
+        <section id="help-slash-continue" class="help-subsection">
+          <h4>7.3 /continue, /thread, /answer</h4>
+          <!-- BEGIN:section-7.3 -->
+<p>These three commands cover threading and the user-input pause cycle.</p>
+<ul>
+  <li><code>/continue &lt;parent|latest&gt; &lt;question&gt;</code> — creates a threaded follow-up task. The new task is linked to the parent via <code>parent_task_id</code> and inherits the parent's mode and agents (a 3-AI conclave begets another 3-AI conclave). The orchestrator auto-loads the ancestry — every prior task's question, final answer, and your recorded decision — into each participant's prompt as a "Prior Thread Context" section, so the follow-up picks up where the prior thread left off. Use it when the first resolution was ambiguous, when you want to drill into implementation after a design decision, or when a new question depends on prior context.</li>
+  <li><code>/thread &lt;task|latest&gt;</code> — shows the ancestry chain for a task, oldest-first, with the current task marked. Each ancestor's question, final answer, and recorded decision is summarized. Useful for recalling what was already settled in a long-running thread before posting a new question.</li>
+  <li><code>/answer &lt;task|latest&gt; &lt;text&gt;</code> — resolves a task paused with <code>status: awaiting_user_input</code> (the conclave asked you a question and stopped). The text after the task ID is sent as your reply. The Claude Code variant also supports a "run-and-send" mode: if the text after the task ID looks like a shell command (<code>pytest</code>, <code>git</code>, <code>npm</code>, etc.), the CLI runs it, captures combined stdout and stderr, and submits the output. Once submitted, the task flips back to <code>pending</code> and the worker re-claims it.</li>
+</ul>
+<!-- END:section-7.3 -->
+        </section>
+        <section id="help-slash-provenance" class="help-subsection">
+          <h4>7.4 The --invoked-by flag</h4>
+          <!-- BEGIN:section-7.4 -->
+<p>Every slash command and every skill invocation passes a <code>--invoked-by &lt;tool&gt;</code> flag to the Switchboard task submission. The orchestrator records the value on the task as <code>source_agent</code> — one of <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>.</p>
+<p>You do not type this flag yourself. The Claude Code commands, Codex skill, and Gemini extension all set it automatically based on which surface you launched from. The flag exists so provenance is recorded by the surface, not <em>guessed</em> by the orchestrator after the fact.</p>
+<p>The recorded provenance shows up in the Inbox table, on the task detail header, and in every export. It is also queryable via the API — useful if you later want to ask "what did I submit from inside Claude Code last week?" without having to guess.</p>
+<!-- END:section-7.4 -->
+        </section>
+      </section>
+
+      <section id="help-loop" class="help-section">
+        <h3>8. Decisions &amp; the Coding Loop</h3>
+        <section id="help-loop-four" class="help-subsection">
+          <h4>8.1 Deliberate → Decide → Execute → Record</h4>
+          <!-- BEGIN:section-8.1 -->
+<p>Switchboard's intended workflow for using the conclave during real coding work is a four-step loop, documented canonically in <code>docs/CODING_WORKFLOW.md</code>. The principle: <strong>the conclave deliberates, the interactive CLI executes, you decide</strong>.</p>
+
+<ol>
+  <li><strong>Deliberate</strong> — submit the question with <code>/conclave</code> (full deliberation) or <code>/consult</code> (quick second opinion). Attach relevant files or enable the project sandbox so agents can browse your code read-only.</li>
+  <li><strong>Decide</strong> — read the transcript and the final answer, then record your authoritative call with <code>/decide latest "&lt;your decision in your own words&gt;"</code>. This becomes the task's permanent record and auto-injects into any threaded follow-up.</li>
+  <li><strong>Execute</strong> — switch back to the interactive CLI session you're already running. Ask it to act on the decision (you can paste it in or use <code>/decision &lt;task&gt;</code> to load the full context inline). The CLI's native tools (Read, Edit, Bash, etc.) do the actual work, under your supervision.</li>
+  <li><strong>Record</strong> — for significant work, close with a decision record markdown file in <code>docs/decisions/</code>. Capability or infrastructure changes additionally need an Operability Impact field per Charter v1.2.</li>
+</ol>
+
+<p>When execution surfaces something the deliberation didn't anticipate — a test failure, a missed constraint — use <code>/continue latest &lt;new question&gt;</code> to thread a follow-up that inherits the parent's mode, agents, and context.</p>
+<!-- END:section-8.1 -->
+        </section>
+        <section id="help-loop-nolayer2" class="help-subsection">
+          <h4>8.2 Why in-conclave execution wasn't built</h4>
+          <!-- BEGIN:section-8.2 -->
+<p>An obvious-looking extension was considered: extend per-task permission flags through to the adapter CLIs so a conclave with <code>can_run_commands: true</code> could actually read, write, and execute during deliberation. That proposal — internally called <strong>Layer 2</strong> — was deliberated, declined, and deferred indefinitely. Five reasons, summarized from <code>docs/ROADMAP.md</code> § "Considered and Intentionally Not Built":</p>
+
+<ul>
+  <li><strong>Deliberation needs a stable situation.</strong> The conclave's value depends on three agents reasoning about the same fixed state. If any participant mutates the filesystem mid-loop, the others become reactors to fait accompli rather than independent analysts. The deliberation softens.</li>
+  <li><strong>Race conditions.</strong> Conclave participants run in parallel via <code>asyncio.gather</code>. Two agents editing the same file produces last-write-wins corruption with no audit trail of intent.</li>
+  <li><strong>Output-discipline regression.</strong> With elevated tool access, models drift away from strict JSON output toward tool-use exploration. Already observed once with Claude's <code>--permission-mode plan</code>.</li>
+  <li><strong>Redundancy with the interactive CLI.</strong> The Claude Code (or Codex, or Gemini) session driving Switchboard is already an execution-capable agent. Adding two more parallel writers gives you a coordination problem, not 3× capability.</li>
+  <li><strong>Audit trail divergence.</strong> Today the trail is clean: deliberate → decide → act. In-conclave execution scrambles that into arbitrary parallel writes during deliberation, which is hard to reconstruct after the fact.</li>
+</ul>
+
+<p>The replacement is the four-step loop in <code>docs/CODING_WORKFLOW.md</code>. The interactive CLI <em>is</em> the execution layer; that's what it was built for. Reconsider this only if a real use case emerges that the four-step loop genuinely cannot handle.</p>
+<!-- END:section-8.2 -->
+        </section>
+        <section id="help-loop-record" class="help-subsection">
+          <h4>8.3 Decision record fields</h4>
+          <!-- BEGIN:section-8.3 -->
+<p>A decision record is the artifact that closes significant work. It lives as markdown in <code>docs/decisions/&lt;NNNN&gt;_&lt;slug&gt;.md</code> and is indexed in <code>docs/decisions/INDEX.md</code>. Each record covers, at minimum:</p>
+
+<ul>
+  <li><strong>What was chosen.</strong> The decision itself, plainly stated.</li>
+  <li><strong>Why.</strong> The load-bearing reasons — not exhaustive, but enough that future-you (or a future conclave) can tell why this path won.</li>
+  <li><strong>What was rejected</strong> and why. The alternatives considered and the concrete reasons they lost. This is what prevents the same proposal from cycling back without new information.</li>
+  <li><strong>Known risks.</strong> What could still go wrong with the chosen path.</li>
+  <li><strong>Open questions.</strong> What's deferred, what's unresolved, what needs evidence later.</li>
+  <li><strong>Who is keeping continuity.</strong> The named participant responsible for tracking follow-up.</li>
+</ul>
+
+<p>For <strong>significant Switchboard capability or infrastructure decisions</strong>, Charter v1.2 additionally requires an <strong>Operability Impact</strong> field covering effects on observability, durability, recoverability, audit trail, retention, and export; complexity added; accepted risks; mitigations; any <em>Operability before capability</em> exception you approved; and follow-up review points.</p>
+
+<p>Decision records are reusable context. They get cited in future conclave prompts (when threaded via <code>/continue</code>) and read by future humans (you, mostly) before proposing changes in the same area. Together with the SQLite transcript, they are the long-term memory of Switchboard's own design.</p>
+<!-- END:section-8.3 -->
+        </section>
+      </section>
+
+      <section id="help-attachments" class="help-section">
+        <h3>9. Attachments &amp; Multimodal</h3>
+        <section id="help-attachments-text" class="help-subsection">
+          <h4>9.1 Text, Markdown, PDF</h4>
+          <!-- BEGIN:section-9.1 -->
+<p>The New Task form has an <strong>attachments area</strong> for adding files to the deliberation. Three text-shaped formats are inlined directly into every agent's prompt:</p>
+<ul>
+  <li><strong>Plain text</strong> (<code>.txt</code> and similar)</li>
+  <li><strong>Markdown</strong> (<code>.md</code>)</li>
+  <li><strong>PDF</strong> (<code>.pdf</code>) — extracted to text server-side via <code>pypdf</code>, then inlined</li>
+</ul>
+<p>Each agent receives the file's content as part of its prompt — no separate "attached document" channel, no out-of-band reference the agent has to chase down. The text just appears in context, labelled by filename, so the agent can quote and cite it directly in its reasoning.</p>
+<p>The per-file ceiling is <strong>20 MiB</strong>. Larger files are rejected at upload time. For PDFs, that's the raw PDF size — the extracted text is typically much smaller than the binary it came from, so the practical effective ceiling on PDF <em>content</em> is generous.</p>
+<p>A few notes:</p>
+<ul>
+  <li>PDF extraction is text-only. Images embedded inside the PDF aren't passed through to the multimodal channel; if you need agents to actually <em>see</em> a figure, save it as PNG/JPG and attach it separately (see <em>Images</em>).</li>
+  <li>Inlined text counts against each agent's effective context window. Large attachments may force the API seats to omit some of an inlined project sandbox — the orchestrator prioritises the user-submitted attachment over auto-inlined source.</li>
+  <li>Attached files are stored under <code>data/uploads/</code> and are not committed to the repo.</li>
+</ul>
+<!-- END:section-9.1 -->
+        </section>
+        <section id="help-attachments-images" class="help-subsection">
+          <h4>9.2 Images</h4>
+          <!-- BEGIN:section-9.2 -->
+<p>Images are handled differently from text. The supported formats are <strong>PNG, JPG/JPEG, GIF, and WebP</strong>. Rather than being OCR'd or described into text, they are passed <strong>natively</strong> to each adapter and forwarded to the CLI through its own image-input mechanism. Each agent <em>sees</em> the actual image.</p>
+<p>This matters because the three CLIs are multimodal-capable: Codex, Gemini, and Claude Code can all reason directly over pixels. A description-converted-to-text pipeline would lose colour, layout, spatial relationships, handwriting style, plot detail, UI element positions — exactly the things you tend to want a second opinion on. Native piping preserves all of that.</p>
+<p>Implications you should be aware of:</p>
+<ul>
+  <li><strong>Different agents may see different things.</strong> Vision models are not interchangeable. A chart's axes, a screenshot's button placement, a photo's foreground subject — these can be read differently by Codex's vision stack than by Gemini's or Claude's.</li>
+  <li><strong>That disagreement is preserved, not flattened.</strong> The Charter's <em>Multimodal Disagreement</em> rule forbids the system from synthesising a consensus on a visual-perception dispute. See <em>When agents disagree on what they see</em> for what happens instead.</li>
+  <li><strong>API seats (OpenRouter / Ollama Cloud)</strong> are text-only in the current adapters. If a task includes images, those seats won't receive them — only the CLI seats will. Tick that into your seat selection.</li>
+</ul>
+<!-- END:section-9.2 -->
+        </section>
+        <section id="help-attachments-folder" class="help-subsection">
+          <h4>9.3 Drag-folder upload</h4>
+          <!-- BEGIN:section-9.3 -->
+<p>For projects too large to attach file-by-file, the New Task form's dropzone accepts an <strong>entire folder dragged from your file manager</strong>. The browser walks the folder via <code>webkitGetAsEntry</code>, and the dashboard uploads each file in sequence.</p>
+<p>Standard <strong>ignore patterns</strong> are applied automatically — the same set used by the project sandbox — so you don't accidentally drag in 5 GB of <code>node_modules</code>:</p>
+<ul>
+  <li><code>.git</code>, <code>.hg</code>, <code>.svn</code></li>
+  <li><code>node_modules</code>, <code>__pycache__</code>, <code>.venv</code>, <code>venv</code></li>
+  <li><code>dist</code>, <code>build</code>, <code>target</code>, <code>out</code></li>
+  <li><code>data</code> (so you can't accidentally re-upload Switchboard's own runtime dir)</li>
+  <li>Common binary extensions: <code>.exe</code>, <code>.dll</code>, <code>.so</code>, <code>.zip</code>, <code>.mp4</code>, <code>.pyc</code>, etc.</li>
+</ul>
+<p>Each remaining file uploads one after the other rather than in a single multipart blast — the dashboard shows progress as the queue drains. The same 20 MiB per-file ceiling still applies; oversized files are skipped with a notice rather than failing the whole drop.</p>
+<p>The drag-folder path is the right choice for "I want the conclave to read my whole repo" when you don't have a stable <code>project_path</code> available — for instance, when you're working with code that lives on a different machine, or a scratch directory that isn't a git checkout. If you <em>do</em> have a path on disk and want a snapshot of it instead, prefer the project-sandbox toggle — it's cheaper and cleaner.</p>
+<!-- END:section-9.3 -->
+        </section>
+        <section id="help-attachments-gitdiff" class="help-subsection">
+          <h4>9.4 Git-diff attachment</h4>
+          <!-- BEGIN:section-9.4 -->
+<p>When you're mid-edit and want the conclave to weigh in on <em>just the changes</em>, use the <strong>"Attach current git diff"</strong> button on the New Task form. It's enabled whenever <code>project_path</code> is set on the form.</p>
+<p>Pressing it calls <code>POST /api/git/diff</code> on the local service. The endpoint runs <code>git diff</code> followed by <code>git diff --cached</code> server-side in the project directory, joins the two outputs, and returns the combined diff. The dashboard then <strong>appends that diff to the question textarea</strong> — you can edit it, add framing context above it, or trim sections out before submitting. Nothing is uploaded to a separate channel; the diff is part of your question.</p>
+<p>This is useful when:</p>
+<ul>
+  <li>You want a code review pass on what you've changed, not the whole project.</li>
+  <li>You want to ask "is this refactor safe?" against the actual hunks, not a description of them.</li>
+  <li>The full sandbox would blow the API seats' context budget but the diff alone fits comfortably.</li>
+</ul>
+<p>You can combine the diff with a project sandbox: the diff goes into the question, the sandbox provides the surrounding code each agent reads for context. The CLI seats browse the sandbox natively; the API seats see the inlined slice. Because the diff is in your question text, it counts against the prompt budget like any other text attachment — large diffs may displace inlined source on the API seats.</p>
+<!-- END:section-9.4 -->
+        </section>
+        <section id="help-attachments-mmdisagree" class="help-subsection">
+          <h4>9.5 When agents disagree on what they see</h4>
+          <!-- BEGIN:section-9.5 -->
+<p>The Conclave Charter v1.2 contains a <strong>Multimodal Disagreement</strong> clause that governs what happens when agents look at the same image and report different things. The clause forbids the system from <em>synthesising</em> a visual-perception dispute into a smoothed-over consensus.</p>
+<p>The reasoning: vision models have different perceptual stacks, and when they disagree on what an image shows, that disagreement is information. Averaging "Codex sees a red button" and "Gemini sees a green button" into "the button is somewhere on the orange spectrum" is worse than admitting the two readings conflict. The user, who has the actual eyes on the actual image, is the right adjudicator.</p>
+<p>So instead of forcing convergence, the orchestrator <strong>surfaces the disagreement</strong> to you:</p>
+<ul>
+  <li>Each agent's reading of the image is preserved verbatim in the transcript.</li>
+  <li>The dissent is flagged in the final result rather than dissolved into the synthesis.</li>
+  <li>You decide which reading is correct — typically by re-examining the image yourself, possibly recording a <code>/decide</code> that ratifies one reading and explains why.</li>
+</ul>
+<p>This applies specifically to <em>visual-perception</em> disputes — disagreements about what is present in pixels. Disagreements about <em>interpretation</em> of an image whose contents the agents agree on (e.g. "what does this architecture diagram <em>imply</em>?") are normal deliberation territory and run through the usual convergence machinery. The charter draws the line at perception, not at reasoning about perceived content.</p>
+<!-- END:section-9.5 -->
+        </section>
+      </section>
+
+      <section id="help-sandbox" class="help-section">
+        <h3>10. Project Sandbox</h3>
+        <section id="help-sandbox-copy" class="help-subsection">
+          <h4>10.1 The read-only copy</h4>
+          <!-- BEGIN:section-10.1 -->
+<p>When you tick <strong>"Provide a read-only sandbox copy"</strong> on the New Task form and <code>project_path</code> is set, the orchestrator copies your project to a per-task directory under <code>data/sandboxes/&lt;task_id&gt;/</code> before the deliberation starts. Each agent then gets <strong>read-only access</strong> to that copy via its native mechanism:</p>
+<ul>
+  <li><strong>Codex</strong> — <code>-C &lt;sandbox&gt;</code> plus <code>-s read-only</code></li>
+  <li><strong>Claude Code</strong> — <code>--tools "Read" --add-dir &lt;sandbox&gt;</code></li>
+  <li><strong>Gemini</strong> — <code>--include-directories &lt;sandbox&gt;</code> plus <code>--approval-mode plan</code></li>
+</ul>
+<p>Standard ignore patterns are applied during the copy: <code>.git</code>, <code>__pycache__</code>, <code>node_modules</code>, <code>.venv</code>, <code>dist</code>, <code>data</code>, and common binary extensions (<code>.exe</code>, <code>.so</code>, <code>.zip</code>, etc.). Files named like environment / secret material (<code>.env</code>, <code>*.key</code>, <code>credentials*</code>, <code>id_rsa*</code>) are skipped unless the task explicitly granted <code>can_read_env_files</code> or <code>can_read_secrets</code>.</p>
+<p>Hard caps: <strong>1 MiB per file</strong> and <strong>200 MiB total</strong>. If your project exceeds the total cap, the copy stops at the limit and the agents see a partial snapshot.</p>
+<p>The crucial property: the sandbox is a <strong>snapshot</strong>, fixed at task-creation time, and the agents have <strong>no write or execute path</strong> back into it. Your original project directory is never touched — read or written — by any participant in the deliberation. In-conclave write/execute was considered and intentionally not built; see the ROADMAP's "Layer 2" section.</p>
+<!-- END:section-10.1 -->
+        </section>
+        <section id="help-sandbox-inline" class="help-subsection">
+          <h4>10.2 Inline file tree for API seats</h4>
+          <!-- BEGIN:section-10.2 -->
+<p>The CLI seats browse the sandbox natively via their own tools. The <strong>API seats — OpenRouter and Ollama Cloud — cannot</strong>. They are HTTP calls to a chat-completions endpoint; there is no <code>Read</code> tool, no <code>--add-dir</code>, no shell. They only receive prompt text.</p>
+<p>So when a task has a sandbox attached, the API adapters do something different: they <strong>inline a read-only view of the project</strong> directly into the prompt. The work happens in <code>app/utils/sandbox_inline.py</code>, and the section is built fresh for every call. It contains:</p>
+<ul>
+  <li>A <strong>file tree</strong> of every inlineable file with its size, so the model has the lay of the land even if not every file fits.</li>
+  <li>The <strong>contents</strong> of as many files as fit in that seat's character budget.</li>
+  <li>An <strong>omission note</strong> stating how many files were left out, so the model knows the view is partial and can ask for specific paths if needed.</li>
+</ul>
+<p>File inclusion is <strong>priority-ordered</strong>: known entry-point names (<code>main.py</code>, <code>index.ts</code>, <code>package.json</code>, <code>pyproject.toml</code>, <code>README</code>, <code>Dockerfile</code>, …) come first, then shallow source/config files, then deeper ones. Binaries, generated assets, and files larger than 200 KB are skipped.</p>
+<p>The budget is per-seat: each model's <code>max_context_chars</code> from <code>config.yaml</code>, minus headroom for the base prompt and response. If the OpenRouter adapter learns a tighter real ceiling from a provider's "context length exceeded" reply, the inlined section is re-sized automatically on the retry. See decision 0012 for the rationale; decision 0009 Open Questions flag the tool-loop alternative that's queued on the ROADMAP.</p>
+<!-- END:section-10.2 -->
+        </section>
+        <section id="help-sandbox-cleanup" class="help-subsection">
+          <h4>10.3 Cleanup and orphan sweep</h4>
+          <!-- BEGIN:section-10.3 -->
+<p>Sandboxes are <strong>cleaned up when a task terminates</strong>. The orchestrator calls <code>cleanup_sandbox(task_id)</code> on the task's completion path, which removes <code>data/sandboxes/&lt;task_id&gt;/</code> from disk. The original project is, again, never touched — only the per-task copy is removed.</p>
+<p>That covers the happy path. The unhappy path is the one where the service is killed mid-task: the worker process exits before reaching its cleanup, and a sandbox directory is left behind. Without intervention, these would accumulate across crashes and consume disk indefinitely.</p>
+<p>The mitigation is the <strong>orphan sweep</strong>. On service startup, <code>sweep_orphan_sandboxes()</code> runs once. It:</p>
+<ul>
+  <li>Lists every directory under <code>data/sandboxes/</code>.</li>
+  <li>Builds the set of <em>active</em> task IDs from the database — anything in <code>pending</code>, <code>running</code>, or <code>awaiting_user_input</code> state.</li>
+  <li>Deletes any sandbox directory whose name is <strong>not</strong> in that active set.</li>
+</ul>
+<p>The net effect: every restart of the service self-heals the sandbox directory. A clean shutdown leaves nothing for the sweep to do; a crash leaves orphans that the next startup removes. The startup log line tells you how many were swept, if any.</p>
+<p>If you ever want to inspect a sandbox by hand, look under <code>data/sandboxes/&lt;task_id&gt;/</code> while the task is still alive — once the task reaches a terminal state, that directory is gone.</p>
+<!-- END:section-10.3 -->
+        </section>
+      </section>
+
+      <section id="help-ops" class="help-section">
+        <h3>11. Cost, Tokens &amp; Retention</h3>
+        <section id="help-ops-cost" class="help-subsection">
+          <h4>11.1 Per-message and aggregate cost</h4>
+          <!-- BEGIN:section-11.1 -->
+<p>Every agent invocation writes an <code>agent_run</code> row that records the input and output token counts the provider returns, plus a USD-equivalent cost when the provider exposes one. The Detail view shows these per-message inline (alongside each turn in the transcript) and totals them on the post-task bar once a task reaches a terminal state, so you can see at a glance what a deliberation actually cost.</p>
+<p>OpenRouter is the seat that reports money directly: each call is metered and lands in the roughly <code>$0.001</code> to <code>$0.02</code> per turn range for the open-weight models bundled in <code>config.example.yaml</code> (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>). Those numbers show up verbatim in the per-run accounting.</p>
+<p>The CLI seats (<code>codex</code>, <code>gemini</code>, <code>claude-code</code>) default to subscription auth — your ChatGPT Plus/Pro, Gemini Advanced, or Claude Pro/Max session — so the underlying CLI does not return a per-call USD figure. Token counts may still be recorded where the CLI emits them, but the cost column will be blank. If a task mixes CLI seats and OpenRouter seats, the aggregate at the bottom reflects only the OpenRouter portion; the CLI portion is already accounted for inside your subscription. Exports include the same per-run table, so a saved decision record carries the cost breakdown forward.</p>
+<!-- END:section-11.1 -->
+        </section>
+        <section id="help-ops-retention" class="help-subsection">
+          <h4>11.2 Tier-based retention</h4>
+          <!-- BEGIN:section-11.2 -->
+<p>Retention runs in the background on a fixed cadence — every <code>21600</code> seconds (6 hours) — via the worker started at service launch. Each pass is a no-op unless an operational trigger fires: either the on-disk database (SQLite file plus its WAL and SHM sidecars) exceeds <code>max_db_size_mb</code> (default <code>2048</code> MB, i.e. 2 GB), or the count of terminal tasks (<code>completed</code>, <code>failed</code>, <code>cancelled</code>) exceeds <code>max_completed_tasks</code> (default <code>1000</code>). Either condition alone is enough to trigger a pass.</p>
+<p>Selection is tier-based, not time-based. Tier 1 — decisions, charter amendments, and unresolved dissent — is never auto-trimmed. Tier 2 — the <code>final_results</code> row carrying the conclave's verdict and agreement level — is retained until you explicitly export it. Tier 3 — the <code>agent_messages</code> rows holding the per-turn transcript — is what gets trimmed first, oldest task first, only for tasks that are terminal, summarized, unreferenced by any child thread, and either reached consensus or have a user decision recorded.</p>
+<p>An absolute minimum age applies on top: tasks newer than <code>min_task_age_days</code> (default <code>90</code>) are never trimmed regardless of triggers or tier. After a trim, <code>VACUUM</code> runs so SQLite actually returns the space to disk.</p>
+<!-- END:section-11.2 -->
+        </section>
+        <section id="help-ops-export-tier" class="help-subsection">
+          <h4>11.3 Tier 2 export tracking</h4>
+          <!-- BEGIN:section-11.3 -->
+<p>Each task has two columns supporting export tracking: <code>exported_at</code> (timestamp of last export) and <code>export_path</code> (path of the written file). Both are <code>NULL</code> for tasks you have never exported.</p>
+<p>Exporting a task — either via the "Export to decision record" button in the Detail view or by hitting <code>POST /api/tasks/{id}/export</code> directly — writes a markdown snapshot to <code>data/exports/&lt;task_id&gt;.md</code> and stamps both columns. The Inbox shows an "exported" indicator on tasks that have been exported, and the label on subsequent exports of the same task switches to "Re-export" so you know you are overwriting an existing snapshot rather than producing the first one.</p>
+<p>For bulk export, <code>POST /api/tasks/export-batch</code> iterates every terminal task with a <code>NULL</code> <code>exported_at</code> and writes each one to <code>data/exports/</code>. This is the "snapshot everything I have not preserved yet" path — useful periodically, particularly before any retention work you want to be sure does not touch unsaved verdicts. The Inbox's export-status filter lets you scan for what is still unexported before running it.</p>
+<p>The export columns are also what the planned "trim Tier 2 after export" amendment (listed in the ROADMAP under Next) would hook into.</p>
+<!-- END:section-11.3 -->
+        </section>
+        <section id="help-ops-never-trim" class="help-subsection">
+          <h4>11.4 What is never auto-trimmed</h4>
+          <!-- BEGIN:section-11.4 -->
+<p>Three categories are immune to auto-trimming. First, Tier 1 content: the task row itself (which carries <code>user_decision</code> and the <code>parent_task_id</code> link that keeps threads walkable), charter amendments, and any task with unresolved dissent — i.e. <code>agreement_level</code> in <code>major_disagreement</code> or <code>unresolved</code> with no <code>user_decision</code> recorded. Those are treated as open questions awaiting your judgment and are never touched.</p>
+<p>Second, anything newer than <code>min_task_age_days</code> (default <code>90</code> days). This is a hard floor independent of tier — a recent task with cleanly converged consensus and no thread children still will not be trimmed if it is younger than the threshold.</p>
+<p>Third, anything still referenced as a parent by a live thread. As long as another task points at it via <code>parent_task_id</code>, the orchestrator keeps the messages around so <code>/thread</code> and <code>/continue</code> can walk the ancestry.</p>
+<p>You can tune all of this in <code>config.yaml</code> under the <code>retention</code> section. Set <code>enabled: false</code> to disable retention entirely; raise <code>max_db_size_mb</code> or <code>max_completed_tasks</code> to push the triggers out; lengthen <code>min_task_age_days</code> if you want a longer untouched window. The retention pass logs a summary line on every actual trim, so you can confirm exactly which task IDs were touched.</p>
+<!-- END:section-11.4 -->
+        </section>
+      </section>
+
+      <section id="help-exports" class="help-section">
+        <h3>12. Exports</h3>
+        <section id="help-exports-detail" class="help-subsection">
+          <h4>12.1 Per-task detail export (PDF / DOCX / MD / TXT)</h4>
+          <!-- BEGIN:section-12.1 -->
+<p>Per-task detail export lets you save a single deliberation in your format of choice: <code>PDF</code>, <code>DOCX</code>, <code>MD</code>, or <code>TXT</code>. The control lives in the Detail view's post-task bar — an "Export detail as…" selector next to a Download button. Pick the format, click Download, and your browser's Save dialog (or <code>showSaveFilePicker</code> on browsers that support it) decides where the file lands.</p>
+<p>Under the hood, the dashboard hits <code>GET /api/tasks/{id}/download?format=...</code> and streams the bytes back. Each format renders the same section order so the four outputs are recognizable as the same document: header (task id, mode, status, participants, source agent, timestamps), the original question, the recorded decision (if any), the final result (including agreement level and any disagreements), and the full transcript verbatim — every agent turn, every structured field, no truncation of prose. The PDF and DOCX paths live in <code>app/services/doc_export.py</code> (ReportLab and <code>python-docx</code> respectively); the markdown path lives in <code>app/services/exporter.py</code>; the plain-text path is a straightforward strip of the markdown output.</p>
+<p>This is a snapshot operation — it does not touch the database or mark the task as exported. It is the right path when you want a portable, shareable copy of the deliberation; it is not the path for the Tier 2 "I want this preserved" semantics. For that, use the decision record export described next.</p>
+<!-- END:section-12.1 -->
+        </section>
+        <section id="help-exports-decision" class="help-subsection">
+          <h4>12.2 Decision record export</h4>
+          <!-- BEGIN:section-12.2 -->
+<p>Decision record export is the canonical "I want to keep this" action for a terminal task. The "Export to decision record" button on the Detail view (or <code>POST /api/tasks/{id}/export</code> from the API) writes a markdown snapshot to <code>data/exports/&lt;task_id&gt;.md</code> and stamps the task's <code>exported_at</code> and <code>export_path</code> columns so the system knows you have preserved it.</p>
+<p>The contents mirror the markdown export pipeline in <code>app/services/exporter.py</code>: a header with task id, mode, task type, agents, timestamps, and any parent task; the original question fenced verbatim; the recorded decision (with the timestamp you recorded it at); the final result, including <code>agreement_level</code>, <code>resolution_status</code>, any disagreements with primary and consultant positions, recommended actions, risks, and commands or patches that would require approval; the full transcript grouped by round for conclave mode (flat for the others) with every agent's structured fields preserved; and a usage table showing per-run tokens and USD cost plus the task totals.</p>
+<p>Two things to note. It overwrites in place — re-exporting the same task replaces the prior file at <code>data/exports/&lt;task_id&gt;.md</code> and the dashboard label flips to "Re-export". And it is the action the retention system watches: a task with <code>exported_at</code> set is what the planned "trim Tier 2 after export" amendment would consider eligible for further trimming.</p>
+<!-- END:section-12.2 -->
+        </section>
+        <section id="help-exports-bulk" class="help-subsection">
+          <h4>12.3 Bulk export</h4>
+          <!-- BEGIN:section-12.3 -->
+<p>Bulk export is the inverse of one-at-a-time decision record export. From the Inbox, the "Bulk export unexported" action iterates every terminal task with a <code>NULL</code> <code>exported_at</code> and writes each one to <code>data/exports/&lt;task_id&gt;.md</code>, stamping <code>exported_at</code> and <code>export_path</code> as it goes. The underlying endpoint is <code>POST /api/tasks/export-batch</code>.</p>
+<p>The output is identical to the per-task decision record export — same renderer in <code>app/services/exporter.py</code>, same header / question / decision / final result / transcript / usage layout, same overwrite semantics if a file is somehow already present.</p>
+<p>Useful patterns. Run it periodically — say, once a week or before any kind of retention work — to snapshot fresh decisions you have not gotten around to exporting individually. The Inbox's export-status filter lets you preview what is still unexported before running it; sort by date to confirm nothing important is about to roll out from under you. After a run, the Inbox indicators flip to "exported" for every task that was processed.</p>
+<p>Bulk export only processes terminal tasks (<code>completed</code>, <code>failed</code>, <code>cancelled</code>) — in-flight tasks are skipped. Tasks that already have an <code>exported_at</code> are also skipped, so the operation is idempotent: running it twice in a row does no extra work the second time.</p>
+<!-- END:section-12.3 -->
+        </section>
+      </section>
+
+      <section id="help-trouble" class="help-section">
+        <h3>13. Troubleshooting</h3>
+        <section id="help-trouble-unavail" class="help-subsection">
+          <h4>13.1 Agent unavailable</h4>
+          <!-- BEGIN:section-13.1 -->
+<p>If an agent shows up as unreachable, the first signal is the test endpoint. Hit <code>POST /api/agents/&lt;name&gt;/test</code> directly:</p>
+<pre><code>curl.exe -X POST http://127.0.0.1:8787/api/agents/codex/test
+curl.exe -X POST http://127.0.0.1:8787/api/agents/gemini/test
+curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
+</code></pre>
+<p>A healthy agent returns <code>{"available": true, "version": "...", ...}</code>. <code>{"available": false, ...}</code> means the adapter could not invoke the underlying CLI.</p>
+<p>First thing to check: is the CLI actually on <code>PATH</code>? On Windows: <code>where.exe codex</code>, <code>where.exe gemini</code>, <code>where.exe claude</code>. On Unix: <code>which codex</code>, <code>which gemini</code>, <code>which claude</code>.</p>
+<p>If <code>where.exe</code> / <code>which</code> finds nothing, install the CLI (see Prerequisites in <code>INSTALL.md</code>) or set <code>agents.&lt;name&gt;.command</code> in <code>config.yaml</code> to the absolute path.</p>
+<p>If the CLI is on <code>PATH</code> but the adapter still reports unavailable, the most common cause is authentication. Run the CLI directly with <code>--version</code>. Confirm it does not prompt for login. If it does, re-authenticate: <code>codex login</code>, <code>gemini /auth</code>, or <code>claude /login</code>. The Switchboard adapters use your OAuth session by default; they do not pass <code>--bare</code> or require <code>ANTHROPIC_API_KEY</code>.</p>
+<p>If <code>GET /api/agents</code> returns <code>{"agents": []}</code>, none of your real CLIs are reachable — install at least one or use the <code>fake</code> adapter via the API directly.</p>
+<!-- END:section-13.1 -->
+        </section>
+        <section id="help-trouble-json" class="help-subsection">
+          <h4>13.2 JSON parse failures</h4>
+          <!-- BEGIN:section-13.2 -->
+<p>If an agent call fails with <code>agent_error: could not extract JSON</code>, the adapter received output from the CLI but could not parse the structured turn out of it. Two causes account for almost every case.</p>
+<p>Most often: the CLI updated and changed its output format. The adapters depend on specific shapes — <code>codex exec --json</code>, <code>gemini -p -o json</code>, <code>claude -p --output-format json</code> — and a CLI version bump can move fields, add envelope wrappers, or switch from JSON to NDJSON. Open the adapter file for the affected agent (<code>app/agents/codex_adapter.py</code>, <code>app/agents/gemini_adapter.py</code>, <code>app/agents/claude_adapter.py</code>) and check that the parsing logic still matches what the CLI emits. The quickest reproduction is to run the CLI directly with the same flags the adapter uses and inspect the raw output.</p>
+<p>Less commonly: the prompt was too long and the model gave up before producing structured output. Symptoms here look the same — the adapter received text (an apology, a refusal, a partial answer) but no parseable JSON. Mitigation is to shrink the input: scope <code>project_path</code> to a subdirectory rather than the full repo, shorten the question, or drop unneeded attachments. For OpenRouter / vLLM seats, see also the context-overflow section below — those failures have a separate code path.</p>
+<p>If the failure is intermittent, capture the raw CLI output (the adapter logs it) and diff successful runs against failing ones to narrow down the trigger.</p>
+<!-- END:section-13.2 -->
+        </section>
+        <section id="help-trouble-stuck" class="help-subsection">
+          <h4>13.3 Stuck tasks</h4>
+          <!-- BEGIN:section-13.3 -->
+<p>If a task sits in <code>running</code> indefinitely — long past any reasonable per-agent timeout — the worker has almost certainly crashed mid-task. The task's status field is updated by the worker that owns it, so if the worker dies, the field stays stuck.</p>
+<p>The fix is to restart the service. On startup, an orphan-sandbox sweep runs and cleans up any per-task sandbox directories under <code>data/sandboxes/</code> whose owning task is no longer live. That reclaims disk space and removes confusing leftovers, but it does not touch the task row itself — the stuck task stays in <code>running</code> in the database.</p>
+<p>From there you have two practical options. Leave it as historical noise (the Inbox filter on status lets you hide running tasks if it bothers you), or manually update the row in SQLite:</p>
+<pre><code>sqlite3 data/switchboard.db "UPDATE tasks SET status='failed', error_message='worker crash' WHERE id='tsk_...';"</code></pre>
+<p>Pick whichever you prefer; neither affects future tasks. The retention worker will eventually consider the row eligible for trimming on its normal schedule, subject to the usual tier rules.</p>
+<p>A crash-safe reaper is on the <code>ROADMAP</code> under Next item #1: a startup sweep that resets tasks stuck in <code>running</code> beyond a configurable threshold back to <code>pending</code> or marks them <code>failed</code> with an explanatory message. Until that ships, the manual path above is the workflow.</p>
+<!-- END:section-13.3 -->
+        </section>
+        <section id="help-trouble-overflow" class="help-subsection">
+          <h4>13.4 Context-overflow errors</h4>
+          <!-- BEGIN:section-13.4 -->
+<p>The OpenRouter and vLLM-style seats run into context limits in a way the CLI seats usually do not: they receive a single inlined prompt rather than browsing files on demand, so a large project sandbox or a thick stack of attachments can push past the model's effective window.</p>
+<p>The adapters mitigate this in two ways. First, each adapter self-discovers the model's context limit from the provider when it can, instead of trusting <code>max_context_chars</code> blindly. Second, on a context-overflow response, the adapter automatically retries with a tighter budget — trimming the inlined sandbox or attachments down before the next attempt.</p>
+<p>If retries still fail, you will see an actionable error on the task. The recommended fixes, in order of effort: scope <code>project_path</code> to a subdirectory rather than the repo root so less code is inlined; remove non-essential attachments from the request; or raise the seat's <code>max_context_chars</code> in <code>config.yaml</code> under the <code>openrouter.models</code> entry (or the equivalent <code>ollama_cloud.models</code> entry) if your model actually has a larger window than the conservative default. The defaults in <code>config.example.yaml</code> are set well below each model's true token window because code-heavy prompts hit roughly 3 chars/token, worse than prose's 4.</p>
+<p>The structural fix — a tool-loop architecture letting the API seats <code>read_file</code> / <code>list_dir</code> on demand instead of getting everything inlined — is the ROADMAP's Next item #2.</p>
+<!-- END:section-13.4 -->
+        </section>
+        <section id="help-trouble-sandbox" class="help-subsection">
+          <h4>13.5 Sandbox cap exceeded</h4>
+          <!-- BEGIN:section-13.5 -->
+<p>The per-task project sandbox has a hard cap of <code>200 MiB</code>. The sandbox is built by copying <code>project_path</code> after standard ignore patterns are applied (the same patterns the drag-a-folder upload uses, plus VCS metadata, build outputs, and similar). If your project still exceeds 200 MiB after that, the copy stops at the cap, the service logs a <code>cap reached</code> line in the service logs, and the sandbox the agents see is truncated.</p>
+<p>You will notice this two ways: the log line on the service side, and — at deliberation time — agents asking about files that obviously should exist or basing analysis on a partial view of the codebase. The truncation is a hard stop, not a smart selection: whatever ran past 200 MiB was simply not copied.</p>
+<p>The fix is to narrow scope. Point <code>project_path</code> at the subdirectory you actually need the conclave to look at (e.g. <code>app/</code> rather than the whole repo root, or the specific package being reviewed) and re-submit. That is almost always the right move anyway — a tighter scope produces a better signal-to-noise ratio in the deliberation than dumping the entire monorepo at the agents.</p>
+<p>If you genuinely need a larger sandbox, raising the cap is a code change in <code>app/services</code> rather than a config knob; the 200 MiB ceiling was set deliberately to keep per-task disk usage bounded and the orphan-sweep cleanup tractable.</p>
+<!-- END:section-13.5 -->
+        </section>
+      </section>
+
+      <section id="help-reference" class="help-section">
+        <h3>14. Reference</h3>
+        <section id="help-reference-glossary" class="help-subsection">
+          <h4>14.1 Glossary</h4>
+          <!-- BEGIN:section-14.1 -->
+<table>
+  <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+  <tbody>
+    <tr><td><code>Conclave</code></td><td>N equal AI participants deliberating with full-mesh visibility — no primary, no winner picked by the orchestrator.</td></tr>
+    <tr><td><code>Council</code></td><td>Generic term for the set of agents on a task, regardless of mode.</td></tr>
+    <tr><td><code>Primary</code></td><td>In <code>resolve</code> and <code>consult</code> modes, the agent driving the loop.</td></tr>
+    <tr><td><code>Consultant</code></td><td>In <code>consult</code> mode, an agent providing critique on the primary's proposal.</td></tr>
+    <tr><td><code>Judge</code></td><td>After weak conclave convergence and a synthesis round, one participant arbitrates semantic equivalence so <code>agreement_level</code> can be upgraded.</td></tr>
+    <tr><td><code>Keeper</code></td><td>You. Records <code>/decide</code> (ratify / reject / return-to-conclave); does not edit conclave output.</td></tr>
+    <tr><td><code>Charter</code></td><td>The binding agreement (currently v1.2) embedded into every agent prompt by the prompt builder.</td></tr>
+    <tr><td><code>Decision record</code></td><td>Numbered Markdown file in <code>docs/decisions/</code> capturing what was chosen, why, what was rejected, known risks, and open questions.</td></tr>
+    <tr><td><code>Sandbox</code></td><td>Per-task read-only copy of <code>project_path</code> that agents can browse during a deliberation.</td></tr>
+    <tr><td><code>Tier (1/2/3)</code></td><td>Retention tiers. Tier 1 = never trimmed (decisions, charter amendments, unresolved dissent); Tier 2 = retain until exported; Tier 3 = agent messages, trimmed first.</td></tr>
+    <tr><td><code>Convergence</code></td><td>In <code>conclave</code> mode, the threshold (default <code>1.0</code> = unanimous) of participants who must signal <code>i_am_done</code> for the deliberation to terminate.</td></tr>
+    <tr><td><code>Source agent / provenance</code></td><td>The <code>source_agent</code> column recording which surface submitted the task: <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>.</td></tr>
+    <tr><td><code>Operability</code></td><td>From Charter v1.2: every capability must preserve observability, durability, recoverability, audit trail, retention, and export.</td></tr>
+    <tr><td><code>Thread</code></td><td>Chain of related tasks linked via <code>parent_task_id</code>; surfaced through <code>/continue</code> and <code>/thread</code>.</td></tr>
+    <tr><td><code>Mode</code></td><td>Shape of the deliberation: <code>conclave</code>, <code>resolve</code>, <code>consult</code>, <code>handoff</code>, or <code>poll</code>.</td></tr>
+    <tr><td><code>Agreement level</code></td><td>Final-result classification of how aligned the agents ended up: <code>consensus</code>, <code>minor_disagreement</code>, <code>major_disagreement</code>, or <code>unresolved</code>.</td></tr>
+    <tr><td><code>Adapter</code></td><td>The per-tool subclass of <code>BaseAdapter</code> that encapsulates one agent's CLI or HTTP quirks behind the orchestrator's uniform interface.</td></tr>
+  </tbody>
+</table>
+<!-- END:section-14.1 -->
+        </section>
+        <section id="help-reference-shortcuts" class="help-subsection">
+          <h4>14.2 Keyboard shortcuts</h4>
+          <!-- BEGIN:section-14.2 -->
+<table>
+  <thead><tr><th>Shortcut</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>?</code></td><td>Open Help. Ignored while you are typing in an <code>&lt;input&gt;</code>, <code>&lt;textarea&gt;</code>, <code>&lt;select&gt;</code>, or any <code>contenteditable</code> element.</td></tr>
+    <tr><td><code>Enter</code> / <code>Space</code></td><td>On the file dropzone (when focused): open the native file picker.</td></tr>
+    <tr><td><code>Esc</code></td><td>No global <code>Esc</code> handler is wired yet.</td></tr>
+  </tbody>
+</table>
+<p>Those are the only global shortcuts at the moment. The list will grow as the dashboard does.</p>
+<!-- END:section-14.2 -->
+        </section>
+        <section id="help-reference-files" class="help-subsection">
+          <h4>14.3 File locations</h4>
+          <!-- BEGIN:section-14.3 -->
+<table>
+  <thead><tr><th>Path</th><th>What it holds</th></tr></thead>
+  <tbody>
+    <tr><td><code>data/switchboard.db</code></td><td>SQLite database. Every task, message, decision, and transcript lives here (plus the <code>-wal</code> and <code>-shm</code> sidecar files).</td></tr>
+    <tr><td><code>data/sandboxes/&lt;task_id&gt;/</code></td><td>Per-task read-only sandbox — the copy of <code>project_path</code> that agents may browse during the deliberation.</td></tr>
+    <tr><td><code>data/uploads/</code></td><td>Task attachments uploaded from the dashboard or the API.</td></tr>
+    <tr><td><code>data/exports/</code></td><td>Exported decision records and per-task downloads (PDF / DOCX / Markdown / text).</td></tr>
+    <tr><td><code>config.yaml</code></td><td>Operator configuration. Copy from <code>config.example.yaml</code> and edit ports, adapter paths, and the open-weight seat list.</td></tr>
+    <tr><td><code>~/.claude/commands/</code></td><td>Claude Code slash commands, installed by <code>python clients/install.py</code>.</td></tr>
+    <tr><td><code>~/.claude/skills/switchboard-conclave/</code></td><td>Claude Code natural-language skill that backs the conclave triggers.</td></tr>
+    <tr><td><code>~/.codex/skills/switchboard-conclave/</code></td><td>Codex skill — Codex has no literal slash commands, so it activates from trigger phrases.</td></tr>
+    <tr><td><code>~/.gemini/extensions/</code></td><td>Gemini extension link installed by the clients installer.</td></tr>
+  </tbody>
+</table>
+<p>Everything under <code>data/</code> is gitignored — the database contains the full text of every deliberation and any source copied into per-task sandboxes, so treat it as sensitive.</p>
+<!-- END:section-14.3 -->
+        </section>
+        <section id="help-reference-docs" class="help-subsection">
+          <h4>14.4 Links to deep docs</h4>
+          <!-- BEGIN:section-14.4 -->
+<ul>
+  <li><code>docs/CONCLAVE_CHARTER.md</code> — The binding charter (v1.2), embedded in every agent prompt.</li>
+  <li><code>docs/SWITCHBOARD_PROTOCOL.md</code> — Wire format, mode definitions, and message schemas.</li>
+  <li><code>docs/AGENT_ADAPTERS.md</code> — The interface every adapter must satisfy.</li>
+  <li><code>docs/TASK_LIFECYCLE.md</code> — The task state machine, including the pause / resume paths.</li>
+  <li><code>docs/CODING_WORKFLOW.md</code> — The canonical four-step loop: deliberate, decide, execute, record.</li>
+  <li><code>docs/SAFETY_MODEL.md</code> — Permission model and approval rules.</li>
+  <li><code>docs/ROADMAP.md</code> — Shipped, next, and intentionally-not-built.</li>
+  <li><code>docs/decisions/INDEX.md</code> — Every ratified decision with a one-line summary.</li>
+  <li><code>docs/DATABASE_SCHEMA.md</code> — Table reference for <code>data/switchboard.db</code>.</li>
+  <li><code>docs/SKILLS_SYSTEM.md</code> — How skill files compose into the prompt sent to each agent.</li>
+  <li><code>clients/README.md</code> — Slash-command parity across Claude Code, Codex, and Gemini.</li>
+  <li><code>CLAUDE.md</code> — Guidance for Claude Code instances working in this repo.</li>
+</ul>
+<!-- END:section-14.4 -->
+        </section>
+      </section>
+
+      <section id="help-about-docs" class="help-section">
+        <h3>15. About This Documentation</h3>
+        <section id="help-about-docs-version" class="help-subsection">
+          <h4>15.1 Version history</h4>
+          <!-- BEGIN:section-15.1 -->
+<p>This document carries its own version number, bumped whenever the docs are edited. The scheme is semver: a <strong>patch</strong> bump for typos and small fixes, a <strong>minor</strong> bump when new sections or substantive content land, and a <strong>major</strong> bump if the structure is reorganized.</p>
+<p>The current version and date are shown in the header at the top of this page. There is no separate changelog yet — for now, the <em>Updated</em> date in the header is the signal that something has changed.</p>
+<!-- END:section-15.1 -->
+        </section>
+        <section id="help-about-docs-currency" class="help-subsection">
+          <h4>15.2 How currency is detected</h4>
+          <!-- BEGIN:section-15.2 -->
+<p>When you open Help, the dashboard calls <code>/api/help/metadata</code>, which returns <code>{doc_version, covered_app_version, last_updated, app_version, currency}</code>. <code>covered_app_version</code> is the app version this document was last audited against; <code>app_version</code> is what is actually running right now. The two are compared on <strong>major.minor only</strong> — patch differences stay green.</p>
+<p>The badge in the header reflects one of four states:</p>
+<p><strong>Current</strong> — major.minor match. The documentation is aligned with the running app.</p>
+<p><strong>App is newer</strong> — your app has newer features than the doc covers. Some recent additions may not be documented yet.</p>
+<p><strong>Older app</strong> — you are running an older app than the doc was written for. No warning is shown.</p>
+<p><strong>Unknown</strong> — one or both version strings did not parse.</p>
+<!-- END:section-15.2 -->
+        </section>
+      </section>
+
+    </article>
+  </div>
+</div>

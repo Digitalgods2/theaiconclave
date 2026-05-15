@@ -399,19 +399,146 @@ const Api = {
 };
 
 // ------------------------------------------------------------
+// Sidebar (left rail) — declarative, ordered for future growth.
+// Each item: { id, glyph, color, label, pin: 'top'|'bottom', handler, shortcut? }
+// `id` doubles as the view name when the handler is switchView(id).
+// ------------------------------------------------------------
+const SIDEBAR_ITEMS = [
+  {
+    id: "help",
+    glyph: "?",
+    color: "#3b82f6",
+    label: "Help & Reference",
+    pin: "top",
+    shortcut: "?",
+    handler: () => openHelp(),
+  },
+  {
+    id: "pricing",
+    glyph: "$",
+    color: "#8b5cf6",
+    label: "Model pricing",
+    handler: () => switchView("pricing"),
+  },
+  {
+    id: "theme",
+    glyph: "☾",
+    color: "#a855f7",
+    label: "Toggle dark / light theme",
+    action: "toggle-theme",
+    handler: () => toggleTheme(),
+  },
+  {
+    id: "settings",
+    glyph: "⚙",
+    color: "#10b981",
+    label: "Settings",
+    pin: "bottom",
+    handler: () => switchView("settings"),
+  },
+];
+
+function renderSidebar() {
+  const rail = $("#left-rail");
+  if (!rail) return;
+  rail.innerHTML = "";
+  const topGroup = document.createElement("div");
+  topGroup.className = "rail-group rail-group-top";
+  const bottomGroup = document.createElement("div");
+  bottomGroup.className = "rail-group rail-group-bottom";
+  for (const item of SIDEBAR_ITEMS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "rail-btn";
+    btn.id = "rail-" + item.id;
+    btn.dataset.itemId = item.id;
+    btn.style.setProperty("--rail-color", item.color);
+    const tip = item.shortcut ? `${item.label} (${item.shortcut})` : item.label;
+    btn.title = tip;
+    btn.setAttribute("aria-label", item.label);
+    btn.setAttribute("data-label", tip);
+    btn.innerHTML = `<span aria-hidden="true">${item.glyph}</span>`;
+    btn.addEventListener("click", () => toggleSidebarItem(item.id));
+    (item.pin === "bottom" ? bottomGroup : topGroup).appendChild(btn);
+  }
+  rail.appendChild(topGroup);
+  rail.appendChild(bottomGroup);
+}
+
+// Binary toggle for sidebar items. Clicking (or shortcut-invoking) an already
+// active sidebar item returns the user to the view they were on before. Works
+// across any number of sidebar items via State.prevView, updated every time we
+// enter a sidebar view from elsewhere. Items declared with `action:` (e.g. the
+// theme toggle) are not views and just run their handler.
+function toggleSidebarItem(id) {
+  const item = SIDEBAR_ITEMS.find((x) => x.id === id);
+  if (!item) return;
+  if (item.action) {
+    item.handler();
+    return;
+  }
+  if (State.view === id) {
+    switchView(State.prevView || "new");
+  } else {
+    State.prevView = State.view;
+    item.handler();
+  }
+}
+
+// ------------------------------------------------------------
+// Theme (dark / light)
+// ------------------------------------------------------------
+const THEME_STORAGE_KEY = "switchboard.theme";
+
+function applyTheme() {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  if (stored === "dark") {
+    document.body.classList.add("theme-dark");
+  } else {
+    document.body.classList.remove("theme-dark");
+  }
+  updateThemeGlyph();
+}
+
+function toggleTheme() {
+  const isDark = document.body.classList.toggle("theme-dark");
+  localStorage.setItem(THEME_STORAGE_KEY, isDark ? "dark" : "light");
+  updateThemeGlyph();
+}
+
+function updateThemeGlyph() {
+  const btn = document.getElementById("rail-theme");
+  if (!btn) return;
+  const isDark = document.body.classList.contains("theme-dark");
+  // Sun when in dark mode (= "click to go light"), moon when in light mode.
+  const span = btn.querySelector("span");
+  if (span) span.textContent = isDark ? "☀" : "☾";
+  const label = isDark ? "Switch to light theme" : "Switch to dark theme";
+  btn.title = label;
+  btn.setAttribute("aria-label", label);
+  btn.setAttribute("data-label", label);
+}
+
+// ------------------------------------------------------------
 // View switching
 // ------------------------------------------------------------
 function switchView(name) {
   State.view = name;
-  for (const v of ["new", "inbox", "detail", "settings"]) {
+  for (const v of ["new", "inbox", "detail", "help", "pricing", "settings"]) {
     const section = $("#view-" + v);
     if (section) section.hidden = (v !== name);
   }
   for (const t of $$(".tab")) {
     t.classList.toggle("active", t.dataset.view === name);
   }
-  const railSettings = $("#settings-toggle");
-  if (railSettings) railSettings.classList.toggle("active", name === "settings");
+  // Sync rail-button active state (rail is JS-rendered, ids = `rail-<itemId>`).
+  for (const btn of $$(".left-rail .rail-btn")) {
+    btn.classList.toggle("active", btn.dataset.itemId === name);
+  }
+
+  // Help view releases the .app max-width so the doc + TOC can take the full
+  // viewport and the user can drag the splitter wherever.
+  document.body.classList.toggle("help-view-active", name === "help");
 
   // Manage polling lifecycles
   if (name === "inbox") startInboxPolling(); else stopInboxPolling();
@@ -421,6 +548,391 @@ function switchView(name) {
   if (name === "inbox") refreshInbox();
   if (name === "detail" && State.currentTaskId) refreshDetail();
   if (name === "settings") loadApiKeysSettings();
+  if (name === "help") refreshHelpBadge();
+  if (name === "pricing") loadPricing();
+}
+
+// ------------------------------------------------------------
+// Pricing view — fetches /api/agents/pricing and renders a sortable table.
+// Default sort: most expensive (per-turn estimate) descending, so the seats
+// you'd want to keep an eye on are at the top.
+// ------------------------------------------------------------
+const PricingState = {
+  items: [],
+  sortKey: "per_turn_estimate_usd",
+  sortDir: "desc",
+  basis: null,
+  cacheAgeSeconds: null,
+};
+
+async function loadPricing() {
+  const tbody = $("#pricing-tbody");
+  const statusEl = $("#pricing-status");
+  const noteEl = $("#pricing-basis-note");
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading pricing…</td></tr>';
+  try {
+    const resp = await fetch("/api/agents/pricing");
+    if (!resp.ok) throw new Error("HTTP " + resp.status);
+    const data = await resp.json();
+    PricingState.items = data.items || [];
+    PricingState.basis = data.estimate_basis || null;
+    PricingState.cacheAgeSeconds = data.openrouter_cache_age_seconds;
+    if (noteEl && PricingState.basis) {
+      noteEl.textContent =
+        "Per-turn estimate assumes ~" + PricingState.basis.input_tokens +
+        " input + " + PricingState.basis.output_tokens + " output tokens (typical conclave turn). " +
+        "Subscription seats show no number because they're not billed per-token on this orchestrator.";
+    }
+    if (statusEl) {
+      const parts = ["Click a column header to sort."];
+      if (PricingState.cacheAgeSeconds !== null && PricingState.cacheAgeSeconds !== undefined) {
+        parts.push("OpenRouter cache age: " + PricingState.cacheAgeSeconds + "s");
+      }
+      if (data.openrouter_error) {
+        parts.push("OpenRouter fetch error: " + data.openrouter_error);
+      }
+      statusEl.textContent = parts.join(" · ");
+    }
+    renderPricingTable();
+  } catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    tbody.innerHTML = '<tr><td colspan="8" class="loading">Failed to load pricing: ' + escapeHtml(msg) + '</td></tr>';
+  }
+}
+
+function renderPricingTable() {
+  const tbody = $("#pricing-tbody");
+  if (!tbody) return;
+  const rows = PricingState.items.slice();
+  // Sort. Subscription rows (null per_turn_estimate) always sort to the bottom
+  // when sorting by a numeric column.
+  const key = PricingState.sortKey;
+  const dir = PricingState.sortDir === "asc" ? 1 : -1;
+  rows.sort((a, b) => {
+    const va = a[key];
+    const vb = b[key];
+    const aNull = (va === null || va === undefined);
+    const bNull = (vb === null || vb === undefined);
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;   // nulls last regardless of direction
+    if (bNull) return -1;
+    if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
+    return String(va).localeCompare(String(vb)) * dir;
+  });
+
+  tbody.innerHTML = "";
+  if (rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="loading">No agents registered.</td></tr>';
+    return;
+  }
+  for (const it of rows) {
+    const tr = el("tr", { class: "pricing-row pricing-row-" + (it.kind || "cli") });
+    tr.appendChild(el("td", {}, [el("strong", { text: it.name })]));
+    tr.appendChild(el("td", {}, [el("span", { class: "kind-pill kind-" + (it.kind || "cli"), text: it.kind || "—" })]));
+    tr.appendChild(el("td", {}, [renderModelInUseCell(it)]));
+    tr.appendChild(el("td", { class: "num", text: it.context_length ? Number(it.context_length).toLocaleString() : "—" }));
+    tr.appendChild(el("td", { class: "num", text: formatUsdPerMillion(it.input_per_million_usd) }));
+    tr.appendChild(el("td", { class: "num", text: formatUsdPerMillion(it.output_per_million_usd) }));
+    tr.appendChild(el("td", { class: "num est-cell", text: formatPerTurn(it.per_turn_estimate_usd) }));
+    tr.appendChild(el("td", { class: "small muted", text: it.note || "" }));
+    tbody.appendChild(tr);
+  }
+  // Update header sort indicators
+  for (const th of $$("#pricing-table thead th")) {
+    th.classList.remove("sorted-asc", "sorted-desc");
+    if (th.dataset.sort === key) {
+      th.classList.add("sorted-" + PricingState.sortDir);
+    }
+  }
+}
+
+// Render the "Model in use" cell, which can show:
+//   - The detected slug (from the CLI's own config) + a small "detected" tag
+//   - The declared slug (from config.yaml) when there's nothing detected
+//   - A drift warning chip when declared and detected disagree
+//   - "—" when neither is known (e.g., Gemini in subscription mode)
+function renderModelInUseCell(it) {
+  const wrap = el("div", { class: "model-cell" });
+  if (it.drift && it.declared_model_slug && it.detected_model_slug) {
+    // Drift: show detected (load-bearing for pricing) prominently + a warning
+    wrap.appendChild(el("div", { class: "model-slug mono small", text: it.detected_model_slug }));
+    const drift = el("div", { class: "model-drift-chip", title:
+      "Your CLI is set to " + it.detected_model_slug + " (from " + (it.detected_source || "?") + "), " +
+      "but config.yaml declares " + it.declared_model_slug + ". Pricing reflects the detected model. " +
+      "Run the CLI's model-selection command to align them (e.g., /model in Claude Code) or update config.yaml."
+    });
+    drift.appendChild(el("span", { class: "model-drift-badge", text: "drift" }));
+    drift.appendChild(el("span", {
+      class: "model-drift-text",
+      text: "declared " + it.declared_model_slug,
+    }));
+    wrap.appendChild(drift);
+  } else if (it.detected_model_slug) {
+    wrap.appendChild(el("div", { class: "model-slug mono small", text: it.detected_model_slug }));
+    if (it.detected_source) {
+      wrap.appendChild(el("div", {
+        class: "model-source small muted",
+        text: "detected · " + it.detected_source,
+      }));
+    }
+  } else if (it.model_id) {
+    // OpenRouter or Ollama Cloud seats — no detection layer needed.
+    wrap.appendChild(el("div", { class: "model-slug mono small", text: it.model_id }));
+  } else if (it.declared_model_slug) {
+    wrap.appendChild(el("div", { class: "model-slug mono small", text: it.declared_model_slug }));
+    wrap.appendChild(el("div", { class: "model-source small muted", text: "declared · config.yaml" }));
+  } else {
+    wrap.appendChild(el("span", { class: "muted", text: "—" }));
+  }
+  return wrap;
+}
+
+function formatUsdPerMillion(v) {
+  if (v === null || v === undefined) return "—";
+  // Show 2 decimals if >= 1, else 4 decimals for tiny rates.
+  return v >= 1 ? "$" + v.toFixed(2) : "$" + v.toFixed(4);
+}
+function formatPerTurn(v) {
+  if (v === null || v === undefined) return "—";
+  if (v === 0) return "$0";
+  if (v < 0.001) return "$" + v.toFixed(5);
+  if (v < 0.1) return "$" + v.toFixed(4);
+  return "$" + v.toFixed(3);
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function setupPricingTableHeaders() {
+  for (const th of $$("#pricing-table thead th")) {
+    const key = th.dataset.sort;
+    if (!key) continue;
+    th.style.cursor = "pointer";
+    th.addEventListener("click", () => {
+      if (PricingState.sortKey === key) {
+        PricingState.sortDir = (PricingState.sortDir === "asc") ? "desc" : "asc";
+      } else {
+        PricingState.sortKey = key;
+        PricingState.sortDir = (key === "name" || key === "kind" || key === "model_id") ? "asc" : "desc";
+      }
+      renderPricingTable();
+    });
+  }
+}
+
+// ------------------------------------------------------------
+// Help view — lazy-loaded fragment + version metadata badge
+// ------------------------------------------------------------
+let _helpLoaded = false;
+let _helpScrollspyInit = false;
+
+async function openHelp() {
+  await ensureHelpLoaded();
+  switchView("help");
+}
+
+async function ensureHelpLoaded() {
+  if (_helpLoaded) return;
+  const mount = $("#view-help");
+  if (!mount) return;
+  try {
+    const r = await fetch("/static/help.html", { cache: "no-cache" });
+    if (r.ok) {
+      mount.innerHTML = await r.text();
+      _helpLoaded = true;
+      initHelpScrollspy();
+    } else {
+      mount.innerHTML = `<p class="loading">Failed to load help: HTTP ${r.status}</p>`;
+    }
+  } catch (e) {
+    const msg = (e && e.message) ? e.message : String(e);
+    mount.innerHTML = `<p class="loading">Failed to load help: ${msg}</p>`;
+  }
+}
+
+async function refreshHelpBadge() {
+  if (!_helpLoaded) return;
+  const setT = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  const badge = document.getElementById("help-doc-currency");
+  const showError = (reason) => {
+    setT("help-doc-version-tag", "v?");
+    setT("help-doc-covered-val", "—");
+    setT("help-doc-updated-val", "—");
+    setT("help-doc-appver-val", "—");
+    if (badge) {
+      badge.setAttribute("data-state", "unknown");
+      badge.textContent = "Metadata unavailable";
+      badge.title = reason + " — try restarting the service or refreshing the page.";
+    }
+  };
+  let r;
+  try {
+    r = await fetch("/api/help/metadata");
+  } catch (e) {
+    showError("Network error: " + (e && e.message ? e.message : e));
+    return;
+  }
+  if (!r.ok) {
+    showError(`Endpoint returned HTTP ${r.status}` + (r.status === 404 ? " (service may need a restart to pick up the new /api/help/metadata route)" : ""));
+    return;
+  }
+  let m;
+  try {
+    m = await r.json();
+  } catch (e) {
+    showError("Could not parse metadata response: " + (e && e.message ? e.message : e));
+    return;
+  }
+  setT("help-doc-version-tag", "v" + m.doc_version);
+  setT("help-doc-covered-val", "v" + m.covered_app_version);
+  setT("help-doc-updated-val", m.last_updated);
+  setT("help-doc-appver-val", "v" + m.app_version);
+  if (badge) {
+    const labels = {
+      current:   { text: "Current",      title: "Documentation is current for this app version (major.minor match)." },
+      app_newer: { text: "App is newer", title: `This doc was written for app v${m.covered_app_version}; you're running v${m.app_version}. Some recent features may not be documented yet.` },
+      older_app: { text: "Older app",    title: `This doc was written for app v${m.covered_app_version}; you're running an older v${m.app_version}.` },
+      unknown:   { text: "Unknown",      title: "Could not determine documentation currency." },
+    };
+    const info = labels[m.currency] || labels.unknown;
+    badge.setAttribute("data-state", m.currency || "unknown");
+    badge.textContent = info.text;
+    badge.title = info.title;
+  }
+}
+
+function initHelpScrollspy() {
+  if (_helpScrollspyInit) return;
+  initHelpSplitter();
+  const tocLinks = Array.from(document.querySelectorAll(".help-doc-toc a"));
+  if (tocLinks.length === 0) return;
+
+  // Smooth-scroll on TOC click, update URL hash.
+  for (const link of tocLinks) {
+    link.addEventListener("click", (e) => {
+      const href = link.getAttribute("href");
+      if (!href || !href.startsWith("#")) return;
+      e.preventDefault();
+      const target = document.querySelector(href);
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        history.replaceState(null, "", href);
+      }
+    });
+  }
+
+  // Scrollspy via IntersectionObserver — highlights nearest section in TOC.
+  const linkByHref = new Map();
+  for (const l of tocLinks) linkByHref.set(l.getAttribute("href"), l);
+  const sections = Array.from(document.querySelectorAll(".help-section, .help-subsection"));
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        const id = "#" + entry.target.id;
+        const match = linkByHref.get(id);
+        if (match) {
+          for (const l of tocLinks) l.classList.remove("active-toc");
+          match.classList.add("active-toc");
+        }
+      }
+    }
+  }, { rootMargin: "-20% 0px -65% 0px", threshold: 0 });
+  for (const s of sections) {
+    if (s.id) observer.observe(s);
+  }
+
+  // Honor initial hash if user deep-linked.
+  if (location.hash) {
+    const t = document.querySelector(location.hash);
+    if (t) requestAnimationFrame(() => t.scrollIntoView({ behavior: "auto", block: "start" }));
+  }
+
+  _helpScrollspyInit = true;
+}
+
+// Drag-to-resize the splitter between the help TOC and content.
+// Stores the chosen TOC width in localStorage so the layout persists.
+const HELP_TOC_WIDTH_KEY = "switchboard.help.toc-width";
+const HELP_TOC_MIN = 160;
+const HELP_TOC_MAX = 520;
+
+function initHelpSplitter() {
+  const splitter = document.getElementById("help-doc-splitter");
+  const toc = document.querySelector(".help-doc-toc");
+  if (!splitter || !toc) return;
+
+  // Apply saved width if present.
+  const saved = parseInt(localStorage.getItem(HELP_TOC_WIDTH_KEY) || "0", 10);
+  if (saved >= HELP_TOC_MIN && saved <= HELP_TOC_MAX) {
+    toc.style.setProperty("--help-toc-width", saved + "px");
+    toc.style.width = saved + "px";
+  }
+
+  let dragging = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    let next = startWidth + delta;
+    if (next < HELP_TOC_MIN) next = HELP_TOC_MIN;
+    if (next > HELP_TOC_MAX) next = HELP_TOC_MAX;
+    toc.style.width = next + "px";
+    toc.style.setProperty("--help-toc-width", next + "px");
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    splitter.classList.remove("dragging");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    const w = parseInt(toc.style.width, 10);
+    if (!isNaN(w)) localStorage.setItem(HELP_TOC_WIDTH_KEY, String(w));
+  };
+
+  splitter.addEventListener("mousedown", (e) => {
+    dragging = true;
+    startX = e.clientX;
+    startWidth = toc.getBoundingClientRect().width;
+    splitter.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", onMove);
+  document.addEventListener("mouseup", onUp);
+
+  // Keyboard accessibility: arrow keys nudge the TOC width by 16px steps.
+  splitter.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const cur = toc.getBoundingClientRect().width;
+    let next = cur + (e.key === "ArrowRight" ? 16 : -16);
+    if (next < HELP_TOC_MIN) next = HELP_TOC_MIN;
+    if (next > HELP_TOC_MAX) next = HELP_TOC_MAX;
+    toc.style.width = next + "px";
+    toc.style.setProperty("--help-toc-width", next + "px");
+    localStorage.setItem(HELP_TOC_WIDTH_KEY, String(next));
+    e.preventDefault();
+  });
+}
+
+// Global `?` keyboard shortcut opens help (ignored while typing in inputs).
+function _isTextFocused() {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+}
+function _onGlobalKeydown(e) {
+  if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey && !_isTextFocused()) {
+    e.preventDefault();
+    toggleSidebarItem("help");
+  }
 }
 
 // ------------------------------------------------------------
@@ -428,23 +940,52 @@ function switchView(name) {
 // ------------------------------------------------------------
 async function pollHealth() {
   const ind = $("#health-indicator");
+  let detailMsg = "";
   try {
     const h = await Api.health();
     if (h && h.status === "ok") {
       ind.textContent = "healthy";
       ind.className = "health ok";
     } else if (h && h.status === "degraded") {
-      ind.textContent = "degraded";
-      ind.className = "health degraded";
-      ind.title = h.error || "degraded";
+      ind.textContent = "degraded (why?)";
+      ind.className = "health degraded clickable";
+      detailMsg = h.error || "Service reported degraded.";
     } else {
       ind.textContent = "unknown";
       ind.className = "health";
     }
-  } catch (_) {
-    ind.textContent = "offline";
-    ind.className = "health down";
+  } catch (e) {
+    ind.textContent = "offline (why?)";
+    ind.className = "health down clickable";
+    detailMsg = (e && e.message) ? e.message : "Could not reach the service.";
   }
+  ind.title = detailMsg || "service health";
+  ind.dataset.detail = detailMsg;
+  // Hide any previously-expanded detail block when state changes.
+  const expanded = document.getElementById("health-detail");
+  if (expanded && !detailMsg) expanded.hidden = true;
+}
+
+function setupHealthIndicator() {
+  const ind = $("#health-indicator");
+  if (!ind) return;
+  ind.addEventListener("click", () => {
+    const msg = ind.dataset.detail || "";
+    if (!msg) return;
+    let detail = document.getElementById("health-detail");
+    if (!detail) {
+      detail = document.createElement("div");
+      detail.id = "health-detail";
+      detail.className = "health-detail";
+      ind.insertAdjacentElement("afterend", detail);
+    }
+    if (detail.hidden || detail.textContent !== msg) {
+      detail.textContent = msg;
+      detail.hidden = false;
+    } else {
+      detail.hidden = true;
+    }
+  });
 }
 
 // ------------------------------------------------------------
@@ -471,9 +1012,11 @@ function renderAgentsList() {
     return;
   }
   const mode = $("#mode").value;
+  const orderMatters = (mode === "consult" || mode === "resolve");
   for (const name of State.agents) {
     const checked = State.selectedAgents.includes(name);
-    const isPrimary = (mode === "consult" || mode === "resolve") && checked && State.selectedAgents[0] === name;
+    const position = checked ? State.selectedAgents.indexOf(name) + 1 : 0;
+    const isPrimary = orderMatters && checked && position === 1;
     const label = el("label", { class: "agent-check" + (isPrimary ? " primary" : "") });
     const cb = el("input", { type: "checkbox", value: name });
     cb.checked = checked;
@@ -486,7 +1029,10 @@ function renderAgentsList() {
       renderAgentsList();
     });
     label.appendChild(cb);
-    label.appendChild(document.createTextNode(" " + name + (isPrimary ? " (primary)" : "")));
+    // In consult/resolve, prefix with position number so the "first-picked = primary" rule is visible.
+    const prefix = (orderMatters && checked) ? " " + position + ". " : " ";
+    const primaryTag = isPrimary ? " (primary — first picked)" : "";
+    label.appendChild(document.createTextNode(prefix + name + primaryTag));
     container.appendChild(label);
   }
 }
@@ -668,16 +1214,33 @@ function setSandboxWarning(text) {
   w.className = "form-status" + (text ? " error" : "");
 }
 
+// Live pre-flight: show the sandbox warning as soon as the user creates an
+// invalid combination, not only at submit time.
+function validateSandboxState() {
+  const cb = $("#include-sandbox");
+  if (!cb || !cb.checked) {
+    setSandboxWarning("");
+    return;
+  }
+  const projectPath = readProjectPath();
+  const canReadFiles = $("#perm-can_read_files");
+  const missing = [];
+  if (!projectPath) missing.push("Project path");
+  if (canReadFiles && !canReadFiles.checked) missing.push("can_read_files in Permissions");
+  if (missing.length > 0) {
+    setSandboxWarning("Sandbox needs: " + missing.join(" + ") + ".");
+  } else {
+    setSandboxWarning("");
+  }
+}
+
 function setupProjectSourceUI() {
   const pathInput = $("#project-path");
   const sandboxCb = $("#include-sandbox");
-  // Clear the inline warning as soon as the user starts fixing things.
-  if (pathInput) {
-    pathInput.addEventListener("input", () => setSandboxWarning(""));
-  }
-  if (sandboxCb) {
-    sandboxCb.addEventListener("change", () => setSandboxWarning(""));
-  }
+  const permReadCb = $("#perm-can_read_files");
+  if (pathInput) pathInput.addEventListener("input", validateSandboxState);
+  if (sandboxCb) sandboxCb.addEventListener("change", validateSandboxState);
+  if (permReadCb) permReadCb.addEventListener("change", validateSandboxState);
 }
 
 function buildPayload(mode, agents, question) {
@@ -1050,14 +1613,23 @@ function setGitDiffStatus(text, kind) {
 
 function updateGitDiffButtonEnabled() {
   const btn = $("#attach-git-diff-btn");
+  const caption = $("#git-diff-caption");
   if (!btn) return;
   const projectPath = readProjectPath();
   if (projectPath) {
     btn.disabled = false;
-    btn.title = "POST /api/git/diff and append the diff to the question.";
+    btn.title = "Click to append `git diff` (uncommitted + staged) of " + projectPath + " to the question.";
+    if (caption) {
+      caption.innerHTML = "Attaches a <code>git diff</code> of your in-progress changes (uncommitted + staged) to the question.";
+      caption.classList.remove("git-diff-caption-disabled");
+    }
   } else {
     btn.disabled = true;
-    btn.title = "Set project_path to enable.";
+    btn.title = "Set Project path above to enable.";
+    if (caption) {
+      caption.innerHTML = "Attaches a <code>git diff</code> of your in-progress changes (uncommitted + staged) to the question. Set <strong>Project path</strong> above to enable.";
+      caption.classList.add("git-diff-caption-disabled");
+    }
   }
 }
 
@@ -1532,19 +2104,49 @@ function setBulkExportErrors(errors) {
 }
 
 async function onBulkExportUnexported() {
-  const btn = $("#inbox-bulk-export-btn");
-  const ok = window.confirm(
-    "Export all unexported terminal tasks to data/exports/? This will write to disk.");
-  if (!ok) return;
-
+  // Render an inline confirm UI (no native confirm() dialog). The actual work
+  // runs only after the user clicks Continue.
+  const statusEl = $("#inbox-bulk-export-status");
+  if (!statusEl) return;
   setBulkExportErrors([]);
+  statusEl.hidden = false;
+  statusEl.className = "inbox-bulk-export-status confirming";
+  statusEl.innerHTML = "";
+  const msg = document.createElement("span");
+  msg.textContent = "Write a markdown decision record to data/exports/ for every unexported completed / failed / cancelled task? ";
+  const yes = document.createElement("button");
+  yes.type = "button";
+  yes.className = "btn btn-primary";
+  yes.textContent = "Continue";
+  yes.style.cssText = "padding: 3px 12px; margin-left: 6px; font-size: 12px;";
+  const no = document.createElement("button");
+  no.type = "button";
+  no.className = "btn btn-secondary";
+  no.textContent = "Cancel";
+  no.style.cssText = "padding: 3px 12px; margin-left: 4px; font-size: 12px;";
+  no.addEventListener("click", () => {
+    statusEl.hidden = true;
+    statusEl.innerHTML = "";
+    statusEl.className = "inbox-bulk-export-status";
+  });
+  yes.addEventListener("click", () => {
+    statusEl.innerHTML = "";
+    statusEl.className = "inbox-bulk-export-status";
+    _runBulkExport();
+  });
+  statusEl.appendChild(msg);
+  statusEl.appendChild(yes);
+  statusEl.appendChild(no);
+}
+
+async function _runBulkExport() {
+  const btn = $("#inbox-bulk-export-btn");
   setBulkExportStatus("Exporting...", null);
   if (btn) {
     btn.disabled = true;
     btn.dataset.originalText = btn.dataset.originalText || btn.textContent;
     btn.textContent = "Exporting...";
   }
-
   try {
     // Empty body uses the default filter=unexported_terminal on the server.
     const resp = await Api.exportBatchTasks({});
@@ -2659,27 +3261,164 @@ function renderFieldValue(value) {
     return el("div", { class: "field-value", text: value });
   }
   if (Array.isArray(value)) {
-    // List of primitives -> ul; list of objects -> stringify each (with copy button)
+    if (value.length === 0) {
+      return el("div", { class: "field-value muted", text: "(empty)" });
+    }
+    // If every item is an object carrying a `description` string, render as
+    // human-readable cards (recommended_actions, risks, etc.).
+    if (value.every(v => isPlainObject(v) && typeof v.description === "string")) {
+      return renderObjectList(value);
+    }
+    // All primitives → flat ul.
+    if (value.every(v => typeof v === "string" || typeof v === "number" || typeof v === "boolean")) {
+      const ul = el("ul", { class: "field-list" });
+      for (const item of value) ul.appendChild(el("li", { text: String(item) }));
+      return ul;
+    }
+    // All plain objects (without `description`) → each rendered as a DL
+    // inside an <li>. Recursive: nested objects/arrays render through
+    // renderFieldValue again.
+    if (value.every(v => isPlainObject(v))) {
+      const ul = el("ul", { class: "field-list field-list-objects" });
+      for (const item of value) {
+        const li = el("li", { class: "field-list-object-item" });
+        li.appendChild(renderObjectAsDl(item));
+        ul.appendChild(li);
+      }
+      return ul;
+    }
+    // Mixed list — render each item by recursing.
     const ul = el("ul", { class: "field-list" });
     for (const item of value) {
       if (item === null || item === undefined) continue;
-      if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") {
-        ul.appendChild(el("li", { text: String(item) }));
-      } else {
-        const li = el("li");
-        const pre = el("pre", { class: "field-value mono", text: JSON.stringify(item, null, 2) });
-        li.appendChild(wrapWithCopy(pre, JSON.stringify(item, null, 2), "JSON"));
-        ul.appendChild(li);
-      }
+      const li = el("li");
+      li.appendChild(renderFieldValue(item));
+      ul.appendChild(li);
     }
     return ul;
   }
   if (isPlainObject(value)) {
-    const json = JSON.stringify(value, null, 2);
-    const pre = el("pre", { class: "field-value mono", text: json });
-    return wrapWithCopy(pre, json, "JSON");
+    // Recursive readable rendering instead of a JSON dump.
+    return renderObjectAsDl(value);
   }
   return el("div", { class: "field-value", text: String(value) });
+}
+
+// Render a plain object as a definition list (key → value). Values recurse
+// through renderFieldValue so nested objects / arrays render readably too.
+// The `code` key gets its usual code-block treatment.
+function renderObjectAsDl(obj) {
+  const dl = el("dl", { class: "object-dl" });
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === null || v === undefined) continue;
+    dl.appendChild(el("dt", { text: prettifyKey(k) }));
+    const dd = el("dd");
+    if (k === "code" && typeof v === "string" && v.includes("\n")) {
+      const pre = el("pre", { class: "object-card-code", text: v });
+      dd.appendChild(wrapWithCopy(pre, v, "code"));
+    } else {
+      dd.appendChild(renderFieldValue(v));
+    }
+    dl.appendChild(dd);
+  }
+  return dl;
+}
+
+// ------------------------------------------------------------
+// Human-readable renderer for arrays of objects that share a `description`
+// field (the shape of recommended_actions, risks, etc.). Each item becomes a
+// small card: description prominent, simple meta keys in a row, payload
+// rendered as a definition list or code block depending on shape.
+// ------------------------------------------------------------
+function renderObjectList(items) {
+  const wrap = el("div", { class: "object-list" });
+  for (const item of items) {
+    wrap.appendChild(renderObjectCard(item));
+  }
+  return wrap;
+}
+
+function renderObjectCard(obj) {
+  const card = el("div", { class: "object-card" });
+
+  // 1. Description leads — the most important user-facing text.
+  if (typeof obj.description === "string" && obj.description.length > 0) {
+    card.appendChild(el("div", { class: "object-card-desc", text: obj.description }));
+  }
+
+  // 2. Meta row — primitive keys other than description / payload. Severity
+  //    gets a colored pill; everything else gets a small "key: value" chip.
+  const metaItems = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "description" || k === "payload") continue;
+    if (v === null || v === undefined) continue;
+    if (typeof v !== "string" && typeof v !== "number" && typeof v !== "boolean") continue;
+    metaItems.push([k, v]);
+  }
+  if (metaItems.length > 0) {
+    const meta = el("div", { class: "object-card-meta" });
+    for (const [k, v] of metaItems) {
+      if (k === "severity") {
+        const sev = String(v).toLowerCase();
+        meta.appendChild(el("span", { class: "object-card-meta-item" }, [
+          el("span", { class: "object-card-meta-key", text: "severity " }),
+          el("span", { class: "severity-pill severity-" + sev, text: sev }),
+        ]));
+      } else if (k === "requires_approval") {
+        meta.appendChild(el("span", { class: "object-card-meta-item" }, [
+          el("span", { class: "object-card-meta-key", text: "approval " }),
+          el("span", {
+            class: "approval-pill approval-" + (v ? "required" : "not-required"),
+            text: v ? "required" : "not required",
+          }),
+        ]));
+      } else {
+        meta.appendChild(el("span", { class: "object-card-meta-item" }, [
+          el("span", { class: "object-card-meta-key", text: prettifyKey(k) + " " }),
+          el("span", { class: "object-card-meta-val", text: String(v) }),
+        ]));
+      }
+    }
+    card.appendChild(meta);
+  }
+
+  // 3. Payload — render the inside, not the JSON wrapper.
+  if (isPlainObject(obj.payload) && Object.keys(obj.payload).length > 0) {
+    card.appendChild(renderObjectCardPayload(obj.payload));
+  }
+
+  // 4. Any other non-primitive keys (objects / arrays we didn't recognize)
+  //    fall back to the generic value renderer with a small label.
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "description" || k === "payload") continue;
+    if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") continue;
+    if (v === null || v === undefined) continue;
+    const sub = el("div", { class: "object-card-subfield" });
+    sub.appendChild(el("div", { class: "object-card-subfield-label", text: prettifyKey(k) }));
+    sub.appendChild(renderFieldValue(v));
+    card.appendChild(sub);
+  }
+
+  return card;
+}
+
+function renderObjectCardPayload(payload) {
+  const wrap = el("div", { class: "object-card-payload" });
+  const keys = Object.keys(payload);
+
+  // Common case: payload is a single `code` field. Render as a code block.
+  if (keys.length === 1 && keys[0] === "code" && typeof payload.code === "string") {
+    wrap.appendChild(el("div", { class: "object-card-payload-label", text: "Code" }));
+    const pre = el("pre", { class: "object-card-code", text: payload.code });
+    wrap.appendChild(wrapWithCopy(pre, payload.code, "code"));
+    return wrap;
+  }
+
+  // Otherwise: defer to the recursive DL renderer so nested objects and
+  // arrays inside the payload render readably too (not as JSON blobs).
+  wrap.appendChild(el("div", { class: "object-card-payload-label", text: "Payload" }));
+  wrap.appendChild(renderObjectAsDl(payload));
+  return wrap;
 }
 
 function renderFinalResult(fr) {
@@ -3079,10 +3818,15 @@ async function onToggleKeyVisibility(name) {
   const cfg = _kf(name); if (!cfg) return;
   const input = $(cfg.input), eyeball = $(cfg.eyeball);
   if (!input) return;
+  const labelEl = eyeball ? eyeball.querySelector(".eyeball-label") : null;
   const st = ApiKeyState[name] || { source: "none", revealed: false };
   if (input.type === "text") {
     input.type = "password";
-    if (eyeball) eyeball.classList.remove("revealed");
+    if (eyeball) {
+      eyeball.classList.remove("revealed");
+      eyeball.setAttribute("aria-pressed", "false");
+    }
+    if (labelEl) labelEl.textContent = "Show";
     return;
   }
   if (!input.value && st.source === "db" && !st.revealed) {
@@ -3099,7 +3843,11 @@ async function onToggleKeyVisibility(name) {
     return;
   }
   input.type = "text";
-  if (eyeball) eyeball.classList.add("revealed");
+  if (eyeball) {
+    eyeball.classList.add("revealed");
+    eyeball.setAttribute("aria-pressed", "true");
+  }
+  if (labelEl) labelEl.textContent = "Hide";
 }
 
 async function onSaveKey(name) {
@@ -3143,12 +3891,15 @@ async function onClearKey(name) {
 // Wire-up
 // ------------------------------------------------------------
 function init() {
+  applyTheme();
+  renderSidebar();
+  // renderSidebar created the theme button — refresh its glyph now.
+  updateThemeGlyph();
+  document.addEventListener("keydown", _onGlobalKeydown);
+
   for (const t of $$(".tab")) {
     t.addEventListener("click", () => switchView(t.dataset.view));
   }
-
-  const settingsToggle = $("#settings-toggle");
-  if (settingsToggle) settingsToggle.addEventListener("click", () => switchView("settings"));
   for (const name of Object.keys(API_KEY_FIELDS)) {
     const cfg = _kf(name);
     const saveBtn = $(cfg.save), clearBtn = $(cfg.clear), eyeball = $(cfg.eyeball);
@@ -3184,6 +3935,8 @@ function init() {
   if (followupDismiss) followupDismiss.addEventListener("click", clearFollowupParent);
 
   loadAgents();
+  setupHealthIndicator();
+  setupPricingTableHeaders();
   pollHealth();
   setInterval(pollHealth, 15000);
 
