@@ -133,6 +133,17 @@ function fmtDurationMs(ms) {
   return mm === 0 ? h + "h" : h + "h " + mm + "m";
 }
 
+function fmtRelTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const diff = Date.now() - d.getTime();
+  if (diff < 60000)    return "just now";
+  if (diff < 3600000)  return Math.floor(diff / 60000) + "m ago";
+  if (diff < 86400000) return Math.floor(diff / 3600000) + "h ago";
+  return Math.floor(diff / 86400000) + "d ago";
+}
+
 // Format an integer with thousands separators. Returns "" for null/undefined.
 function fmtInt(n) {
   if (n === null || n === undefined || !Number.isFinite(n)) return "";
@@ -379,6 +390,7 @@ const Api = {
   revealApiKey: (name) => api(`/api/settings/api-keys/${name}/reveal`),
   exportBatchTasks: (body) => api("/api/tasks/export-batch",
     { method: "POST", body: JSON.stringify(body || {}) }),
+  usageSummary: () => api("/api/tasks/usage"),
   uploadFile: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
@@ -419,6 +431,20 @@ const SIDEBAR_ITEMS = [
     color: "#8b5cf6",
     label: "Model pricing",
     handler: () => switchView("pricing"),
+  },
+  {
+    id: "recent-tasks",
+    glyph: "⟳",
+    color: "#06b6d4",
+    label: "Recent tasks",
+    handler: () => switchView("recent-tasks"),
+  },
+  {
+    id: "usage",
+    glyph: "∑",
+    color: "#f59e0b",
+    label: "Usage & spend",
+    handler: () => switchView("usage"),
   },
   {
     id: "theme",
@@ -524,7 +550,7 @@ function updateThemeGlyph() {
 // ------------------------------------------------------------
 function switchView(name) {
   State.view = name;
-  for (const v of ["new", "inbox", "detail", "help", "pricing", "settings"]) {
+  for (const v of ["new", "inbox", "detail", "help", "pricing", "settings", "recent-tasks", "usage"]) {
     const section = $("#view-" + v);
     if (section) section.hidden = (v !== name);
   }
@@ -550,6 +576,8 @@ function switchView(name) {
   if (name === "settings") loadApiKeysSettings();
   if (name === "help") refreshHelpBadge();
   if (name === "pricing") loadPricing();
+  if (name === "recent-tasks") loadRecentTasks();
+  if (name === "usage") loadUsage();
 }
 
 // ------------------------------------------------------------
@@ -964,6 +992,15 @@ async function pollHealth() {
   // Hide any previously-expanded detail block when state changes.
   const expanded = document.getElementById("health-detail");
   if (expanded && !detailMsg) expanded.hidden = true;
+  // Sync health dot on the Settings rail button.
+  const settingsBtn = document.getElementById("rail-settings");
+  if (settingsBtn) {
+    const cls = ind.className;
+    settingsBtn.dataset.health = cls.includes("ok") ? "ok"
+      : cls.includes("degraded") ? "degraded"
+      : cls.includes("down") ? "down"
+      : "unknown";
+  }
 }
 
 function setupHealthIndicator() {
@@ -3882,6 +3919,154 @@ async function onClearKey(name) {
 }
 
 // ------------------------------------------------------------
+// Recent Tasks view
+// ------------------------------------------------------------
+async function loadRecentTasks() {
+  const list = document.getElementById("recent-tasks-list");
+  const status = document.getElementById("recent-tasks-status");
+  if (!list) return;
+  list.innerHTML = '<p class="loading">Loading…</p>';
+  try {
+    const data = await Api.listTasks({ limit: 15 });
+    const tasks = (data && data.tasks) || [];
+    if (status) status.textContent = tasks.length + " most recent";
+    if (tasks.length === 0) {
+      list.innerHTML = '<p class="muted" style="padding:16px 0">No tasks yet.</p>';
+      return;
+    }
+    list.innerHTML = "";
+    for (const t of tasks) {
+      const row = el("div", { class: "rt-row", role: "button", tabindex: "0" });
+      row.dataset.taskId = t.id;
+      const meta = el("div", { class: "rt-meta" });
+      meta.appendChild(el("span", { class: "badge status-" + t.status, text: t.status }));
+      meta.appendChild(el("span", { class: "badge mode-" + t.mode, text: t.mode }));
+      meta.appendChild(el("span", { class: "rt-time muted", text: fmtRelTime(t.created_at) }));
+      const snippet = el("div", {
+        class: "rt-snippet",
+        text: t.user_request_snippet || t.id,
+      });
+      row.appendChild(meta);
+      row.appendChild(snippet);
+      row.addEventListener("click", () => openDetail(t.id));
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") openDetail(t.id);
+      });
+      list.appendChild(row);
+    }
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    list.innerHTML = '<p class="loading">Failed to load: ' + escapeHtml(msg) + "</p>";
+  }
+}
+
+// ------------------------------------------------------------
+// Usage & Spend view
+// ------------------------------------------------------------
+async function loadUsage() {
+  const content = document.getElementById("usage-content");
+  if (!content) return;
+  content.innerHTML = '<p class="loading">Loading…</p>';
+  try {
+    const data = await Api.usageSummary();
+    renderUsage(data);
+  } catch (e) {
+    const msg = e && e.message ? e.message : String(e);
+    content.innerHTML = '<p class="loading">Failed to load: ' + escapeHtml(msg) + "</p>";
+  }
+}
+
+function renderUsage(data) {
+  const content = document.getElementById("usage-content");
+  if (!content) return;
+  content.innerHTML = "";
+
+  const todayAgents = (data && data.today_by_agent) || [];
+  const daily       = (data && data.daily_7d) || [];
+  const allTime     = (data && data.all_time) || {};
+
+  const todayTotal = todayAgents.reduce((s, a) => s + (a.cost_usd || 0), 0);
+  const weekly7d   = daily.reduce((s, d) => s + (d.cost_usd || 0), 0);
+
+  // Summary cards
+  const cards = el("div", { class: "usage-cards" });
+  cards.appendChild(_usageCard("Today", todayTotal > 0 ? fmtUsd(todayTotal) : "$0", "OpenRouter spend"));
+  cards.appendChild(_usageCard("Last 7 days", weekly7d > 0 ? fmtUsd(weekly7d) : "$0", "OpenRouter spend"));
+  cards.appendChild(_usageCard("All-time tasks", String(allTime.task_count || 0), "tasks run"));
+  const totalTok = (allTime.input_tokens || 0) + (allTime.output_tokens || 0);
+  cards.appendChild(_usageCard("All-time tokens", _fmtTok(totalTok), "input + output"));
+  content.appendChild(cards);
+
+  // 7-day bar chart
+  const chartSec = el("div", { class: "usage-section" });
+  chartSec.appendChild(el("h3", { text: "Daily OpenRouter spend — last 7 days" }));
+  if (daily.length > 0) {
+    const maxCost = Math.max(...daily.map((d) => d.cost_usd || 0), 0.00001);
+    const chart = el("div", { class: "usage-chart" });
+    for (const d of daily) {
+      const cost = d.cost_usd || 0;
+      const pct  = Math.max((cost / maxCost) * 100, cost > 0 ? 3 : 0);
+      const col  = el("div", { class: "usage-bar-col" });
+      const fill = el("div", {
+        class: "usage-bar-fill",
+        title: d.day + ": " + (cost > 0 ? fmtUsd(cost) : "$0"),
+      });
+      fill.style.height = pct + "%";
+      col.appendChild(fill);
+      col.appendChild(el("div", { class: "usage-bar-label", text: d.day.slice(5) }));
+      chart.appendChild(col);
+    }
+    chartSec.appendChild(chart);
+  } else {
+    chartSec.appendChild(el("p", { class: "muted", text: "No spend data in the last 7 days." }));
+  }
+  content.appendChild(chartSec);
+
+  // Today per-agent breakdown
+  if (todayAgents.length > 0) {
+    const agentSec = el("div", { class: "usage-section" });
+    agentSec.appendChild(el("h3", { text: "Today — by agent" }));
+    const table = el("table", { class: "usage-agent-table" });
+    const thead = el("thead");
+    thead.innerHTML = "<tr><th>Agent</th><th class='num'>Runs</th><th class='num'>Input tok</th><th class='num'>Output tok</th><th class='num'>Spend</th></tr>";
+    table.appendChild(thead);
+    const tbody = el("tbody");
+    for (const a of todayAgents) {
+      const tr = el("tr");
+      tr.appendChild(el("td", { text: a.agent_name }));
+      tr.appendChild(el("td", { class: "num", text: String(a.run_count || 0) }));
+      tr.appendChild(el("td", { class: "num", text: fmtInt(a.input_tokens || 0) }));
+      tr.appendChild(el("td", { class: "num", text: fmtInt(a.output_tokens || 0) }));
+      tr.appendChild(el("td", { class: "num", text: a.cost_usd > 0 ? fmtUsd(a.cost_usd) : "—" }));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    agentSec.appendChild(table);
+    content.appendChild(agentSec);
+  }
+
+  content.appendChild(el("p", {
+    class: "muted usage-note",
+    text: "CLI seats (Codex, Gemini, Claude Code) run on subscriptions — their turns appear in token counts only, not in spend.",
+  }));
+}
+
+function _usageCard(title, value, subtitle) {
+  const card = el("div", { class: "usage-card" });
+  card.appendChild(el("div", { class: "usage-card-title", text: title }));
+  card.appendChild(el("div", { class: "usage-card-value", text: value }));
+  card.appendChild(el("div", { class: "usage-card-sub",   text: subtitle }));
+  return card;
+}
+
+function _fmtTok(n) {
+  if (!n || n === 0) return "0";
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+  if (n >= 1_000)     return (n / 1_000).toFixed(1) + "K";
+  return String(n);
+}
+
+// ------------------------------------------------------------
 // Wire-up
 // ------------------------------------------------------------
 function init() {
@@ -3927,6 +4112,9 @@ function init() {
   if (downloadDetailBtn) downloadDetailBtn.addEventListener("click", onDownloadDetail);
   const followupDismiss = $("#followup-banner-dismiss");
   if (followupDismiss) followupDismiss.addEventListener("click", clearFollowupParent);
+
+  const usageRefreshBtn = document.getElementById("usage-refresh-btn");
+  if (usageRefreshBtn) usageRefreshBtn.addEventListener("click", loadUsage);
 
   loadAgents();
   setupHealthIndicator();

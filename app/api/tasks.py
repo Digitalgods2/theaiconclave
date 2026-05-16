@@ -128,7 +128,8 @@ async def list_tasks(
     sql = (
         f"""SELECT id, status, mode, task_type, primary_agent, consultants,
                    created_at, updated_at, exported_at, export_path,
-                   source, source_agent
+                   source, source_agent,
+                   SUBSTR(user_request, 1, 120) AS user_request_snippet
             FROM tasks {where}
             ORDER BY created_at DESC LIMIT ?"""
     )
@@ -151,9 +152,86 @@ async def list_tasks(
                 "export_path": _column_or_none(r, "export_path"),
                 "source": _column_or_none(r, "source"),
                 "source_agent": _column_or_none(r, "source_agent"),
+                "user_request_snippet": _column_or_none(r, "user_request_snippet"),
             }
             for r in rows
         ]
+    }
+
+
+@router.get("/usage")
+async def usage_summary() -> dict[str, Any]:
+    """Aggregate token and cost data from agent_runs for the Usage & Spend panel.
+
+    Returns today-by-agent, a 7-day daily series, and all-time totals.
+    Only agent_runs that recorded cost_usd > 0 (OpenRouter seats) contribute
+    to the spend columns; CLI subscription runs show zero cost but non-zero
+    token counts when the adapters record them.
+    """
+    with connect() as conn:
+        today_rows = conn.execute(
+            """
+            SELECT agent_name,
+                   SUM(COALESCE(cost_usd, 0))      AS total_cost,
+                   SUM(COALESCE(input_tokens, 0))  AS total_input,
+                   SUM(COALESCE(output_tokens, 0)) AS total_output,
+                   COUNT(*)                         AS run_count
+            FROM agent_runs
+            WHERE DATE(started_at) = DATE('now')
+            GROUP BY agent_name
+            ORDER BY total_cost DESC
+            """
+        ).fetchall()
+
+        daily_rows = conn.execute(
+            """
+            SELECT DATE(started_at)                  AS day,
+                   SUM(COALESCE(cost_usd, 0))        AS total_cost,
+                   SUM(COALESCE(input_tokens, 0))    AS total_input,
+                   SUM(COALESCE(output_tokens, 0))   AS total_output
+            FROM agent_runs
+            WHERE started_at >= DATE('now', '-6 days')
+            GROUP BY day
+            ORDER BY day ASC
+            """
+        ).fetchall()
+
+        totals = conn.execute(
+            """
+            SELECT SUM(COALESCE(cost_usd, 0))      AS total_cost,
+                   SUM(COALESCE(input_tokens, 0))  AS total_input,
+                   SUM(COALESCE(output_tokens, 0)) AS total_output,
+                   COUNT(DISTINCT task_id)          AS task_count
+            FROM agent_runs
+            """
+        ).fetchone()
+
+    return {
+        "today_by_agent": [
+            {
+                "agent_name": r["agent_name"],
+                "cost_usd": r["total_cost"],
+                "input_tokens": r["total_input"],
+                "output_tokens": r["total_output"],
+                "run_count": r["run_count"],
+            }
+            for r in today_rows
+        ],
+        "daily_7d": [
+            {
+                "day": r["day"],
+                "cost_usd": r["total_cost"],
+                "input_tokens": r["total_input"],
+                "output_tokens": r["total_output"],
+            }
+            for r in daily_rows
+        ],
+        "all_time": {
+            "cost_usd": totals["total_cost"] if totals else 0,
+            "input_tokens": totals["total_input"] if totals else 0,
+            "output_tokens": totals["total_output"] if totals else 0,
+            "task_count": totals["task_count"] if totals else 0,
+        },
     }
 
 

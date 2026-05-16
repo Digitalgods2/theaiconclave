@@ -3408,3 +3408,147 @@ body.theme-dark .role-tag.role-consultant { background: rgba(251,191,36,0.20); c
 
 /* Agreement label inside Final result header */
 body.theme-dark .agreement-label, body.theme-dark .resolution-label { color: #94a3b8; }
+
+/* =================================================================
+   Health dot on the Settings rail button
+   Uses ::before to avoid colliding with the tooltip ::after
+   ================================================================= */
+#rail-settings::before {
+  content: "";
+  position: absolute;
+  bottom: 4px; right: 4px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  display: none;
+  border: 1.5px solid #1f2330;
+  pointer-events: none;
+}
+#rail-settings[data-health="ok"]::before       { display: block; background: #10b981; }
+#rail-settings[data-health="degraded"]::before { display: block; background: #f59e0b; }
+#rail-settings[data-health="down"]::before     { display: block; background: #ef4444; }
+#rail-settings[data-health="unknown"]::before  { display: block; background: #9ca3af; }
+
+/* =================================================================
+   Recent Tasks panel
+   ================================================================= */
+.recent-tasks-view { max-width: 720px; }
+
+.recent-tasks-list { display: flex; flex-direction: column; gap: 6px; }
+
+.rt-row {
+  padding: 10px 14px;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: background 0.10s, border-color 0.10s;
+}
+.rt-row:hover        { background: #f0f4ff; border-color: #c7d7fb; }
+.rt-row:focus-visible { outline: 2px solid #2a66e3; outline-offset: 2px; }
+
+.rt-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.rt-time   { font-size: 11.5px; margin-left: auto; }
+.rt-snippet {
+  font-size: 13px;
+  color: #374151;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+body.theme-dark .rt-row { background: #161b26; border-color: #2d3548; }
+body.theme-dark .rt-row:hover { background: #1a2035; border-color: #3b4d6a; }
+body.theme-dark .rt-snippet   { color: #cbd5e1; }
+
+/* =================================================================
+   Usage & Spend panel
+   ================================================================= */
+.usage-view { max-width: 720px; }
+
+.usage-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.usage-card {
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.usage-card-title {
+  font-size: 11px; color: #6c7180;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.usage-card-value { font-size: 22px; font-weight: 700; color: #1f2330; line-height: 1.2; }
+.usage-card-sub   { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+.usage-section { margin-bottom: 24px; }
+.usage-section h3 { margin-bottom: 12px; font-size: 14px; color: #4a5066; font-weight: 600; }
+
+/* Bar chart */
+.usage-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 120px;
+  padding-top: 4px;
+  border-bottom: 1px solid #e3e6ed;
+}
+.usage-bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+}
+.usage-bar-fill {
+  width: 100%;
+  background: #2a66e3;
+  border-radius: 3px 3px 0 0;
+  transition: height 0.2s;
+  cursor: default;
+}
+.usage-bar-fill:hover { background: #1a50c8; }
+.usage-bar-label { font-size: 10px; color: #6c7180; margin-top: 4px; white-space: nowrap; }
+
+/* Agent breakdown table */
+.usage-agent-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.usage-agent-table th,
+.usage-agent-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #e3e6ed;
+  text-align: left;
+}
+.usage-agent-table th {
+  font-weight: 600; color: #4a5066;
+  background: #f6f7f9; font-size: 12px;
+}
+.usage-agent-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.usage-agent-table tbody tr:hover { background: #f6f7f9; }
+
+.usage-note { font-size: 12px; margin-top: 16px; }
+
+/* Dark — usage */
+body.theme-dark .usage-card  { background: #161b26; border-color: #2d3548; }
+body.theme-dark .usage-card-title { color: #94a3b8; }
+body.theme-dark .usage-card-value { color: #e5e7eb; }
+body.theme-dark .usage-chart { border-bottom-color: #2d3548; }
+body.theme-dark .usage-bar-fill   { background: #3b82f6; }
+body.theme-dark .usage-bar-fill:hover { background: #60a5fa; }
+body.theme-dark .usage-bar-label  { color: #94a3b8; }
+body.theme-dark .usage-section h3 { color: #94a3b8; }
+body.theme-dark .usage-agent-table th  { background: #1a2035; color: #94a3b8; }
+body.theme-dark .usage-agent-table th,
+body.theme-dark .usage-agent-table td  { border-color: #2d3548; }
+body.theme-dark .usage-agent-table tbody tr:hover { background: #1a2035; }
+body.theme-dark .usage-agent-table td  { color: #e5e7eb; }
