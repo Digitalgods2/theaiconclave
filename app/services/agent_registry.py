@@ -50,7 +50,12 @@ def register_ollama_cloud_models(config) -> None:
     No-op if the section is disabled or empty. Idempotent enough for repeated
     calls (re-registers under the same name). Imported lazily so the adapter
     module (and httpx) isn't a hard import for code paths that don't use it.
+
+    A per-model try/except isolates failures: one bad entry must not prevent
+    later entries from registering. Failures are logged and skipped.
     """
+    import logging
+    log = logging.getLogger("switchboard.registry")
     oc = getattr(config, "ollama_cloud", None)
     if oc is None or not getattr(oc, "enabled", False):
         return
@@ -60,12 +65,15 @@ def register_ollama_cloud_models(config) -> None:
     from app.agents.ollama_adapter import OllamaCloudAdapter
     endpoint = getattr(oc, "endpoint", "https://ollama.com")
     for m in models:
-        register(OllamaCloudAdapter(
-            name=m.name,
-            model_id=m.model_id,
-            max_context_chars=getattr(m, "max_context_chars", 400_000),
-            endpoint=endpoint,
-        ))
+        try:
+            register(OllamaCloudAdapter(
+                name=m.name,
+                model_id=m.model_id,
+                max_context_chars=getattr(m, "max_context_chars", 400_000),
+                endpoint=endpoint,
+            ))
+        except Exception as e:  # noqa: BLE001
+            log.error("Failed to register Ollama Cloud seat %r: %s", getattr(m, "name", "?"), e)
 
 
 def register_openrouter_models(config) -> None:
@@ -73,7 +81,13 @@ def register_openrouter_models(config) -> None:
 
     No-op if the section is disabled or empty. Imported lazily so the adapter
     module (and httpx) isn't a hard import for code paths that don't use it.
+
+    A per-model try/except isolates failures so a single bad entry cannot
+    cascade — e.g. kimi being last in the list must not be skipped because
+    glm's adapter raised during construction.
     """
+    import logging
+    log = logging.getLogger("switchboard.registry")
     orc = getattr(config, "openrouter", None)
     if orc is None or not getattr(orc, "enabled", False):
         return
@@ -84,10 +98,14 @@ def register_openrouter_models(config) -> None:
     endpoint = getattr(orc, "endpoint", "https://openrouter.ai/api/v1")
     data_collection = getattr(orc, "data_collection", "deny")
     for m in models:
-        register(OpenRouterAdapter(
-            name=m.name,
-            model_slug=m.model_slug,
-            max_context_chars=getattr(m, "max_context_chars", 400_000),
-            endpoint=endpoint,
-            data_collection=data_collection,
-        ))
+        try:
+            register(OpenRouterAdapter(
+                name=m.name,
+                model_slug=m.model_slug,
+                max_context_chars=getattr(m, "max_context_chars", 400_000),
+                endpoint=endpoint,
+                data_collection=data_collection,
+            ))
+        except Exception as e:  # noqa: BLE001
+            log.error("Failed to register OpenRouter seat %r (slug=%r): %s",
+                      getattr(m, "name", "?"), getattr(m, "model_slug", "?"), e)

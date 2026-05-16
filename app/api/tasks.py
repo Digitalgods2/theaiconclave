@@ -41,6 +41,30 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
                 status_code=400,
                 detail=f"parent_task_id {request.parent_task_id} does not exist",
             )
+    # Validate every named agent is currently registered. Catching this at
+    # submit time gives the user a clean 400 instead of a buried error in the
+    # task's final_results.errors_json after the conclave runs without them.
+    from app.services import agent_registry as _registry
+    registered = set(_registry.list_names())
+    referenced: list[str] = []
+    if request.primary_agent:
+        referenced.append(request.primary_agent)
+    referenced.extend(request.consultants or [])
+    missing = [a for a in referenced if a not in registered]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "agent_unavailable",
+                "message": (
+                    "Agent(s) not registered: " + ", ".join(missing) + ". "
+                    "Available: " + ", ".join(sorted(registered)) + ". "
+                    "If the agent is listed in config.yaml, the service may need a restart."
+                ),
+                "missing": missing,
+                "available": sorted(registered),
+            },
+        )
     with connect() as conn:
         conn.execute(
             """
