@@ -3100,6 +3100,53 @@ body.theme-dark [style*="background:#fff"],
 body.theme-dark [style*="background: white"] { background: #161b26 !important; }
 
 /* =================================================================
+   Dark theme — round 5: weak-contrast badges + live activity panel
+   ================================================================= */
+
+/* Generic badge baseline (default) */
+body.theme-dark .badge { background: #232a3d; color: #cbd5e1; }
+
+/* Status badges — use high-contrast rgba tints on darker accent bgs */
+body.theme-dark .badge.status-pending           { background: rgba(96,165,250,0.22); color: #bfdbfe; }
+body.theme-dark .badge.status-running           { background: rgba(251,191,36,0.25); color: #fde68a; }
+body.theme-dark .badge.status-completed         { background: rgba(34,197,94,0.22);  color: #86efac; }
+body.theme-dark .badge.status-failed            { background: rgba(248,113,113,0.22); color: #fca5a5; }
+body.theme-dark .badge.status-cancelled         { background: rgba(148,163,184,0.22); color: #cbd5e1; }
+body.theme-dark .badge.status-awaiting_user_input { background: rgba(168,85,247,0.25); color: #e9d5ff; }
+body.theme-dark .badge.status-unknown           { background: #232a3d; color: #94a3b8; }
+
+/* Mode badges — distinct hues, all readable on dark */
+body.theme-dark .badge.mode-conclave { background: rgba(168,85,247,0.25); color: #e9d5ff; }
+body.theme-dark .badge.mode-consult  { background: rgba(34,211,238,0.25);  color: #a5f3fc; }
+body.theme-dark .badge.mode-resolve  { background: rgba(251,146,60,0.25);  color: #fed7aa; }
+
+body.theme-dark .badge.role { background: #232a3d; color: #cbd5e1; }
+
+/* Live activity panel — restore the accent border + tinted bg in dark */
+body.theme-dark .live-activity-inner {
+  background: rgba(59,130,246,0.10) !important;
+  border: 1px solid rgba(59,130,246,0.35) !important;
+  border-left: 4px solid #60a5fa !important;
+}
+body.theme-dark .live-activity-row        { color: #e5e7eb; }
+body.theme-dark .live-activity-main       { color: #93c5fd; font-weight: 600; }
+body.theme-dark .live-activity-sep,
+body.theme-dark .live-activity-prefix     { color: #94a3b8; }
+body.theme-dark .live-activity-elapsed    { color: #e5e7eb; }
+body.theme-dark .live-activity-round      { color: #60a5fa; }
+body.theme-dark .live-activity-recent     { border-top-color: rgba(59,130,246,0.30); }
+body.theme-dark .live-activity-recent-label { color: #94a3b8; }
+body.theme-dark .live-activity-recent-list { color: #cbd5e1; }
+body.theme-dark .live-pulse-dot {
+  background: #60a5fa;
+  box-shadow: 0 0 0 0 rgba(96,165,250,0.6);
+}
+body.theme-dark .live-activity-recent-list li::marker { color: #60a5fa; }
+
+/* Thread breadcrumb — make the label visible */
+body.theme-dark .thread-breadcrumb-label { color: #cbd5e1; }
+
+/* =================================================================
    Dark theme — round 4: Transcript message cards (.msg, .field, etc.)
    ================================================================= */
 
