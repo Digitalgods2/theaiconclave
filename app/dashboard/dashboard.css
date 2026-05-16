@@ -1950,6 +1950,25 @@ body.theme-dark .help-doc-splitter.dragging::before { background: #60a5fa; }
   border-radius: 4px;
   font-size: 13px;
 }
+
+/* Top-of-section tagline — the short "what + who" framing.
+   Lives at the start of section 1.1; we want it visually distinct from
+   the explanatory paragraphs that follow without screaming. */
+.help-doc-content .help-tagline {
+  margin: 0 0 18px;
+  padding: 14px 18px;
+  background: #eff6ff;
+  border-left: 4px solid #3b82f6;
+  border-radius: 6px;
+}
+.help-doc-content .help-tagline p { margin: 0 0 6px; color: #1e3a8a; line-height: 1.5; }
+.help-doc-content .help-tagline p:last-child { margin-bottom: 0; font-size: 14px; color: #475569; }
+body.theme-dark .help-doc-content .help-tagline {
+  background: rgba(59,130,246,0.10);
+  border-left-color: #60a5fa;
+}
+body.theme-dark .help-doc-content .help-tagline p { color: #bfdbfe; }
+body.theme-dark .help-doc-content .help-tagline p:last-child { color: #94a3b8; }
 .help-doc-content .help-callout-info {
   background: #eff6ff;
   border-left-color: #3b82f6;

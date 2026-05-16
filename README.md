@@ -1,5 +1,9 @@
 # The AI Conclave (AI Switchboard)
 
+> **AI Switchboard helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory.**
+>
+> A personal AI decision board for builders, writers, researchers, and technical creators who need more than an answer. They need the reasoning trail.
+
 A local background service that lets AI coding agents — **Codex, Gemini, and Claude Code** — consult one another through structured deliberation instead of free-form chat. You ask a question; the conclave deliberates; you get a verdict with the disagreements surfaced verbatim, not flattened.
 
 It's a tool that is, in part, **used to design itself** — most of its governing decisions came out of the three AIs deliberating about Switchboard's own architecture (see [`docs/decisions/`](docs/decisions/INDEX.md)).
