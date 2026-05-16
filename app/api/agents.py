@@ -40,7 +40,7 @@ async def test_agent(agent_name: str) -> dict:
 
 # ---------------------------------------------------------------------------
 # Pricing endpoint — live OpenRouter prices for the OR-backed seats, plus a
-# "subscription" note for CLI / Ollama Cloud seats which don't bill per-token.
+# "subscription" note for CLI seats which don't bill per-token.
 # ---------------------------------------------------------------------------
 
 _OPENROUTER_MODELS_URL = "https://openrouter.ai/api/v1/models"
@@ -297,8 +297,8 @@ async def agents_pricing(include_internal: bool = False) -> dict:
     Shape per item:
         {
           "name": "kimi",
-          "kind": "openrouter" | "ollama_cloud" | "cli" | "internal",
-          "model_id": "moonshotai/kimi-k2.6" | "qwen3-coder:480b-cloud" | None,
+          "kind": "openrouter" | "cli" | "internal",
+          "model_id": "moonshotai/kimi-k2.6" | None,
           "context_length": 262142 | None,
           "input_per_million_usd": 0.73 | None,
           "output_per_million_usd": 3.49 | None,
@@ -353,10 +353,6 @@ async def agents_pricing(include_internal: bool = False) -> dict:
                 item["context_length"] = pinfo.get("context_length")
             else:
                 item["note"] = "Not found in OpenRouter catalog (slug may be stale)"
-        elif cls_name == "OllamaCloudAdapter":
-            item["kind"] = "ollama_cloud"
-            item["model_id"] = getattr(adapter, "model_id", None)
-            item["note"] = "Ollama Cloud subscription — no public per-token rate"
         elif cls_name == "FakeAdapter":
             item["kind"] = "internal"
             item["note"] = "Test adapter (no model)"

@@ -2061,7 +2061,6 @@ body.theme-dark .help-doc-content .help-tagline p:last-child { color: #94a3b8; }
   letter-spacing: 0.04em;
 }
 .kind-pill.kind-openrouter { background: #ede9fe; color: #6d28d9; }
-.kind-pill.kind-ollama_cloud { background: #cffafe; color: #155e75; }
 .kind-pill.kind-cli { background: #dcfce7; color: #166534; }
 .kind-pill.kind-cli-api { background: #fef3c7; color: #92400e; }
 .kind-pill.kind-internal { background: #f3f4f6; color: #6b7280; }
@@ -2118,7 +2117,6 @@ body.theme-dark .pricing-table tbody td {
 body.theme-dark .pricing-table tbody td.muted { color: #94a3b8; }
 body.theme-dark .pricing-table tbody tr:hover { background: #1c2233; }
 body.theme-dark .kind-pill.kind-openrouter { background: rgba(168,85,247,0.20); color: #ddd6fe; }
-body.theme-dark .kind-pill.kind-ollama_cloud { background: rgba(14,165,233,0.20); color: #7dd3fc; }
 body.theme-dark .kind-pill.kind-cli { background: rgba(16,185,129,0.20); color: #6ee7b7; }
 body.theme-dark .kind-pill.kind-cli-api { background: rgba(245,158,11,0.20); color: #fde68a; }
 body.theme-dark .kind-pill.kind-internal { background: rgba(148,163,184,0.20); color: #cbd5e1; }

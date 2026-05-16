@@ -458,31 +458,6 @@
             </p>
             <div class="api-key-feedback" id="openrouter-key-feedback" hidden></div>
           </div>
-
-          <hr style="border:none;border-top:1px solid #eef0f5;margin:18px 0" />
-
-          <div class="api-key-row">
-            <label for="ollama-key-input">Ollama Cloud API key</label>
-            <div class="api-key-input-group">
-              <input type="password" id="ollama-key-input" autocomplete="off" spellcheck="false"
-                placeholder="(not set)" />
-              <button type="button" class="eyeball-btn" id="ollama-key-eyeball"
-                title="Show / hide the API key in plain text" aria-label="Show or hide the API key" aria-pressed="false">
-                <span aria-hidden="true">👁</span> <span class="eyeball-label">Show</span>
-              </button>
-            </div>
-            <p class="api-key-status" id="ollama-key-status">Loading…</p>
-            <div class="api-key-actions">
-              <button type="button" class="btn btn-primary" id="ollama-key-save">Save</button>
-              <button type="button" class="btn btn-secondary" id="ollama-key-clear">Clear stored key</button>
-            </div>
-            <p class="hint">
-              Only needed if you enable the Ollama Cloud seats in <code>config.yaml</code> (disabled by default — the
-              big models there require an Ollama Cloud paid subscription; OpenRouter above carries the same models
-              pay-per-token). Env var: <code>OLLAMA_API_KEY</code>. Create a key at <em>ollama.com → Settings → API keys</em>.
-            </p>
-            <div class="api-key-feedback" id="ollama-key-feedback" hidden></div>
-          </div>
         </section>
       </section>
 

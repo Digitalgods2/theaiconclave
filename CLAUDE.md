@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 > AI Switchboard helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory. A personal AI decision board for builders, writers, researchers, and technical creators who need more than an answer; they need the reasoning trail.
 
-**AI Switchboard** (a.k.a. the AI Conclave) — a local FastAPI service at `127.0.0.1:8787` that orchestrates structured deliberation between AI coding agents (Codex, Gemini, Claude Code, plus pluggable OpenRouter / Ollama Cloud seats). Single-user, local-only, SQLite-backed.
+**AI Switchboard** (a.k.a. the AI Conclave) — a local FastAPI service at `127.0.0.1:8787` that orchestrates structured deliberation between AI coding agents (Codex, Gemini, Claude Code, plus pluggable OpenRouter seats). Single-user, local-only, SQLite-backed.
 
 It is in part **used to design itself** — most architectural decisions came out of conclave deliberations recorded in `docs/decisions/`. Read those before proposing structural changes.
 
@@ -61,9 +61,9 @@ python clients/install.py --check
 ### The adapter contract (`app/agents/base.py`, see `docs/AGENT_ADAPTERS.md`)
 Every agent (CLI or API) is a `BaseAdapter` subclass. The orchestrator only ever calls adapters through this interface — per-tool quirks (`codex exec --json`, `gemini -p -o json`, `claude -p --output-format json`, OpenRouter HTTP) stay encapsulated. Adapters never retry; they raise `AdapterError(code, message)` which the orchestrator converts to a `ProtocolError` on the task.
 
-Adapter files: `codex_adapter.py`, `gemini_adapter.py`, `claude_adapter.py`, `openrouter_adapter.py`, `ollama_adapter.py`, `fake_adapter.py` (tests + smoke tests; hidden from the dashboard).
+Adapter files: `codex_adapter.py`, `gemini_adapter.py`, `claude_adapter.py`, `openrouter_adapter.py`, `fake_adapter.py` (tests + smoke tests; hidden from the dashboard).
 
-OpenRouter / Ollama seats are **registered at startup from config** (`agent_registry.register_openrouter_models` / `register_ollama_cloud_models`) — adding a new open-weight seat is a config edit in `openrouter.models[]`, not new code.
+OpenRouter seats are **registered at startup from config** (`agent_registry.register_openrouter_models`) — adding a new open-weight seat is a config edit in `openrouter.models[]`, not new code.
 
 ### Layers (`app/`)
 - `protocol/validators.py` — Pydantic models for the wire format. Schema changes ripple through every adapter.
@@ -75,7 +75,7 @@ OpenRouter / Ollama seats are **registered at startup from config** (`agent_regi
 - `services/judge.py` — convergence judge: after weak conclave convergence + synthesis, one participant arbitrates semantic equivalence and the orchestrator upgrades `agreement_level`.
 - `services/retention.py` — tier-based retention worker (6h cadence). Tier 1 (decisions, charter amendments, unresolved dissent) is never auto-trimmed.
 - `services/exporter.py` + `services/doc_export.py` — decision-record markdown export + per-task detail export (PDF/DOCX/MD/TXT).
-- `services/settings_store.py` — DB-stored API keys for OpenRouter / Ollama Cloud. **Rule: env var wins over DB value** (`OPENROUTER_API_KEY` / `OLLAMA_API_KEY`).
+- `services/settings_store.py` — DB-stored API keys for OpenRouter. **Rule: env var wins over DB value** (`OPENROUTER_API_KEY`).
 - `workers/task_worker.py` — the claim loop.
 - `api/` — FastAPI routers (`tasks`, `agents`, `git`, `uploads`, `settings`, `health`).
 - `dashboard/` — single-page vanilla-JS app served at `/`. `dashboard.js` is ~2000 lines; modularization is a known "Next" item but not yet acted on.
@@ -91,7 +91,7 @@ These come from ratified decision records and the Conclave Charter (`docs/CONCLA
 - **No in-conclave code execution ("Layer 2") — deferred indefinitely.** Conclave participants reason about *the same stable situation*. See `docs/ROADMAP.md` § "Considered and Intentionally Not Built" before re-proposing.
 - **Operability before capability** (Charter v1.2). New capability proposals require an *Operability Impact* field in their decision record.
 - **Charter v1.2 is binding and is embedded in every prompt.** Amendments go through a `conclave`-mode deliberation, get ratified by the user, and land as a numbered decision record.
-- **Env var > DB value** for `OPENROUTER_API_KEY` / `OLLAMA_API_KEY`. Don't invert this.
+- **Env var > DB value** for `OPENROUTER_API_KEY`. Don't invert this.
 - **JSON output discipline.** Every adapter parses structured output. The "Codex/Gemini/Claude calls fail with `agent_error: could not extract JSON`" failure mode in `INSTALL.md` is usually a CLI update changing output shape — re-check the adapter's parsing, don't loosen the parser.
 - **`--invoked-by <tool>` provenance.** Every CLI slash command passes it; `source_agent` on the task row records it. Preserve this when touching `clients/`.
 
@@ -102,7 +102,7 @@ These come from ratified decision records and the Conclave Charter (`docs/CONCLA
 | Wire format / message schema | `app/protocol/validators.py` — then every adapter + the prompt builder + the relevant test in `tests/test_protocol.py` |
 | Termination rules for a mode | `app/services/orchestrator.py` — `run_conclave` / `run_resolve` / `run_consult` |
 | What gets sent to an agent | `app/services/prompt_builder.py` (general) or the adapter's `_build_*` helpers (per-tool framing) |
-| Add an open-weight council seat | `config.yaml` → `openrouter.models[]` (or `ollama_cloud.models[]`) — no code change |
+| Add an open-weight council seat | `config.yaml` → `openrouter.models[]` — no code change |
 | Slash command surface | `clients/claude-code-commands/*.md`, `clients/codex-skill/`, `clients/gemini-extension/` — these are the source of truth; `clients/install.py` deploys them |
 | Agent role behavior (the "behave like a participant" text) | `skills/generic/*.md` — embedded into prompts at runtime |
 | Charter | `skills/generic/conclave_charter.md` (binding) + `docs/CONCLAVE_CHARTER.md` (human-readable mirror) — bump version, write a decision record |

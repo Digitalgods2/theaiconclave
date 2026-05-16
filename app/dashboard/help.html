@@ -1,4 +1,4 @@
-<!-- HELP_DOC_VERSION: 1.1.1 -->
+<!-- HELP_DOC_VERSION: 1.1.2 -->
 <!-- HELP_COVERED_APP_VERSION: 0.1.0 -->
 <!-- HELP_LAST_UPDATED: 2026-05-16 -->
 
@@ -337,13 +337,12 @@
 <p>Alongside the three CLI seats, you can mount one or more <strong>open-weight API seats</strong> — non-frontier (mostly) open-weight models reached over HTTP. These bring a voice from outside the OpenAI / Google / Anthropic axis into the deliberation: different training data, different priors, different blind spots.</p>
 <p>The default backing is <strong>OpenRouter</strong>, a unified gateway to many providers (DeepSeek, Qwen, Z.ai/GLM, and more). The shipped <code>config.example.yaml</code> registers three seats out of the box — <code>deepseek</code>, <code>glm</code>, and <code>qwen</code> — and you can add or rename any of them. OpenRouter is <strong>pay-per-token, no subscription</strong>; a single conclave turn costs roughly <strong>$0.001–$0.02</strong>. Auth is via <code>OPENROUTER_API_KEY</code> (env var wins) or the dashboard's Settings → API Keys panel.</p>
 <p>By default, OpenRouter requests are sent with <code>provider.data_collection: "deny"</code>, which keeps prompts off providers that retain or train on them — appropriate when the conclave is reviewing your code. Flip <code>data_collection: allow</code> in the <code>openrouter:</code> config section if you want to opt back in.</p>
-<p>An alternative backing, <strong>Ollama Cloud</strong>, ships in the codebase as <code>OllamaCloudAdapter</code> and is <strong>disabled by default</strong>. Its big models (DeepSeek 671B, GLM-5, …) require a paid Ollama Cloud subscription, so OpenRouter is the preferred path unless you already have that subscription. Auth is <code>OLLAMA_API_KEY</code> or the same Settings → API Keys panel.</p>
 <!-- END:section-4.2 -->
         </section>
         <section id="help-council-manage" class="help-subsection">
           <h4>4.3 Adding or disabling a seat</h4>
           <!-- BEGIN:section-4.3 -->
-<p>Seats are <strong>config-driven</strong>. To add one, edit <code>config.yaml</code> under <code>openrouter.models[]</code> (or <code>ollama_cloud.models[]</code> if you're on the Ollama Cloud path) and append an entry. The shape is:</p>
+<p>Seats are <strong>config-driven</strong>. To add one, edit <code>config.yaml</code> under <code>openrouter.models[]</code> and append an entry. The shape is:</p>
 <pre><code>openrouter:
   enabled: true
   data_collection: deny
@@ -357,7 +356,7 @@
 <p>The three fields are:</p>
 <ul>
   <li><code>name</code> — the friendly council label that appears on the New Task checkbox list.</li>
-  <li><code>model_slug</code> (OpenRouter) or <code>model_id</code> (Ollama Cloud) — the provider's model identifier.</li>
+  <li><code>model_slug</code> — the provider's model identifier on OpenRouter.</li>
   <li><code>max_context_chars</code> — your declared prompt-size ceiling for that seat. The adapter uses it to budget the inlined sandbox. Set it conservatively below the model's true token window; the OpenRouter adapter also <em>learns</em> a tighter ceiling automatically if the provider rejects an over-long request.</li>
 </ul>
 <p><strong>Restart the service</strong> after editing — the registry reads <code>config.yaml</code> at startup. The new seat then appears as a checkbox on the New Task form alongside <code>codex</code>, <code>gemini</code>, and <code>claude-code</code>.</p>
@@ -367,7 +366,7 @@
         <section id="help-council-pertask" class="help-subsection">
           <h4>4.4 Per-task seat selection</h4>
           <!-- BEGIN:section-4.4 -->
-<p>You do not have to use every available seat on every task. The <strong>New Task form</strong> shows every registered, available agent as a checkbox — the three CLI seats plus any OpenRouter / Ollama Cloud seats you've configured. You tick the boxes for the seats you want to sit on this particular conclave.</p>
+<p>You do not have to use every available seat on every task. The <strong>New Task form</strong> shows every registered, available agent as a checkbox — the three CLI seats plus any OpenRouter seats you've configured. You tick the boxes for the seats you want to sit on this particular conclave.</p>
 <p>A <strong>two-agent conclave is valid</strong>. So is a three-agent or five-agent one. The convergence machinery doesn't assume a fixed N — it works off the threshold (default unanimous) over whichever participants you selected. A consult-mode task uses one primary plus one or more consultants; a resolve-mode task uses one primary; a conclave-mode task uses everyone you ticked, equally.</p>
 <p>Reasons you might trim the roster:</p>
 <ul>
@@ -411,7 +410,7 @@
 <p>Click the violet <code>$</code> glyph in the sidebar (between the help <code>?</code> and the gear) to open a sortable pricing table. Columns:</p>
 <ul>
   <li><strong>Agent</strong> — the council seat name as configured.</li>
-  <li><strong>Type</strong> — a colored pill: <code>cli</code> (CLI in subscription mode, green), <code>cli-api</code> (CLI in API mode, amber), <code>openrouter</code> (open-weight pay-per-token, violet), <code>ollama_cloud</code> (subscription, cyan).</li>
+  <li><strong>Type</strong> — a colored pill: <code>cli</code> (CLI in subscription mode, green), <code>cli-api</code> (CLI in API mode, amber), <code>openrouter</code> (open-weight pay-per-token, violet).</li>
   <li><strong>Model in use</strong> — the detected slug from the CLI's own config when available, otherwise the slug declared in <code>config.yaml</code>. A small "detected · &lt;source&gt;" caption shows where the value came from. If declared and detected disagree, a yellow <em>drift</em> chip appears with hover text explaining how to resolve it.</li>
   <li><strong>Context</strong> — the model's context window from OpenRouter's catalog.</li>
   <li><strong>Input $/M, Output $/M</strong> — per-million-token rates pulled live from OpenRouter (which carries Anthropic, OpenAI, Google, and open-weight pricing in one unified catalog). Cached server-side for 5 minutes so view-open is near-instant after first load.</li>
@@ -565,7 +564,7 @@
 <p>The <code>New Task</code> tab is where you compose and submit a new deliberation. Every field maps directly onto the task request the orchestrator stores in SQLite.</p>
 <ul>
   <li><code>Mode</code> — one of <code>conclave</code> (N equal participants, deliberate to convergence), <code>consult</code> (primary proposes, consultant critiques, primary finalizes), or <code>resolve</code> (primary-driven loop with backstops). The hint line under the dropdown summarizes the selected mode.</li>
-  <li><code>Agents</code> — a checkbox list of every agent the orchestrator can currently reach. Real CLI agents (<code>codex</code>, <code>gemini</code>, <code>claude-code</code>) appear only if their adapters report available; configured OpenRouter / Ollama seats appear too.</li>
+  <li><code>Agents</code> — a checkbox list of every agent the orchestrator can currently reach. Real CLI agents (<code>codex</code>, <code>gemini</code>, <code>claude-code</code>) appear only if their adapters report available; configured OpenRouter seats appear too.</li>
   <li><code>Permissions</code> — collapsed by default. Inside, three preset buttons quickly set the checkboxes: <code>Read-only</code>, <code>Read + .env</code>, and <code>Read everything</code>. You can also tick individual permissions by hand.</li>
   <li><code>Project path</code> — optional. When set, the orchestrator scopes permissions to this directory. Tick <code>Provide a read-only sandbox copy</code> to give each agent a per-task read-only snapshot of the project.</li>
   <li><code>Question</code> — the prompt itself. The <code>Attach current git diff</code> button beside the label is enabled once <code>Project path</code> is set.</li>
@@ -593,16 +592,16 @@
         <section id="help-dashboard-settings" class="help-subsection">
           <h4>6.4 Settings</h4>
           <!-- BEGIN:section-6.4 -->
-<p>The <code>Settings</code> view is where you store API keys for the pluggable open-weight council seats. Open the left rail, click the gear icon, and choose <code>Settings</code>. The <code>API Keys</code> panel has two rows — one for OpenRouter, one for Ollama Cloud.</p>
-<p>Each row has the same shape:</p>
+<p>The <code>Settings</code> view is where you store the API key for the pluggable open-weight council seats. Open the left rail, click the gear icon, and choose <code>Settings</code>. The <code>API Keys</code> panel has one row, for OpenRouter.</p>
+<p>The row has this shape:</p>
 <ul>
   <li>A password input (the key is masked by default).</li>
   <li>An eyeball button that toggles the input between password and plain text so you can verify what you pasted.</li>
   <li>A <code>Save</code> button (writes the key to the local SQLite database at <code>data/switchboard.db</code>).</li>
   <li>A <code>Clear stored key</code> button (removes it from the database).</li>
 </ul>
-<p><strong>Precedence rule.</strong> The environment variable always wins over the stored value. If <code>OPENROUTER_API_KEY</code> is set in the shell you launched the service from, that key is used for OpenRouter calls regardless of what is saved in the database. Likewise <code>OLLAMA_API_KEY</code> for Ollama Cloud. The database entry is a fallback used only when the env var is absent.</p>
-<p>OpenRouter is the default backing for the open-weight seats (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>); a conclave turn typically costs $0.001–$0.02 pay-per-token. The Ollama Cloud key is only needed if you enable the Ollama Cloud seats in <code>config.yaml</code>, which is disabled by default.</p>
+<p><strong>Precedence rule.</strong> The environment variable always wins over the stored value. If <code>OPENROUTER_API_KEY</code> is set in the shell you launched the service from, that key is used for OpenRouter calls regardless of what is saved in the database. The database entry is a fallback used only when the env var is absent.</p>
+<p>OpenRouter backs the open-weight seats (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>, <code>kimi</code>); a conclave turn typically costs $0.001–$0.02 pay-per-token.</p>
 <!-- END:section-6.4 -->
         </section>
       </section>
@@ -738,7 +737,7 @@
 <ul>
   <li><strong>Different agents may see different things.</strong> Vision models are not interchangeable. A chart's axes, a screenshot's button placement, a photo's foreground subject — these can be read differently by Codex's vision stack than by Gemini's or Claude's.</li>
   <li><strong>That disagreement is preserved, not flattened.</strong> The Charter's <em>Multimodal Disagreement</em> rule forbids the system from synthesising a consensus on a visual-perception dispute. See <em>When agents disagree on what they see</em> for what happens instead.</li>
-  <li><strong>API seats (OpenRouter / Ollama Cloud)</strong> are text-only in the current adapters. If a task includes images, those seats won't receive them — only the CLI seats will. Tick that into your seat selection.</li>
+  <li><strong>API seats (OpenRouter)</strong> are text-only in the current adapters. If a task includes images, those seats won't receive them — only the CLI seats will. Tick that into your seat selection.</li>
 </ul>
 <!-- END:section-9.2 -->
         </section>
@@ -807,7 +806,7 @@
         <section id="help-sandbox-inline" class="help-subsection">
           <h4>10.2 Inline file tree for API seats</h4>
           <!-- BEGIN:section-10.2 -->
-<p>The CLI seats browse the sandbox natively via their own tools. The <strong>API seats — OpenRouter and Ollama Cloud — cannot</strong>. They are HTTP calls to a chat-completions endpoint; there is no <code>Read</code> tool, no <code>--add-dir</code>, no shell. They only receive prompt text.</p>
+<p>The CLI seats browse the sandbox natively via their own tools. The <strong>API seats — OpenRouter — cannot</strong>. They are HTTP calls to a chat-completions endpoint; there is no <code>Read</code> tool, no <code>--add-dir</code>, no shell. They only receive prompt text.</p>
 <p>So when a task has a sandbox attached, the API adapters do something different: they <strong>inline a read-only view of the project</strong> directly into the prompt. The work happens in <code>app/utils/sandbox_inline.py</code>, and the section is built fresh for every call. It contains:</p>
 <ul>
   <li>A <strong>file tree</strong> of every inlineable file with its size, so the model has the lay of the land even if not every file fits.</li>
@@ -944,7 +943,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
           <!-- BEGIN:section-13.4 -->
 <p>The OpenRouter and vLLM-style seats run into context limits in a way the CLI seats usually do not: they receive a single inlined prompt rather than browsing files on demand, so a large project sandbox or a thick stack of attachments can push past the model's effective window.</p>
 <p>The adapters mitigate this in two ways. First, each adapter self-discovers the model's context limit from the provider when it can, instead of trusting <code>max_context_chars</code> blindly. Second, on a context-overflow response, the adapter automatically retries with a tighter budget — trimming the inlined sandbox or attachments down before the next attempt.</p>
-<p>If retries still fail, you will see an actionable error on the task. The recommended fixes, in order of effort: scope <code>project_path</code> to a subdirectory rather than the repo root so less code is inlined; remove non-essential attachments from the request; or raise the seat's <code>max_context_chars</code> in <code>config.yaml</code> under the <code>openrouter.models</code> entry (or the equivalent <code>ollama_cloud.models</code> entry) if your model actually has a larger window than the conservative default. The defaults in <code>config.example.yaml</code> are set well below each model's true token window because code-heavy prompts hit roughly 3 chars/token, worse than prose's 4.</p>
+<p>If retries still fail, you will see an actionable error on the task. The recommended fixes, in order of effort: scope <code>project_path</code> to a subdirectory rather than the repo root so less code is inlined; remove non-essential attachments from the request; or raise the seat's <code>max_context_chars</code> in <code>config.yaml</code> under the <code>openrouter.models</code> entry if your model actually has a larger window than the conservative default. The defaults in <code>config.example.yaml</code> are set well below each model's true token window because code-heavy prompts hit roughly 3 chars/token, worse than prose's 4.</p>
 <p>The structural fix — a tool-loop architecture letting the API seats <code>read_file</code> / <code>list_dir</code> on demand instead of getting everything inlined — is the ROADMAP's Next item #2.</p>
 <!-- END:section-13.4 -->
         </section>

@@ -123,12 +123,6 @@ The orchestrator converts these to `ProtocolError` entries on the task.
 - MVP status: stub returning `agent_unavailable`
 - Eventual support: gateway mode (OpenClaw routes to provider X), agent mode (OpenClaw runs a local agent), OAuth-backed providers, configured model aliases.
 
-### `ollama_adapter`
-- Targets a local Ollama HTTP endpoint (default `http://127.0.0.1:11434`)
-- MVP status: stub returning `agent_unavailable`
-- Use cases: cheap consult passes, privacy-sensitive tasks, offline operation.
-- Notes: smaller models often produce malformed JSON. The adapter validates strictly and refuses to fabricate structure on parse failure.
-
 ### `fake_adapter`
 - Returns canned, deterministic responses keyed by task type.
 - Used by the test suite to exercise the orchestrator without real CLIs.

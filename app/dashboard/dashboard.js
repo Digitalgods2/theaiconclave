@@ -677,7 +677,7 @@ function renderModelInUseCell(it) {
       }));
     }
   } else if (it.model_id) {
-    // OpenRouter or Ollama Cloud seats — no detection layer needed.
+    // OpenRouter seats — no detection layer needed.
     wrap.appendChild(el("div", { class: "model-slug mono small", text: it.model_id }));
   } else if (it.declared_model_slug) {
     wrap.appendChild(el("div", { class: "model-slug mono small", text: it.declared_model_slug }));
@@ -3747,12 +3747,6 @@ const API_KEY_FIELDS = {
     input: "#openrouter-key-input", eyeball: "#openrouter-key-eyeball",
     status: "#openrouter-key-status", feedback: "#openrouter-key-feedback",
     save: "#openrouter-key-save", clear: "#openrouter-key-clear",
-  },
-  ollama: {
-    label: "Ollama Cloud", envName: "OLLAMA_API_KEY",
-    input: "#ollama-key-input", eyeball: "#ollama-key-eyeball",
-    status: "#ollama-key-status", feedback: "#ollama-key-feedback",
-    save: "#ollama-key-save", clear: "#ollama-key-clear",
   },
 };
 // Per-key transient state: where the current value comes from, and whether the

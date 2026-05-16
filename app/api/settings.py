@@ -1,9 +1,9 @@
 """Runtime settings API — currently the API-key store used by the dashboard.
 
 Precedence rule (matches the adapters): an environment variable always wins;
-the database value is the fallback. So a user who has `OLLAMA_API_KEY` exported
-sees "source: env" here, and anything stored in the DB is dormant until the
-env var is unset.
+the database value is the fallback. So a user who has `OPENROUTER_API_KEY`
+exported sees "source: env" here, and anything stored in the DB is dormant
+until the env var is unset.
 
 Endpoints never return a stored secret except `/reveal` (the dashboard's
 eyeball). The env-var value is never revealed — it isn't ours to leak.
@@ -22,7 +22,6 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 # Maps a settings-API key name to (db_settings_key, env_var_name).
 _API_KEYS = {
-    "ollama": ("ollama_api_key", "OLLAMA_API_KEY"),
     "openrouter": ("openrouter_api_key", "OPENROUTER_API_KEY"),
 }
 

@@ -42,7 +42,7 @@ The default mode for non-trivial tasks is `resolve`. Use `consult` for a quick s
 - `claude_adapter` — wraps Claude Code, real
 - `fake_adapter` — returns canned responses for tests
 
-Other adapters (Gemini, OpenClaw, Ollama) ship as stubs returning `agent_unavailable`.
+Other adapters (Gemini, OpenClaw) ship as stubs returning `agent_unavailable`.
 
 ### Orchestration
 - Linear consult flow: primary proposal → consultant critique → primary final
@@ -103,7 +103,7 @@ Explicitly out of scope for MVP:
 - Slack / email / GitHub integration
 - Remote / multi-user authentication
 - Cloud sync, team management
-- Real Gemini / OpenClaw / Ollama adapters (stubs only)
+- Real Gemini / OpenClaw adapters (stubs only)
 - Real-time dashboard updates (websockets / SSE)
 - Plugin marketplace
 - Voice interface

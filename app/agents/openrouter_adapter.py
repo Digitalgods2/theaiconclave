@@ -1,9 +1,9 @@
 """OpenRouter adapter — pay-per-token access to open-weight / non-frontier models.
 
 OpenRouter is a unified OpenAI-compatible gateway to many model providers
-(DeepSeek, Qwen, GLM/Z.ai, Kimi/Moonshot, MiniMax, …). Unlike Ollama Cloud's
-big models, the frontier-class open-weight models here are pay-per-token (no
-subscription) and cheap — a conclave turn costs cents at most.
+(DeepSeek, Qwen, GLM/Z.ai, Kimi/Moonshot, MiniMax, …). The frontier-class
+open-weight models here are pay-per-token (no subscription) and cheap — a
+conclave turn costs cents at most.
 
 One adapter class, instantiated once per enabled model slug, so the council can
 carry several OpenRouter-backed seats selected via the dashboard checkbox list.

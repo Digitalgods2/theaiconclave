@@ -38,7 +38,7 @@ When the user names two or more agents:
 
 Do not silently substitute. Tell the user, list available agents, and ask which to use:
 
-> *"Codex isn't currently enabled. Available consultants: claude-code, gemini, ollama. Which should I use, or should I proceed without consultation?"*
+> *"Codex isn't currently enabled. Available consultants: claude-code, gemini, deepseek. Which should I use, or should I proceed without consultation?"*
 
 ### Named agent is the same as the current agent
 

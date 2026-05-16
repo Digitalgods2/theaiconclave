@@ -1,5 +1,7 @@
 # Decision Record 0009 — Ollama Cloud council seats (open-weight models)
 
+> **Status: SUPERSEDED.** This proof-of-concept established the pluggable-seat pattern but was demoted to optional in [DR0011](0011_openrouter_council_seats.md) (OpenRouter chosen as the canonical open-weight backing). On 2026-05-16 the Ollama Cloud adapter and config were removed entirely — see [DR0014](0014_remove_ollama_cloud_adapter.md) for the supersession rationale and what was deleted. This record is preserved as audit history; the implementation it describes is no longer in the code.
+
 **Date**: 2026-05-12
 **Mode**: Glen-directed (no separate conclave)
 **Keeper**: claude-code

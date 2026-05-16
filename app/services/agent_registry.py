@@ -34,46 +34,14 @@ def clear() -> None:
 def init_registry() -> None:
     """Register the static CLI adapters. Called once at startup.
 
-    Ollama-Cloud-backed seats are config-driven and registered separately via
-    register_ollama_cloud_models() so that tests (which call init_registry()
+    OpenRouter-backed seats are config-driven and registered separately via
+    register_openrouter_models() so that tests (which call init_registry()
     with no config) don't pull in network-backed adapters.
     """
     register(FakeAdapter())
     register(CodexAdapter())
     register(GeminiAdapter())
     register(ClaudeCodeAdapter())
-
-
-def register_ollama_cloud_models(config) -> None:
-    """Register one OllamaCloudAdapter per enabled model in config.ollama_cloud.
-
-    No-op if the section is disabled or empty. Idempotent enough for repeated
-    calls (re-registers under the same name). Imported lazily so the adapter
-    module (and httpx) isn't a hard import for code paths that don't use it.
-
-    A per-model try/except isolates failures: one bad entry must not prevent
-    later entries from registering. Failures are logged and skipped.
-    """
-    import logging
-    log = logging.getLogger("switchboard.registry")
-    oc = getattr(config, "ollama_cloud", None)
-    if oc is None or not getattr(oc, "enabled", False):
-        return
-    models = getattr(oc, "models", None) or []
-    if not models:
-        return
-    from app.agents.ollama_adapter import OllamaCloudAdapter
-    endpoint = getattr(oc, "endpoint", "https://ollama.com")
-    for m in models:
-        try:
-            register(OllamaCloudAdapter(
-                name=m.name,
-                model_id=m.model_id,
-                max_context_chars=getattr(m, "max_context_chars", 400_000),
-                endpoint=endpoint,
-            ))
-        except Exception as e:  # noqa: BLE001
-            log.error("Failed to register Ollama Cloud seat %r: %s", getattr(m, "name", "?"), e)
 
 
 def register_openrouter_models(config) -> None:

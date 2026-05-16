@@ -1,8 +1,8 @@
 """Inline a project sandbox into a prompt for adapters that can't browse files.
 
 The CLI adapters (codex / claude-code / gemini) get native read access to the
-per-task sandbox directory. The HTTP adapters (OpenRouter, Ollama) don't — they
-only receive the prompt text. So for those, when a task has a sandbox, we paste
+per-task sandbox directory. The HTTP adapters (OpenRouter) don't — they only
+receive the prompt text. So for those, when a task has a sandbox, we paste
 a read-only file tree + the contents of as many files as fit into a character
 budget, so the model can actually examine the code instead of asking the user
 to describe it.

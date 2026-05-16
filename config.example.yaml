@@ -175,20 +175,3 @@ openrouter:
     - name: kimi
       model_slug: "moonshotai/kimi-k2.6"       # Moonshot Kimi K2.6 — outside-axis voice (Chinese training data); strong long-context
       max_context_chars: 700000                # real limit ~262K tokens; ~2× the per-token cost of the others, still ~$0.005–$0.015/turn
-
-# -----------------------------------------------------------------------------
-# Ollama Cloud — alternative open-weight seats. DISABLED by default: the big
-# models (DeepSeek 671B, GLM-5, …) require an Ollama Cloud paid subscription, so
-# OpenRouter (above) is the preferred path. Enable this only if you have the
-# subscription. If you do, give these seats names that don't collide with the
-# OpenRouter ones above (or disable those). Verify model ids at
-# https://ollama.com/search?c=cloud. Auth: OLLAMA_API_KEY env var or the
-# Settings → API Keys panel.
-# -----------------------------------------------------------------------------
-ollama_cloud:
-  enabled: false
-  endpoint: "https://ollama.com"
-  models:
-    - name: ollama-qwen
-      model_id: "qwen3-coder:480b-cloud"       # works on Ollama Cloud's free tier; verify exact tag
-      max_context_chars: 400000
