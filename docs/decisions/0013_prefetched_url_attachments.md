@@ -4,6 +4,8 @@
 **Mode**: Glen-directed (proposal-and-spec; ratification pending)
 **Keeper**: claude-code
 
+> **Status: NOT RATIFIED — pending v2 rework.** This proposal was pressure-tested in `tsk_01KRR4B0MWTCN95TEAPYQ2RS4M` (conclave mode, codex + gemini + claude-code, minor_disagreement). All three participants refused to ratify as written. The conclave's verdict is summarized in `docs/ROADMAP.md` § "Next" item 1 and is the input to a v2 rework. Reading this document for current direction: jump to the ROADMAP entry. Reading it for audit history: the original proposal text below is preserved verbatim.
+
 ## What Was Chosen
 
 The conclave gets bounded access to live web content via **user-named, pre-fetched URLs**, not via per-agent web tool use. The user adds one or more URLs to a New Task submission; Switchboard fetches each URL *once*, server-side, before dispatching the conclave; the fetched content lands as a normal text attachment that every participant sees identically. The conclave then deliberates over that shared, fixed snapshot.
