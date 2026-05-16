@@ -175,12 +175,12 @@ pre, code {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 0;
+  padding: 16px 0;
   border-bottom: 1px solid #e3e6ed;
   margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 12px;
-  min-height: 80px;
+  min-height: 100px;
 }
 
 .brand {
@@ -190,8 +190,8 @@ pre, code {
 }
 
 .brand-logo {
-  width: 52px;
-  height: 52px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   object-fit: cover;
   flex-shrink: 0;
