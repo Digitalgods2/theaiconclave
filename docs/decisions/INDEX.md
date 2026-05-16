@@ -6,6 +6,7 @@ Every ratified decision lives in this directory. The keeper (`claude-code`) main
 
 | # | Date | Title | Mode | Outcome |
 |---|---|---|---|---|
+| **[0013](0013_prefetched_url_attachments.md)** | 2026-05-16 | Pre-fetched URL attachments — bounded live-web access for the conclave (shared-snapshot shape, not per-agent web tools) | Glen-directed (spec; ratification pending) | New `Context.urls[]` field; `app/services/url_fetcher.py` fetches each URL once, server-side, before dispatch; all participants see the same inlined bytes. Per-agent independent web tool access rejected for v1; may be revisited |
 | **[0012](0012_inline_sandbox_for_api_adapters.md)** | 2026-05-12 | Inline the project sandbox for the API-based council seats | Glen-directed | OpenRouter / Ollama seats now get a read-only file tree + file contents inlined into their prompt when a task has a sandbox (they can't browse files). `app/utils/sandbox_inline.py` |
 | **[0011](0011_openrouter_council_seats.md)** | 2026-05-12 | OpenRouter council seats (pay-per-token open-weight models) | Glen-directed | `deepseek` / `glm` / `qwen` seats now OpenRouter-backed (no subscription); Ollama Cloud adapter kept but disabled by default; `OPENROUTER_API_KEY` added to the Settings panel |
 | **[0010](0010_settings_panel_and_db_api_keys.md)** | 2026-05-12 | Left-rail Settings panel + DB-stored API keys (env-fallback) | Glen-directed | Dashboard left rail → gear → Settings → API Keys; Ollama key stored in DB with eyeball reveal; rule: env var wins, else DB |
