@@ -164,14 +164,14 @@ openrouter:
     # (code-heavy prompts can hit ~3 chars/token, worse than prose's ~4) — raise
     # in config.yaml if you need more headroom for a big codebase.
     - name: deepseek
-      model_slug: "deepseek/deepseek-chat"     # DeepSeek V3.x — strongest open reasoner; verify slug
-      max_context_chars: 400000                # real limit ~164K tokens; this ≈ 100-130K tokens
+      model_slug: "deepseek/deepseek-v4-pro"   # DeepSeek V4 Pro — 1.6T MoE / 49B activated; built for advanced reasoning + coding
+      max_context_chars: 1500000               # real limit ~1M tokens; conservative under 3-chars-per-token worst case
     - name: glm
       model_slug: "z-ai/glm-4.6"               # Z.ai GLM — reasoning + agentic; verify slug
       max_context_chars: 400000                # real limit ~200K tokens
     - name: qwen
-      model_slug: "qwen/qwen3-coder"           # Alibaba Qwen3 — best JSON discipline of the bunch; verify slug
-      max_context_chars: 500000                # real limit ~262K tokens; can hold a bit more code
+      model_slug: "qwen/qwen3.6-plus"          # Alibaba Qwen 3.6 Plus — hybrid linear-attention + sparse-MoE reasoning tier
+      max_context_chars: 1500000               # real limit ~1M tokens; conservative under 3-chars-per-token worst case
     - name: kimi
       model_slug: "moonshotai/kimi-k2.6"       # Moonshot Kimi K2.6 — outside-axis voice (Chinese training data); strong long-context
       max_context_chars: 700000                # real limit ~262K tokens; ~2× the per-token cost of the others, still ~$0.005–$0.015/turn
