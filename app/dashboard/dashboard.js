@@ -419,7 +419,7 @@ const SIDEBAR_ITEMS = [
   {
     id: "new",
     glyph: "⌂",
-    color: "#f43f5e",
+    color: "#84cc16",
     label: "New Task (home)",
     pin: "top",
     handler: () => switchView("new"),
