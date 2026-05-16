@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The AI Conclave — Your Personal AI Decision Board</title>
+  <meta name="description" content="Turn multiple AI models into a governed deliberation council. Preserved dissent, human authority, full audit trail." />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:       #0b1120;
+      --navy-mid:   #111827;
+      --navy-card:  #161e2e;
+      --teal:       #0891b2;
+      --teal-hi:    #06b6d4;
+      --teal-glow:  rgba(6, 182, 212, 0.14);
+      --gold:       #ca8a04;
+      --gold-hi:    #f59e0b;
+      --gold-light: #fde68a;
+      --gold-glow:  rgba(245, 158, 11, 0.14);
+      --white:      #f8fafc;
+      --grey:       #94a3b8;
+      --grey-light: #cbd5e1;
+      --border:     rgba(255,255,255,0.07);
+      --radius:     12px;
+      --radius-lg:  20px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      background: var(--navy);
+      color: var(--white);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── Typography ─────────────────────────────── */
+    h1 { font-size: clamp(2.4rem, 6vw, 4.4rem); font-weight: 800; line-height: 1.08; }
+    h2 { font-size: clamp(1.8rem, 4vw, 2.9rem); font-weight: 700; line-height: 1.15; }
+    h3 { font-size: 1.1rem; font-weight: 600; }
+    p  { color: var(--grey-light); }
+
+    /* ── Nav ─────────────────────────────────────── */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 200;
+      padding: 14px 48px;
+      display: flex; align-items: center; gap: 14px;
+      background: rgba(11,17,32,0.80);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      transition: border-color 0.3s;
+    }
+    .nav-logo { width: 38px; height: 38px; border-radius: 50%; }
+    .nav-brand { font-weight: 700; font-size: 1rem; color: var(--white); }
+    .nav-links { display: flex; gap: 28px; margin-left: 32px; }
+    .nav-links a {
+      font-size: 14px; color: var(--grey); text-decoration: none;
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--white); }
+    .nav-cta {
+      margin-left: auto;
+      padding: 9px 22px;
+      background: linear-gradient(135deg, var(--teal), #0e7490);
+      color: #fff; border: none; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 2px 16px rgba(6,182,212,0.25);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .nav-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 24px rgba(6,182,212,0.4); }
+
+    /* ── Hero ────────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 130px 24px 90px;
+      position: relative; overflow: hidden;
+    }
+
+    /* layered background */
+    .hero::before {
+      content: "";
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 90% 55% at 50% -5%,  rgba(8,145,178,0.22) 0%,  transparent 65%),
+        radial-gradient(ellipse 50% 35% at 85% 85%,  rgba(202,138,4,0.14) 0%,  transparent 55%),
+        radial-gradient(ellipse 40% 30% at 10% 90%,  rgba(6,182,212,0.07) 0%,  transparent 50%);
+      pointer-events: none;
+    }
+
+    /* subtle dot-grid */
+    .hero::after {
+      content: "";
+      position: absolute; inset: 0;
+      background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+    }
+
+    .hero > * { position: relative; z-index: 1; }
+
+    /* Logo ring */
+    .hero-ring {
+      position: relative;
+      width: 140px; height: 140px;
+      margin-bottom: 40px;
+    }
+    .ring-1, .ring-2 {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid;
+      animation: ring-breathe 3.5s ease-in-out infinite;
+    }
+    .ring-1 {
+      inset: -16px;
+      border-color: rgba(6,182,212,0.30);
+    }
+    .ring-2 {
+      inset: -34px;
+      border-color: rgba(245,158,11,0.18);
+      animation-delay: 1.75s;
+    }
+    @keyframes ring-breathe {
+      0%, 100% { opacity: 0.4; transform: scale(1);    }
+      50%       { opacity: 1;   transform: scale(1.04); }
+    }
+    .hero-logo {
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      display: block;
+      position: relative; z-index: 1;
+      box-shadow: 0 0 60px rgba(6,182,212,0.20), 0 12px 40px rgba(0,0,0,0.4);
+    }
+
+    .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--teal-hi);
+      background: rgba(6,182,212,0.08);
+      border: 1px solid rgba(6,182,212,0.22);
+      padding: 5px 16px; border-radius: 20px;
+      margin-bottom: 28px;
+    }
+    .eyebrow-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--teal-hi);
+      animation: dot-blink 2s ease-in-out infinite;
+    }
+    @keyframes dot-blink {
+      0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+    }
+
+    .hero h1 {
+      margin-bottom: 26px;
+      background: linear-gradient(140deg, #fff 35%, var(--teal-hi) 65%, var(--gold-hi) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      padding-bottom: 4px;
+    }
+
+    .hero-sub {
+      font-size: clamp(1rem, 2.5vw, 1.2rem);
+      max-width: 620px; margin: 0 auto 48px;
+      color: var(--grey-light); line-height: 1.75;
+    }
+
+    .hero-actions {
+      display: flex; gap: 14px; flex-wrap: wrap; justify-content: center;
+      margin-bottom: 64px;
+    }
+    .btn-primary {
+      padding: 15px 36px;
+      background: linear-gradient(135deg, var(--teal), #0e7490);
+      color: #fff; border: none; border-radius: 10px;
+      font-size: 16px; font-weight: 700; cursor: pointer;
+      text-decoration: none;
+      box-shadow: 0 4px 28px rgba(6,182,212,0.32);
+      transition: transform 0.15s, box-shadow 0.15s;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 36px rgba(6,182,212,0.45); }
+    .btn-secondary {
+      padding: 15px 36px;
+      background: transparent; color: var(--grey-light);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 10px;
+      font-size: 16px; font-weight: 600; cursor: pointer;
+      text-decoration: none;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--teal-hi); color: var(--teal-hi); }
+
+    /* stat bar */
+    .hero-stats {
+      display: flex; gap: 40px; flex-wrap: wrap; justify-content: center;
+      border-top: 1px solid var(--border);
+      padding-top: 40px;
+    }
+    .stat { text-align: center; }
+    .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--white); }
+    .stat-value span { color: var(--teal-hi); }
+    .stat-label { font-size: 12px; color: var(--grey); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    /* ── Shared section chrome ───────────────────── */
+    section { padding: 100px 24px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    .section-eyebrow {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--gold-hi); margin-bottom: 12px;
+    }
+    .section-title { margin-bottom: 18px; }
+    .section-sub {
+      font-size: 1.05rem; max-width: 580px;
+      color: var(--grey-light); line-height: 1.75; margin-bottom: 56px;
+    }
+
+    /* ── Statement ───────────────────────────────── */
+    .statement {
+      background: linear-gradient(180deg, var(--navy) 0%, var(--navy-mid) 100%);
+      text-align: center; padding: 80px 24px;
+    }
+    .statement-body {
+      max-width: 780px; margin: 0 auto;
+      font-size: clamp(1.15rem, 2.5vw, 1.5rem);
+      font-style: italic; font-weight: 300;
+      color: var(--grey-light); line-height: 1.7;
+    }
+    .statement-body strong { color: var(--white); font-style: normal; font-weight: 700; }
+
+    /* ── Features ────────────────────────────────── */
+    .features { background: var(--navy-mid); }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 20px;
+    }
+    .feat {
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 30px;
+      position: relative; overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+    }
+    .feat::before {
+      content: "";
+      position: absolute; top: 0; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg, var(--teal-hi), var(--gold-hi));
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .feat:hover { border-color: rgba(6,182,212,0.28); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
+    .feat:hover::before { opacity: 1; }
+
+    .feat-icon {
+      width: 50px; height: 50px;
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 18px;
+      background: var(--teal-glow);
+      border: 1px solid rgba(6,182,212,0.18);
+    }
+    .feat-icon.g { background: var(--gold-glow); border-color: rgba(245,158,11,0.18); }
+    .feat h3 { color: var(--white); margin-bottom: 10px; }
+    .feat p  { font-size: 14px; line-height: 1.7; color: var(--grey); }
+    .feat p strong { color: var(--grey-light); font-weight: 600; }
+
+    /* ── Council ─────────────────────────────────── */
+    .council { background: var(--navy); text-align: center; }
+    .council-wrap { position: relative; }
+    .council-lead {
+      font-size: 1.05rem; max-width: 620px;
+      margin: 0 auto 52px; color: var(--grey-light); line-height: 1.75;
+    }
+    .seats {
+      display: flex; flex-wrap: wrap; gap: 14px; justify-content: center;
+    }
+    .seat {
+      background: var(--navy-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px 26px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      min-width: 128px;
+      transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+      cursor: default;
+    }
+    .seat:hover { border-color: var(--teal-hi); transform: translateY(-5px); box-shadow: 0 16px 40px rgba(0,0,0,0.3); }
+    .seat-icon { font-size: 26px; line-height: 1; }
+    .seat-name { font-size: 14px; font-weight: 700; color: var(--white); }
+    .seat-lab  { font-size: 11px; color: var(--grey); }
+    .seat-tag  {
+      font-size: 10px; font-weight: 700; padding: 2px 9px;
+      border-radius: 10px; margin-top: 2px;
+    }
+    .tag-sub  { background: rgba(6,182,212,0.14);  color: var(--teal-hi); }
+    .tag-pay  { background: rgba(245,158,11,0.14); color: var(--gold-hi); }
+    .seat.add { border-style: dashed; opacity: 0.55; }
+
+    /* ── How it works ────────────────────────────── */
+    .how { background: var(--navy-mid); }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+      gap: 36px; margin-top: 56px;
+      position: relative;
+    }
+    /* connector line (desktop) */
+    .steps::before {
+      content: "";
+      position: absolute; top: 24px; left: 10%; right: 10%; height: 1px;
+      background: linear-gradient(90deg, var(--teal-glow), rgba(245,158,11,0.15), transparent);
+      pointer-events: none;
+    }
+    .step { position: relative; }
+    .step-num {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--teal), #0e7490);
+      color: #fff; font-size: 20px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 20px rgba(6,182,212,0.30);
+    }
+    .step h3 { color: var(--white); margin-bottom: 10px; font-size: 1.05rem; }
+    .step p  { font-size: 14px; color: var(--grey); line-height: 1.7; }
+
+    /* ── Principles ──────────────────────────────── */
+    .principles { background: var(--navy); }
+    .princ-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px; margin-top: 56px;
+    }
+    .princ {
+      padding: 28px 28px 28px 24px;
+      border-left: 3px solid var(--teal-hi);
+      background: rgba(6,182,212,0.04);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      transition: background 0.2s;
+    }
+    .princ:hover { background: rgba(6,182,212,0.08); }
+    .princ.g { border-left-color: var(--gold-hi); background: rgba(245,158,11,0.04); }
+    .princ.g:hover { background: rgba(245,158,11,0.08); }
+    .princ h3 { color: var(--white); margin-bottom: 10px; font-size: 1rem; }
+    .princ p  { font-size: 14px; color: var(--grey); line-height: 1.7; }
+
+    /* ── CTA strip ───────────────────────────────── */
+    .cta-strip {
+      background: linear-gradient(135deg, #0c2233 0%, #0b1120 50%, #1a1400 100%);
+      text-align: center; padding: 80px 24px;
+      position: relative; overflow: hidden;
+    }
+    .cta-strip::before {
+      content: "";
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(6,182,212,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .cta-strip > * { position: relative; z-index: 1; }
+    .cta-strip h2 { margin-bottom: 16px; }
+    .cta-strip p  { max-width: 480px; margin: 0 auto 36px; font-size: 1.05rem; }
+
+    /* ── Footer ──────────────────────────────────── */
+    footer {
+      background: var(--navy-mid);
+      border-top: 1px solid var(--border);
+      padding: 48px 24px 36px;
+      text-align: center;
+    }
+    .foot-logo-row {
+      display: flex; align-items: center; justify-content: center;
+      gap: 12px; margin-bottom: 10px;
+    }
+    .foot-logo { width: 34px; height: 34px; border-radius: 50%; }
+    .foot-name { font-weight: 700; font-size: 1rem; }
+    .foot-tagline { font-size: 13px; color: var(--grey); margin-bottom: 24px; }
+    .foot-divider { border: none; border-top: 1px solid var(--border); margin: 0 auto 24px; max-width: 200px; }
+    .foot-copy { font-size: 12px; color: var(--grey); }
+
+    /* ── Scroll-reveal ───────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.55s ease, transform 0.55s ease;
+    }
+    .reveal.visible { opacity: 1; transform: none; }
+
+    /* ── Responsive ──────────────────────────────── */
+    @media (max-width: 768px) {
+      .nav { padding: 12px 20px; }
+      .nav-links { display: none; }
+      section { padding: 72px 20px; }
+      .hero  { padding: 110px 20px 70px; }
+      .steps::before { display: none; }
+      .hero-stats { gap: 24px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══ Nav ══════════════════════════════════════════════ -->
+  <nav class="nav" id="nav">
+    <img src="../ai-conclave-logo-round.png" alt="The AI Conclave" class="nav-logo" />
+    <span class="nav-brand">The AI Conclave</span>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#council">The Council</a>
+      <a href="#how-it-works">How it works</a>
+    </div>
+    <a href="#how-it-works" class="nav-cta">See how it works</a>
+  </nav>
+
+  <!-- ══ Hero ═════════════════════════════════════════════ -->
+  <section class="hero">
+    <div class="hero-ring">
+      <div class="ring-1"></div>
+      <div class="ring-2"></div>
+      <img src="../ai-conclave-logo-round.png" alt="The AI Conclave" class="hero-logo" />
+    </div>
+
+    <span class="hero-eyebrow">
+      <span class="eyebrow-dot"></span>
+      Your Personal AI Decision Board
+    </span>
+
+    <h1>Stop Asking One AI.<br>Convene a Council.</h1>
+
+    <p class="hero-sub">
+      The AI Conclave turns your hardest decisions into governed deliberations —
+      multiple AI minds at the table, preserved dissent, and a human-ratified
+      audit trail. Because you need more than an answer. You need the reasoning trail.
+    </p>
+
+    <div class="hero-actions">
+      <a href="#features" class="btn-primary">Explore the features</a>
+      <a href="#how-it-works" class="btn-secondary">How it works →</a>
+    </div>
+
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-value">7<span>+</span></div>
+        <div class="stat-label">AI participants</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">3</div>
+        <div class="stat-label">Deliberation modes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value"><span>~$</span>0.01</div>
+        <div class="stat-label">Cost per turn</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">100<span>%</span></div>
+        <div class="stat-label">Local orchestration</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Statement ════════════════════════════════════════ -->
+  <section class="statement">
+    <div class="container">
+      <p class="statement-body reveal">
+        "Most AI tools give you <strong>an answer</strong>. The AI Conclave gives you
+        <strong>the reasoning trail</strong> — every voice, every disagreement, every
+        rejected alternative — so you can make decisions you can
+        <strong>actually stand behind</strong>."
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ Features ═════════════════════════════════════════ -->
+  <section class="features" id="features">
+    <div class="container">
+      <p class="section-eyebrow">What it does</p>
+      <h2 class="section-title reveal">Everything you need.<br>Nothing you don't.</h2>
+      <p class="section-sub reveal">
+        Built for builders, writers, researchers, and technical creators who need
+        more than a chatbot — they need governed deliberation with an audit trail.
+      </p>
+
+      <div class="features-grid">
+
+        <div class="feat reveal">
+          <div class="feat-icon">⚖️</div>
+          <h3>Three Deliberation Modes</h3>
+          <p>
+            <strong>Conclave</strong> — equal voices, full-mesh visibility.
+            <strong>Consult</strong> — one primary, the rest as critics.
+            <strong>Resolve</strong> — one agent drives, others advise.
+            Pick the shape that fits your decision.
+          </p>
+        </div>
+
+        <div class="feat reveal">
+          <div class="feat-icon">🔍</div>
+          <h3>Preserved Dissent</h3>
+          <p>
+            Disagreements are first-class records in the Conclave.
+            The minority view is logged, exported, and permanently visible —
+            not silently smoothed over by a false consensus.
+          </p>
+        </div>
+
+        <div class="feat reveal">
+          <div class="feat-icon g">👤</div>
+          <h3>Human Authority</h3>
+          <p>
+            The council deliberates. You ratify. Your decision is recorded
+            as the authoritative final word, separate from the AI output.
+            AI advises. You decide. Always.
+          </p>
+        </div>
+
+        <div class="feat reveal">
+          <div class="feat-icon g">📋</div>
+          <h3>Full Audit Trail</h3>
+          <p>
+            Every exchange is logged to a local SQLite database.
+            Export any task as PDF, Word, Markdown, or plain text.
+            Decision records are tier-protected — they're never auto-deleted.
+          </p>
+        </div>
+
+        <div class="feat reveal">
+          <div class="feat-icon">🏠</div>
+          <h3>Local-First Orchestration</h3>
+          <p>
+            Runs entirely on 127.0.0.1. Your deliberations never pass through
+            a Conclave server. API calls go directly to each provider — no
+            middleman, no data escrow.
+          </p>
+        </div>
+
+        <div class="feat reveal">
+          <div class="feat-icon">📁</div>
+          <h3>Project Sandbox</h3>
+          <p>
+            Attach your codebase. Agents receive a read-only snapshot — never
+            the live files. They reason on your actual code, not a description
+            of it. Your project is never modified.
+          </p>
+        </div>
+
+        <div class="feat reveal">
+          <div class="feat-icon g">🔗</div>
+          <h3>Thread Continuity</h3>
+          <p>
+            A resolved task seeds the next one. The council carries forward
+            your decision and the final answer as context. You build on what
+            you've established — no re-explaining your starting point.
+          </p>
+        </div>
+
+        <div class="feat reveal">
+          <div class="feat-icon g">💰</div>
+          <h3>Spend Transparency</h3>
+          <p>
+            Live model pricing, daily spend charts, and per-agent token counts —
+            built into the dashboard. Mix subscription CLIs with pay-per-token
+            OpenRouter seats. A typical conclave turn costs $0.001–$0.02.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Council ═══════════════════════════════════════════ -->
+  <section class="council" id="council">
+    <div class="container">
+      <p class="section-eyebrow">The Council</p>
+      <h2 class="section-title reveal">
+        Different labs. Different training.<br>
+        Genuinely different perspectives.
+      </h2>
+      <p class="council-lead reveal">
+        The Conclave isn't a chatbot wrapper. It seats AI participants from different
+        labs — trained on different data, shaped by different post-training cultures.
+        When they agree, you can trust it. When they disagree, that's the most
+        valuable thing the session produces.
+      </p>
+
+      <div class="seats">
+        <div class="seat reveal">
+          <span class="seat-icon">⬡</span>
+          <span class="seat-name">Codex</span>
+          <span class="seat-lab">OpenAI</span>
+          <span class="seat-tag tag-sub">Subscription</span>
+        </div>
+        <div class="seat reveal">
+          <span class="seat-icon">◈</span>
+          <span class="seat-name">Claude Code</span>
+          <span class="seat-lab">Anthropic</span>
+          <span class="seat-tag tag-sub">Subscription</span>
+        </div>
+        <div class="seat reveal">
+          <span class="seat-icon">◇</span>
+          <span class="seat-name">Gemini</span>
+          <span class="seat-lab">Google</span>
+          <span class="seat-tag tag-sub">Subscription</span>
+        </div>
+        <div class="seat reveal">
+          <span class="seat-icon">∞</span>
+          <span class="seat-name">DeepSeek</span>
+          <span class="seat-lab">DeepSeek AI</span>
+          <span class="seat-tag tag-pay">Pay-per-token</span>
+        </div>
+        <div class="seat reveal">
+          <span class="seat-icon">⊕</span>
+          <span class="seat-name">Qwen</span>
+          <span class="seat-lab">Alibaba</span>
+          <span class="seat-tag tag-pay">Pay-per-token</span>
+        </div>
+        <div class="seat reveal">
+          <span class="seat-icon">△</span>
+          <span class="seat-name">GLM</span>
+          <span class="seat-lab">Z.ai / Zhipu</span>
+          <span class="seat-tag tag-pay">Pay-per-token</span>
+        </div>
+        <div class="seat reveal">
+          <span class="seat-icon">◎</span>
+          <span class="seat-name">Kimi</span>
+          <span class="seat-lab">Moonshot AI</span>
+          <span class="seat-tag tag-pay">Pay-per-token</span>
+        </div>
+        <div class="seat add reveal">
+          <span class="seat-icon">＋</span>
+          <span class="seat-name">Add a seat</span>
+          <span class="seat-lab">Config-driven</span>
+          <span class="seat-tag tag-pay">Any OpenRouter model</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ How it works ══════════════════════════════════════ -->
+  <section class="how" id="how-it-works">
+    <div class="container">
+      <p class="section-eyebrow">How it works</p>
+      <h2 class="section-title reveal">
+        From question to ratified decision<br>in three steps.
+      </h2>
+
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-num">1</div>
+          <h3>Submit your question</h3>
+          <p>
+            Choose your agents, your deliberation mode, and optionally attach
+            your codebase or a URL. Permissions are explicit — agents only do
+            what you explicitly allow, per task.
+          </p>
+        </div>
+
+        <div class="step reveal">
+          <div class="step-num">2</div>
+          <h3>Watch the council deliberate</h3>
+          <p>
+            Agents exchange positions round by round. You watch it happen in
+            real time on the dashboard — every turn, every disagreement, every
+            shift in reasoning is visible as it happens.
+          </p>
+        </div>
+
+        <div class="step reveal">
+          <div class="step-num">3</div>
+          <h3>Ratify the outcome</h3>
+          <p>
+            Record your decision in your own words — what you chose, why, what
+            you rejected. The record is stored permanently alongside the full
+            transcript and exports as PDF, Word, or Markdown.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Charter / principles ══════════════════════════════ -->
+  <section class="principles">
+    <div class="container">
+      <p class="section-eyebrow">The Conclave Charter</p>
+      <h2 class="section-title reveal">Governed by design.</h2>
+      <p class="section-sub reveal">
+        The AI Conclave runs under a ratified charter — binding rules embedded
+        into every agent prompt at runtime. Not a setting. Not a toggle. Structural.
+      </p>
+
+      <div class="princ-grid">
+        <div class="princ reveal">
+          <h3>Read-only by default</h3>
+          <p>
+            Agents cannot write files, run commands, or install packages unless
+            you explicitly grant each permission — per task, never globally.
+            Default-deny, not default-allow.
+          </p>
+        </div>
+        <div class="princ reveal">
+          <h3>No in-conclave execution</h3>
+          <p>
+            Agents reason about your code. They don't run it. The deliberation
+            is always about a stable, read-only snapshot. No surprises, no
+            side-effects inside a session.
+          </p>
+        </div>
+        <div class="princ g reveal">
+          <h3>Operability before capability</h3>
+          <p>
+            New features only land when the operational foundation is solid.
+            No half-built capabilities, no silent failure modes. The charter
+            is enforced in code, not in promises.
+          </p>
+        </div>
+        <div class="princ g reveal">
+          <h3>Append-only decision records</h3>
+          <p>
+            Ratified decisions are never deleted or edited — only superseded,
+            with the original record preserved as audit history. The past
+            is permanent. That's the point.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ CTA strip ═════════════════════════════════════════ -->
+  <section class="cta-strip">
+    <div class="container">
+      <p class="section-eyebrow">Get started</p>
+      <h2 class="reveal">Ready to convene your council?</h2>
+      <p class="reveal">
+        Runs locally on your machine. Bring your own subscriptions.
+        First conclave in under five minutes.
+      </p>
+      <div class="hero-actions reveal">
+        <a href="#features" class="btn-primary">Explore the features</a>
+        <a href="#council" class="btn-secondary">Meet the council →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ Footer ════════════════════════════════════════════ -->
+  <footer>
+    <div class="foot-logo-row">
+      <img src="../ai-conclave-logo-round.png" alt="The AI Conclave" class="foot-logo" />
+      <span class="foot-name">The AI Conclave</span>
+    </div>
+    <p class="foot-tagline">Multiple AI minds. One human decision. Full audit trail.</p>
+    <hr class="foot-divider" />
+    <p class="foot-copy">&copy; 2026 digitalgods.ai &mdash; All rights reserved.</p>
+  </footer>
+
+  <script>
+    // Scroll-reveal
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) {
+          e.target.classList.add("visible");
+          io.unobserve(e.target);
+        }
+      }
+    }, { threshold: 0.10 });
+
+    document.querySelectorAll(".reveal").forEach(el => io.observe(el));
+
+    // Stagger children inside grid sections
+    [".features-grid", ".seats", ".steps", ".princ-grid"].forEach(sel => {
+      const grid = document.querySelector(sel);
+      if (!grid) return;
+      Array.from(grid.children).forEach((child, i) => {
+        child.style.transitionDelay = (i * 75) + "ms";
+      });
+    });
+
+    // Nav border darkens on scroll
+    const nav = document.getElementById("nav");
+    window.addEventListener("scroll", () => {
+      nav.style.borderBottomColor = window.scrollY > 50
+        ? "rgba(255,255,255,0.10)"
+        : "rgba(255,255,255,0.05)";
+    }, { passive: true });
+  </script>
+</body>
+</html>
