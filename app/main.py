@@ -22,6 +22,7 @@ from app.api import uploads as uploads_api
 from app.config import load_config
 from app.database import init_database
 from app.services import agent_registry
+from app.services import pidlock
 from app.services.retention import retention_loop
 from app.workers.task_worker import worker_loop
 
@@ -35,6 +36,19 @@ async def lifespan(app: FastAPI):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     logger = logging.getLogger("switchboard")
+
+    # Single-instance enforcement: if another live Switchboard is already
+    # running, refuse to start. Stale lockfiles (from crashed prior runs)
+    # are detected via PID liveness + creation-time match and quietly
+    # taken over. See app/services/pidlock.py for the full contract.
+    data_dir = Path(config.database.path).resolve().parent
+    try:
+        lock_path = pidlock.acquire(data_dir)
+    except pidlock.PidLockBusy as e:
+        # Surface a clean message and refuse to bring the app up. uvicorn
+        # will propagate this as a non-zero exit.
+        logger.error("Refusing to start — another Switchboard is running.\n%s", e)
+        raise SystemExit(2) from e
 
     init_database(config.database.path)
     help_api.sync_help_metadata_from_file()
@@ -69,6 +83,7 @@ async def lifespan(app: FastAPI):
                 await t
             except asyncio.CancelledError:
                 pass
+        pidlock.release(lock_path)
 
 
 app = FastAPI(
