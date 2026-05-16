@@ -3314,6 +3314,29 @@ body.theme-dark .btn-decision:disabled {
 }
 
 /* =================================================================
+   Errors panel — dark-mode treatment. The .errors selector uses
+   !important in the light theme; we need !important back to win.
+   ================================================================= */
+body.theme-dark .errors {
+  background: rgba(239,68,68,0.10) !important;
+  border: 1px solid rgba(239,68,68,0.30) !important;
+  border-left: 4px solid #ef4444 !important;
+}
+body.theme-dark .errors h3 { color: #fca5a5 !important; }
+body.theme-dark #errors-list { color: #fecaca; }
+body.theme-dark #errors-list li::marker { color: #ef4444; }
+body.theme-dark #errors-list li { color: #fecaca; }
+/* The JSON dump inside each <li> is rendered as field-value mono pre.
+   The existing dark-mode .pre-block rule covers that, but ensure code
+   inside the errors list reads cleanly. */
+body.theme-dark .errors pre,
+body.theme-dark .errors .field-value.mono {
+  background: #0e1117 !important;
+  color: #e5e7eb !important;
+  border-color: rgba(239,68,68,0.25) !important;
+}
+
+/* =================================================================
    Dark theme — round 4: Transcript message cards (.msg, .field, etc.)
    ================================================================= */
 
