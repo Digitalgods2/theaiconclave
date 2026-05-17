@@ -56,6 +56,15 @@ async def lifespan(app: FastAPI):
     agent_registry.init_registry()
     agent_registry.register_openrouter_models(config)
 
+    # Reap any tasks left in `running` from a previous crashed worker.
+    # See app/services/orphan_reaper.py — Phase 1 of post-DR plan
+    # (tsk_01KRSW6AS3M66B4RRJE3JFAPRV). No-op when there are no orphans.
+    from app.services.orphan_reaper import reap_orphans
+    try:
+        reap_orphans()
+    except Exception as e:  # noqa: BLE001 — never block startup on reaper failure
+        logger.warning("orphan reaper failed: %s", e)
+
     # Sweep orphan sandboxes left over from crashed/aborted tasks.
     from app.database import connect
     from app.services.sandbox import sweep_orphan_sandboxes
