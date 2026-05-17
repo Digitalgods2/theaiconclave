@@ -27,7 +27,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 ### Highlights
 
 - **Three real AI adapters** — Codex (`codex exec --json`), Gemini (`gemini -p -o json`), Claude Code (`claude -p --output-format json`). All read-only by default, all JSON-output-disciplined.
-- **Pluggable open-weight council seats** — `deepseek` / `glm` / `qwen` / `kimi` (and anything else you list in config) appear in the same checkbox list as the CLI agents. Backing is **OpenRouter** — pay-per-token, no subscription, ~$0.001–$0.02 per conclave turn — via a single config-driven adapter. Brings a genuinely outside-the-OpenAI/Google/Anthropic-axis voice to a deliberation.
+- **Pluggable open-weight council seats** — `deepseek` / `glm` / `qwen` / `kimi` (and anything else you list in config) appear in the same checkbox list as the CLI agents. Backing is **OpenRouter** — pay-per-token, no subscription, ~$0.001–$0.02 per conclave turn — via a single config-driven adapter. Brings a genuinely outside-the-OpenAI/Google/Anthropic-axis voice to a deliberation. Opt-in **tool-loop** mode (`tool_loop: true` per seat) lets each model call `read_file` / `list_dir` / `glob` to pull files on demand instead of getting the whole sandbox pre-inlined — bounded by per-turn iteration / byte / bad-call caps with full audit-trail visibility.
 - **Settings panel** — a narrow left rail with a gear icon → Settings → API Keys: store/reveal the OpenRouter key (password field + eyeball toggle), kept in the local DB. Rule: the env var (`OPENROUTER_API_KEY`) wins, else the DB value.
 - **Charter v1.2**, embedded in every participant prompt. Amendments go through a conclave-mode deliberation, get ratified by the user, and land as a numbered decision record.
 - **Multimodal attachments** — text / Markdown / PDF inlined; images passed natively to each adapter (no lossy text conversion). The charter's *Multimodal Disagreement* section forbids synthesizing visual-perception disputes — they get escalated to the user instead.
@@ -44,7 +44,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
 - **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **Test suite** (210 tests) covering protocol, modes, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, and Decision Memory.
+- **Test suite** (244 tests) covering protocol, modes, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, and the OpenRouter tool-loop.
 
 ---
 
@@ -239,7 +239,7 @@ pytest
 
 Beyond proof-of-concept. All three real adapters run end-to-end. Conclave, resolve, and consult modes are live, including the user-input pause/resume cycle, threading, multimodal attachments, the project sandbox, the convergence judge, retention (with opt-in Tier 2 trim after export), export tracking, the orphan-task reaper, confidence-weighted convergence, Decision Memory retrieval, the dashboard, and cross-CLI slash commands.
 
-Current "Next" items (see [`docs/ROADMAP.md`](docs/ROADMAP.md)): re-draft of DR0013 (pre-fetched URL attachments v2), tool-loop architecture for the API-based seats, `dashboard.js` modularization, inbox tagging. New capability proposals are evaluated against the Charter v1.2 *Operability before capability* principle.
+Current "Next" items (see [`docs/ROADMAP.md`](docs/ROADMAP.md)): re-draft of DR0013 (pre-fetched URL attachments v2), `dashboard.js` modularization, inbox tagging. New capability proposals are evaluated against the Charter v1.2 *Operability before capability* principle.
 
 ---
 

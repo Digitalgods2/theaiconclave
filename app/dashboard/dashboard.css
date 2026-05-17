@@ -3860,3 +3860,84 @@ body.theme-dark .prior-art-card-superseded {
 body.theme-dark .prior-art-card-superseded .prior-art-title {
   text-decoration-color: rgba(255,255,255,0.25);
 }
+
+/* =================================================================
+   Tool-loop ribbons (DR0015) — compact inline rows in the transcript
+   for tool_call / tool_result messages, so the full file-reading
+   trail is visible without drowning the structured-turn cards.
+   ================================================================= */
+.tool-event {
+  display: block;
+  margin: 4px 0 4px 18px;
+  padding: 4px 10px 4px 8px;
+  border-left: 2px solid #cbd5e1;
+  border-radius: 0 4px 4px 0;
+  background: #f8fafc;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.tool-event.tool-call   { border-left-color: #06b6d4; }
+.tool-event.tool-result { border-left-color: #84cc16; }
+.tool-event-head {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.tool-arrow {
+  font-weight: 700; font-size: 12px; color: #6b7280;
+  cursor: help;
+}
+.tool-event.tool-call .tool-arrow   { color: #06b6d4; }
+.tool-event.tool-result .tool-arrow { color: #65a30d; }
+.tool-fn {
+  font-weight: 700; color: #1f2330;
+  background: #e0e7ff;
+  padding: 1px 6px; border-radius: 3px;
+  font-size: 11px;
+}
+.tool-args { color: #4a5066; font-size: 11.5px; }
+.tool-status {
+  font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 3px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+.tool-status.tool-ok  { background: #dcf3e2; color: #1d6b35; }
+.tool-status.tool-err { background: #fbd5d0; color: #8a1f17; }
+.tool-summary, .tool-bytes { font-size: 11px; }
+.tool-bytes { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.tool-details { margin-top: 4px; }
+.tool-details-summary {
+  font-size: 10.5px; color: #6b7280; cursor: pointer;
+  user-select: none;
+}
+.tool-details-summary:hover { color: #2a66e3; }
+.tool-payload {
+  font-size: 11px; line-height: 1.4; color: #374151;
+  background: #fff; border: 1px solid #e3e6ed; border-radius: 4px;
+  padding: 8px 10px; margin-top: 4px;
+  max-height: 320px; overflow: auto;
+  white-space: pre-wrap; word-break: break-word;
+}
+
+/* Dark mode */
+body.theme-dark .tool-event {
+  background: #161b26;
+  border-left-color: #2d3548;
+}
+body.theme-dark .tool-event.tool-call   { border-left-color: #22d3ee; }
+body.theme-dark .tool-event.tool-result { border-left-color: #a3e635; }
+body.theme-dark .tool-arrow { color: #94a3b8; }
+body.theme-dark .tool-event.tool-call .tool-arrow   { color: #22d3ee; }
+body.theme-dark .tool-event.tool-result .tool-arrow { color: #a3e635; }
+body.theme-dark .tool-fn {
+  background: rgba(99,102,241,0.20);
+  color: #c7d2fe;
+}
+body.theme-dark .tool-args, body.theme-dark .tool-summary { color: #cbd5e1; }
+body.theme-dark .tool-bytes { color: #94a3b8; }
+body.theme-dark .tool-status.tool-ok  { background: rgba(16,185,129,0.20); color: #6ee7b7; }
+body.theme-dark .tool-status.tool-err { background: rgba(239,68,68,0.20);  color: #fca5a5; }
+body.theme-dark .tool-details-summary { color: #94a3b8; }
+body.theme-dark .tool-details-summary:hover { color: #93c5fd; }
+body.theme-dark .tool-payload {
+  background: #1a2035; border-color: #2d3548; color: #cbd5e1;
+}

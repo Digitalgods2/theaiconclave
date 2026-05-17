@@ -185,9 +185,16 @@ def _render_transcript(task: dict, messages: list[dict]) -> str:
 
 
 def _render_message(m: dict) -> str:
+    # DR0015: tool-loop events render compactly as one-liners (with optional
+    # collapsible payload). Otherwise a 5-round conclave with 4 file reads
+    # per round would balloon the export to hundreds of lines of repeated
+    # structured-field dumps.
+    mtype = m.get("message_type") or ""
+    if mtype in ("tool_call", "tool_result"):
+        return _render_tool_message(m)
+
     agent = m.get("agent_name") or "?"
     role = m.get("role") or ""
-    mtype = m.get("message_type") or ""
     created_at = m.get("created_at") or ""
 
     head = f"#### {agent}"
@@ -220,6 +227,42 @@ def _render_message(m: dict) -> str:
             lines.append(_fenced(content, lang="text"))
 
     return "\n".join(lines).rstrip()
+
+
+def _render_tool_message(m: dict) -> str:
+    """One-line summary of a tool_call / tool_result message for the export."""
+    structured = m.get("structured") or {}
+    agent = m.get("agent_name") or "?"
+    mtype = m.get("message_type") or ""
+    fn = structured.get("function", "?")
+    if mtype == "tool_call":
+        args_raw = structured.get("arguments", "{}")
+        try:
+            import json as _json
+            args = _json.loads(args_raw) if isinstance(args_raw, str) else (args_raw or {})
+            arg_str = ", ".join(f"{k}={_json.dumps(v)}" for k, v in args.items())
+        except (ValueError, TypeError):
+            arg_str = str(args_raw)
+        return f"- _{agent}_ → **{fn}**({arg_str})"
+    # tool_result
+    ok = bool(structured.get("ok"))
+    result = structured.get("result") or {}
+    bytes_n = structured.get("bytes")
+    if not ok:
+        detail = result.get("error", "")
+        body = f"error — {detail}"
+    elif isinstance(result.get("content"), str):
+        truncated = " (truncated)" if result.get("truncated") else ""
+        body = f"ok — {len(result['content'])} chars{truncated}"
+    elif isinstance(result.get("entries"), list):
+        body = f"ok — {len(result['entries'])} entries"
+    elif isinstance(result.get("paths"), list):
+        cap = " (cap hit)" if result.get("truncated") else ""
+        body = f"ok — {len(result['paths'])} paths{cap}"
+    else:
+        body = "ok"
+    bytes_tag = f" [{bytes_n} B]" if isinstance(bytes_n, (int, float)) else ""
+    return f"- _{agent}_ ← **{fn}**: {body}{bytes_tag}"
 
 
 def _render_usage(agent_runs: list[dict]) -> str:

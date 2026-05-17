@@ -3203,7 +3203,75 @@ function renderTranscript(task, messages, agentRuns) {
   }
 }
 
+// DR0015: tool-loop events render as compact, click-to-expand ribbons inline
+// within the agent's round-block, so the full file-reading trail is visible
+// but doesn't visually drown the actual structured turn.
+function renderToolMessage(m) {
+  const structured = isPlainObject(m.structured) ? m.structured : {};
+  const isCall = m.message_type === "tool_call";
+  const fn = structured.function || "?";
+  const node = el("div", {
+    class: "tool-event tool-" + (isCall ? "call" : "result"),
+  });
+  const head = el("div", { class: "tool-event-head" });
+  head.appendChild(el("span", {
+    class: "tool-arrow",
+    text: isCall ? "→" : "←",
+    title: isCall ? "agent → tool" : "tool → agent",
+  }));
+  head.appendChild(el("span", { class: "tool-fn mono", text: fn }));
+  if (isCall) {
+    let argsPreview = "";
+    try {
+      const parsed = JSON.parse(structured.arguments || "{}");
+      argsPreview = Object.entries(parsed)
+        .map(([k, v]) => k + "=" + JSON.stringify(v))
+        .join(", ");
+    } catch (_) {
+      argsPreview = String(structured.arguments || "");
+    }
+    head.appendChild(el("span", { class: "tool-args mono", text: argsPreview.slice(0, 120) }));
+  } else {
+    const ok = !!structured.ok;
+    head.appendChild(el("span", {
+      class: "tool-status " + (ok ? "tool-ok" : "tool-err"),
+      text: ok ? "ok" : "error",
+    }));
+    const result = structured.result || {};
+    let summary = "";
+    if (!ok) {
+      summary = String(result.error || "").slice(0, 140);
+    } else if (typeof result.content === "string") {
+      summary = result.content.length + " chars" + (result.truncated ? " (truncated)" : "");
+    } else if (Array.isArray(result.entries)) {
+      summary = result.entries.length + " entries";
+    } else if (Array.isArray(result.paths)) {
+      summary = result.paths.length + " paths" + (result.truncated ? " (cap hit)" : "");
+    }
+    if (summary) head.appendChild(el("span", { class: "tool-summary muted", text: summary }));
+    if (typeof structured.bytes === "number") {
+      head.appendChild(el("span", { class: "tool-bytes muted", text: structured.bytes + " B" }));
+    }
+  }
+  node.appendChild(head);
+
+  // Click to expand the full structured payload (collapsed by default).
+  const details = el("details", { class: "tool-details" });
+  const summaryEl = el("summary", { class: "tool-details-summary", text: "show payload" });
+  details.appendChild(summaryEl);
+  const pre = el("pre", { class: "tool-payload mono" });
+  pre.textContent = JSON.stringify(structured, null, 2);
+  details.appendChild(pre);
+  node.appendChild(details);
+  return node;
+}
+
 function renderMessage(m, agentRuns) {
+  // DR0015: tool-loop events render as compact ribbons, not full cards.
+  if (m.message_type === "tool_call" || m.message_type === "tool_result") {
+    return renderToolMessage(m);
+  }
+
   const classes = ["msg"];
   const structured = isPlainObject(m.structured) ? m.structured : null;
 
