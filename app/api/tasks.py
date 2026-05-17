@@ -248,6 +248,17 @@ async def usage_summary() -> dict[str, Any]:
     }
 
 
+def _safe_parse_json(raw, default):
+    """Best-effort json.loads — return `default` on any failure. Used for
+    columns where a malformed value shouldn't blow up the whole API call."""
+    if raw is None:
+        return default
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return default
+
+
 def _enriched_prior_art(task_row) -> list[dict[str, Any]]:
     """Read frozen prior_art_json off the task row and annotate each entry with
     its CURRENT supersession state. Pre-supersession-tracking tasks (frozen
@@ -363,6 +374,12 @@ async def get_task(task_id: str) -> dict[str, Any]:
             "source": _column_or_none(task_row, "source"),
             "source_agent": _column_or_none(task_row, "source_agent"),
             "prior_art": _enriched_prior_art(task_row),
+            # The full context (user input + orchestrator-mutated fields like
+            # sandbox_path/thread_ancestors/prior_art). The dashboard's
+            # "Continue thread" reads context.extra.include_sandbox to
+            # inherit the sandbox checkbox from the parent — without this,
+            # the follow-up task drops sandbox access silently.
+            "context": _safe_parse_json(_column_or_none(task_row, "context_json"), default={}),
         },
         "messages": [
             {
