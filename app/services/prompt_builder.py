@@ -117,9 +117,15 @@ def _format_prior_message(m: dict) -> str:
             "## END DIRECTIVE"
         )
     if mt == "conclave_turn":
+        # Surface peer confidence so participants can weight each other's positions
+        # by stated certainty rather than treating all voices as equal.
+        # Phase 2 of post-DR plan on tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+        conf = m.get("confidence")
+        conf_line = f"confidence: {conf}\n" if conf is not None else ""
         return (
             f"## {agent} (participant) — conclave turn\n"
             f"convergence: {m.get('convergence', '')}\n"
+            f"{conf_line}"
             f"position: {m.get('position', '')}\n"
             f"summary: {m.get('summary', '')}\n"
             f"analysis: {m.get('analysis', '')}"

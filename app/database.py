@@ -150,6 +150,10 @@ def init_database(path: str | Path) -> None:
         _add_column_if_missing(conn, "tasks", "exported_at", "TEXT")
         _add_column_if_missing(conn, "tasks", "export_path", "TEXT")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_exported_at ON tasks(exported_at)")
+        # Confidence aggregate {min,max,mean,count,missing_count} stored as JSON.
+        # NULL for tasks that finalized before Phase 2 of the post-DR plan on
+        # tsk_01KRSW6AS3M66B4RRJE3JFAPRV. New tasks: populated by the orchestrator.
+        _add_column_if_missing(conn, "final_results", "confidence_aggregate_json", "TEXT")
 
 
 def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, type_decl: str) -> None:

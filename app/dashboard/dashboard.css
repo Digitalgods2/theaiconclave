@@ -3561,3 +3561,165 @@ body.theme-dark .usage-agent-table th,
 body.theme-dark .usage-agent-table td  { border-color: #2d3548; }
 body.theme-dark .usage-agent-table tbody tr:hover { background: #1a2035; }
 body.theme-dark .usage-agent-table td  { color: #e5e7eb; }
+
+/* =================================================================
+   Confidence panel — Phase 2 of post-DR plan tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+   Sits inside the Final Result panel, between Agreement row and Final Answer.
+   ================================================================= */
+.confidence-panel {
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+}
+.confidence-panel .field-label {
+  margin-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+}
+
+.conf-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.conf-stat {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.conf-stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #6b7280;
+  letter-spacing: 0.05em;
+}
+.conf-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2330;
+  margin-top: 2px;
+}
+.conf-stat.conf-high { background: #dcf3e2; border-color: #b6e0c1; }
+.conf-stat.conf-mid  { background: #fdecc8; border-color: #f3d99e; }
+.conf-stat.conf-low  { background: #fbd5d0; border-color: #f3b4ad; }
+.conf-stat.conf-high .conf-stat-value { color: #1d6b35; }
+.conf-stat.conf-mid  .conf-stat-value { color: #8a5a00; }
+.conf-stat.conf-low  .conf-stat-value { color: #8a1f17; }
+.conf-stat.conf-count { background: #eef0f5; border-color: #d6dae3; }
+
+.conf-caveat {
+  margin: 10px 0 4px;
+  padding: 8px 12px;
+  background: #fff7ed;
+  border-left: 3px solid #f97316;
+  color: #7c2d12;
+  font-size: 12.5px;
+  line-height: 1.55;
+  border-radius: 0 6px 6px 0;
+}
+
+.conf-trajectory {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #d6dae3;
+}
+.conf-trajectory-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+.conf-traj-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.conf-traj-agent {
+  min-width: 90px;
+  font-weight: 600;
+  color: #2a3045;
+}
+.conf-traj-dots {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.conf-traj-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: help;
+  border: 1px solid;
+}
+.conf-traj-dot.conf-high { background: #dcf3e2; color: #1d6b35; border-color: #b6e0c1; }
+.conf-traj-dot.conf-mid  { background: #fdecc8; color: #8a5a00; border-color: #f3d99e; }
+.conf-traj-dot.conf-low  { background: #fbd5d0; color: #8a1f17; border-color: #f3b4ad; }
+.conf-traj-dot.conf-muted{ background: #eef0f5; color: #6b7280; border-color: #d6dae3; }
+.conf-traj-arrow {
+  color: #9ca3af;
+  font-size: 11px;
+}
+.conf-traj-final {
+  margin-left: auto;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: lowercase;
+  font-weight: 600;
+}
+.conf-traj-final.convergence-i_am_done      { background: #dcf3e2; color: #1d6b35; }
+.conf-traj-final.convergence-still_thinking { background: #fdecc8; color: #8a5a00; }
+.conf-traj-final.convergence-need_user_input{ background: #e0e7ff; color: #3730a3; }
+
+/* Dark mode */
+body.theme-dark .confidence-panel {
+  background: #161b26;
+  border-color: #2d3548;
+}
+body.theme-dark .confidence-panel .field-label { color: #94a3b8; }
+body.theme-dark .conf-stat {
+  background: #1a2035;
+  border-color: #2d3548;
+}
+body.theme-dark .conf-stat-label { color: #94a3b8; }
+body.theme-dark .conf-stat-value { color: #e5e7eb; }
+body.theme-dark .conf-stat.conf-high { background: rgba(16,185,129,0.18); border-color: rgba(16,185,129,0.35); }
+body.theme-dark .conf-stat.conf-mid  { background: rgba(245,158,11,0.18); border-color: rgba(245,158,11,0.35); }
+body.theme-dark .conf-stat.conf-low  { background: rgba(239,68,68,0.18);  border-color: rgba(239,68,68,0.35); }
+body.theme-dark .conf-stat.conf-high .conf-stat-value { color: #6ee7b7; }
+body.theme-dark .conf-stat.conf-mid  .conf-stat-value { color: #fde68a; }
+body.theme-dark .conf-stat.conf-low  .conf-stat-value { color: #fca5a5; }
+body.theme-dark .conf-stat.conf-count{ background: #1a2035; border-color: #2d3548; }
+body.theme-dark .conf-caveat {
+  background: rgba(249,115,22,0.10);
+  border-left-color: #fb923c;
+  color: #fed7aa;
+}
+body.theme-dark .conf-trajectory       { border-top-color: #2d3548; }
+body.theme-dark .conf-trajectory-label { color: #94a3b8; }
+body.theme-dark .conf-traj-agent       { color: #e5e7eb; }
+body.theme-dark .conf-traj-dot.conf-high { background: rgba(16,185,129,0.20); color: #6ee7b7; border-color: rgba(16,185,129,0.40); }
+body.theme-dark .conf-traj-dot.conf-mid  { background: rgba(245,158,11,0.20); color: #fde68a; border-color: rgba(245,158,11,0.40); }
+body.theme-dark .conf-traj-dot.conf-low  { background: rgba(239,68,68,0.20);  color: #fca5a5; border-color: rgba(239,68,68,0.40); }
+body.theme-dark .conf-traj-dot.conf-muted{ background: #1a2035; color: #94a3b8; border-color: #2d3548; }
+body.theme-dark .conf-traj-arrow       { color: #94a3b8; }
+body.theme-dark .conf-traj-final.convergence-i_am_done      { background: rgba(16,185,129,0.20); color: #6ee7b7; }
+body.theme-dark .conf-traj-final.convergence-still_thinking { background: rgba(245,158,11,0.20); color: #fde68a; }
+body.theme-dark .conf-traj-final.convergence-need_user_input{ background: rgba(99,102,241,0.20); color: #c7d2fe; }

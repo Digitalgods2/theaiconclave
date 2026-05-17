@@ -342,6 +342,10 @@ class FinalResult(BaseModel):
     patches_requiring_approval: list[str] = Field(default_factory=list)
     risks: list[Risk] = Field(default_factory=list)
     errors: list[ProtocolError] = Field(default_factory=list)
+    # Confidence aggregate across the last-round participants (conclave mode only):
+    # {"min": 0.65, "max": 0.95, "mean": 0.81, "count": 4, "missing_count": 0}.
+    # None for non-conclave modes or when no participant emitted a confidence score.
+    confidence_aggregate: Optional[dict[str, Any]] = None
 
 
 class Approval(BaseModel):

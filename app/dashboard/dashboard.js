@@ -3466,6 +3466,99 @@ function renderObjectCardPayload(payload) {
   return wrap;
 }
 
+// ------------------------------------------------------------
+// Confidence panel — Phase 2 of post-DR plan tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+// Aggregate band (min/max/mean) + per-agent trajectory (round-by-round
+// confidence + convergence state). Read-only transparency layer.
+// ------------------------------------------------------------
+function _confBand(score) {
+  // Color band: red (low) -> amber (mid) -> green (high). Threshold at 0.7 / 0.85.
+  if (score === null || score === undefined) return "muted";
+  if (score >= 0.85) return "high";
+  if (score >= 0.70) return "mid";
+  return "low";
+}
+
+function _fmtConf(score) {
+  if (score === null || score === undefined) return "—";
+  return Number(score).toFixed(2);
+}
+
+function renderConfidencePanel(agg, trajectory) {
+  const panel = el("div", { class: "confidence-panel" });
+  panel.appendChild(el("div", { class: "field-label", text: "CONFIDENCE" }));
+
+  // Aggregate stat row
+  if (agg) {
+    const stats = el("div", { class: "conf-stats" });
+    const mkStat = (label, value, score) => {
+      const cell = el("div", { class: "conf-stat conf-" + _confBand(score) });
+      cell.appendChild(el("div", { class: "conf-stat-label", text: label }));
+      cell.appendChild(el("div", { class: "conf-stat-value", text: _fmtConf(value) }));
+      return cell;
+    };
+    stats.appendChild(mkStat("min",  agg.min,  agg.min));
+    stats.appendChild(mkStat("mean", agg.mean, agg.mean));
+    stats.appendChild(mkStat("max",  agg.max,  agg.max));
+    const countCell = el("div", { class: "conf-stat conf-count" });
+    countCell.appendChild(el("div", { class: "conf-stat-label", text: "participants" }));
+    const countText = agg.missing_count
+      ? agg.count + " (" + agg.missing_count + " missing)"
+      : String(agg.count);
+    countCell.appendChild(el("div", { class: "conf-stat-value", text: countText }));
+    stats.appendChild(countCell);
+    panel.appendChild(stats);
+
+    // Spread caveat — flags weak/conformist convergence
+    const spread = (agg.max ?? 0) - (agg.min ?? 0);
+    if (spread >= 0.30 && agg.count >= 2) {
+      panel.appendChild(el("div", {
+        class: "conf-caveat",
+        text: "Wide spread (" + _fmtConf(spread) + "). Some participants " +
+              "signaled done with materially lower confidence than others — " +
+              "consensus may be conformist drift rather than robust agreement.",
+      }));
+    }
+  }
+
+  // Per-agent trajectory
+  if (trajectory && trajectory.length > 0) {
+    const trajWrap = el("div", { class: "conf-trajectory" });
+    trajWrap.appendChild(el("div", { class: "conf-trajectory-label", text: "Round-by-round" }));
+    for (const t of trajectory) {
+      const row = el("div", { class: "conf-traj-row" });
+      row.appendChild(el("span", { class: "conf-traj-agent", text: t.agent }));
+      const dots = el("span", { class: "conf-traj-dots" });
+      for (let i = 0; i < (t.rounds || []).length; i++) {
+        const r = t.rounds[i];
+        const dot = el("span", {
+          class: "conf-traj-dot conf-" + _confBand(r.confidence),
+          title: "Round " + r.round + ": confidence " + _fmtConf(r.confidence)
+                  + (r.convergence ? " · " + r.convergence : ""),
+          text: _fmtConf(r.confidence),
+        });
+        dots.appendChild(dot);
+        if (i < t.rounds.length - 1) {
+          dots.appendChild(el("span", { class: "conf-traj-arrow", text: "→" }));
+        }
+      }
+      row.appendChild(dots);
+      // Final convergence state
+      const last = t.rounds && t.rounds[t.rounds.length - 1];
+      if (last && last.convergence) {
+        row.appendChild(el("span", {
+          class: "conf-traj-final convergence-" + last.convergence,
+          text: last.convergence,
+        }));
+      }
+      trajWrap.appendChild(row);
+    }
+    panel.appendChild(trajWrap);
+  }
+
+  return panel;
+}
+
 function renderFinalResult(fr) {
   const section = $("#final-result-section");
   const container = $("#final-result-container");
@@ -3494,6 +3587,13 @@ function renderFinalResult(fr) {
     agreementRow.appendChild(el("span", { class: "badge status-" + fr.resolution_status, text: fr.resolution_status }));
   }
   grid.appendChild(agreementRow);
+
+  // Confidence aggregate + per-agent trajectory (Phase 2 of post-DR plan).
+  // Surfaces whether "consensus" was 4x0.95 or 1x0.95 + 3x0.4, plus each
+  // participant's confidence path round-by-round.
+  if (fr.confidence_aggregate || (fr.confidence_trajectory && fr.confidence_trajectory.length > 0)) {
+    grid.appendChild(renderConfidencePanel(fr.confidence_aggregate, fr.confidence_trajectory));
+  }
 
   // Final answer
   grid.appendChild(el("div", { class: "field" }, [

@@ -236,6 +236,7 @@ async def usage_summary() -> dict[str, Any]:
 
 
 def _row_to_final_result(row) -> dict[str, Any]:
+    agg_raw = _column_or_none(row, "confidence_aggregate_json")
     return {
         "task_id": row["task_id"],
         "final_answer": row["final_answer"],
@@ -247,8 +248,36 @@ def _row_to_final_result(row) -> dict[str, Any]:
         "commands_requiring_approval": json.loads(row["commands_requiring_approval_json"]),
         "patches_requiring_approval": json.loads(row["patches_requiring_approval_json"]),
         "errors": json.loads(row["errors_json"]),
+        "confidence_aggregate": json.loads(agg_raw) if agg_raw else None,
         "created_at": row["created_at"],
     }
+
+
+def _compute_confidence_trajectory(messages) -> list[dict[str, Any]]:
+    """Per-participant confidence trajectory across rounds, reconstructed from agent_messages.
+
+    Returns [{"agent": "codex", "rounds": [{"round": 1, "confidence": 0.86,
+    "convergence": "i_am_done"}, ...]}, ...]. Used by the dashboard to surface
+    the who-persuaded-whom narrative on weak convergence. Phase 2 of post-DR
+    plan on tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+    """
+    per_agent: dict[str, list[dict[str, Any]]] = {}
+    for m in messages:
+        if m["message_type"] != MessageType.CONCLAVE_TURN.value:
+            continue
+        if not m["structured_json"]:
+            continue
+        try:
+            s = json.loads(m["structured_json"])
+        except (ValueError, TypeError):
+            continue
+        agent = m["agent_name"]
+        per_agent.setdefault(agent, []).append({
+            "round": len(per_agent[agent]) + 1,
+            "confidence": s.get("confidence"),
+            "convergence": s.get("convergence"),
+        })
+    return [{"agent": a, "rounds": rounds} for a, rounds in per_agent.items()]
 
 
 @router.get("/{task_id}")
@@ -315,7 +344,11 @@ async def get_task(task_id: str) -> dict[str, Any]:
             }
             for m in messages
         ],
-        "final_result": _row_to_final_result(result_row) if result_row else None,
+        "final_result": (
+            {**_row_to_final_result(result_row),
+             "confidence_trajectory": _compute_confidence_trajectory(messages)}
+            if result_row else None
+        ),
         "approvals": [
             {
                 "id": a["id"],

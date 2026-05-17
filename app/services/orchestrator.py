@@ -130,8 +130,8 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
             (id, task_id, final_answer, agreement_level, resolution_status,
              disagreements_json, recommended_actions_json, risks_json,
              commands_requiring_approval_json, patches_requiring_approval_json,
-             errors_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             errors_json, confidence_aggregate_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result_id(),
@@ -145,9 +145,30 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
                 json.dumps(result.commands_requiring_approval),
                 json.dumps(result.patches_requiring_approval),
                 json.dumps([e.model_dump() for e in result.errors], sort_keys=True),
+                json.dumps(result.confidence_aggregate, sort_keys=True) if result.confidence_aggregate else None,
                 now_iso(),
             ),
         )
+
+
+def _compute_confidence_aggregate(turns: list) -> Optional[dict]:
+    """Aggregate confidence across the last-round participant turns.
+
+    Returns {min, max, mean, count, missing_count} or None if no turn carried
+    a confidence score. Phase 2 of post-DR plan on tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+    """
+    if not turns:
+        return None
+    scores = [t.confidence for t in turns if getattr(t, "confidence", None) is not None]
+    if not scores:
+        return None
+    return {
+        "min":  round(min(scores), 3),
+        "max":  round(max(scores), 3),
+        "mean": round(sum(scores) / len(scores), 3),
+        "count": len(scores),
+        "missing_count": len(turns) - len(scores),
+    }
 
 
 def _set_task_status(
@@ -197,9 +218,18 @@ _SYNTHESIS_INSTRUCTION = (
 
 
 def _synthesis_directive_dict(last_turns: list) -> dict:
-    """Build the synthesis directive as a prior-message dict."""
+    """Build the synthesis directive as a prior-message dict.
+
+    Includes each participant's confidence so the synthesizer can weight
+    positions by stated certainty rather than treating all voices as equal-
+    confidence. Phase 2 of post-DR plan on tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+    """
+    def _conf(t) -> str:
+        c = getattr(t, "confidence", None)
+        return f" [confidence {c:.2f}]" if isinstance(c, (int, float)) else ""
+
     positions_summary = "; ".join(
-        f"{t.agent}: {t.position[:120]}" for t in last_turns
+        f"{t.agent}{_conf(t)}: {t.position[:120]}" for t in last_turns
     )
     return {
         "agent": "orchestrator",
@@ -786,6 +816,7 @@ async def _assemble_conclave_final(
         patches_requiring_approval=[],
         risks=[],
         errors=errors,
+        confidence_aggregate=_compute_confidence_aggregate(last_turns),
     )
 
 
