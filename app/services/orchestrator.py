@@ -303,13 +303,17 @@ async def _call_adapter_method(
         # DR0015: persist tool-loop events (tool_call / tool_result) BEFORE the
         # final structured turn so the transcript reads in the order the events
         # actually happened. All linked to the same agent_run via rid.
+        # _record_message expects a MessageType-like object with .value; wrap
+        # the raw string from the adapter's event in _SyntheticType so the
+        # existing INSERT path works unchanged. (Fixes the AttributeError that
+        # killed deepseek's tool-loop turns on tsk_01KRVDYBG6A6MSBX84D1KNJCQ6.)
         for event in (getattr(adapter, "_last_tool_events", None) or []):
             _record_message(
                 task_id=task_id,
                 agent_run_id=rid,
                 agent_name=adapter.name,
                 role=role.value,
-                message_type=event["message_type"],
+                message_type=_SyntheticType(event["message_type"]),
                 direction=event["direction"],
                 content=event.get("content"),
                 structured=event.get("structured"),
