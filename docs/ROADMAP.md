@@ -57,6 +57,8 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 
 4. **Inbox tagging** — letting the user attach freeform tags to tasks would scale browsing better than filters alone once the inbox has hundreds of tasks.
 
+5. **Decision Memory: partial-supersession / amendment tracking** *(only if observed in practice)* — the current supersession detector handles a binary state: a record is either superseded outright (a `**Status: SUPERSEDED**` banner at the head) or live. Real-world experience after shipping Phase 2.5 already surfaced a subtler case: Decision 11 (OpenRouter seats) is *operationally live for OpenRouter*, but its incidental references to "Ollama Cloud stays in the codebase, disabled by default" are now factually wrong (Decision 14 deleted the adapter entirely). The append-only Charter rule means we don't rewrite ratified records — so the natural fix is a third state. Possible shapes: a `**Status: PARTIALLY AMENDED**` banner convention with an `**Amended by**:` line pointing to the superseding records, plus a "partial" rendering tier on the dashboard (e.g. amber badge, summary excerpt prefixed with "⚠ partially amended"), plus a `partial=true` flag in the retrieval output so prompts can include the record with an explicit "X is no longer accurate; consult Decision N" caveat. Out of scope until Glen actually hits agent confusion on a real task; tracked here so it's not lost.
+
 ## Considered and Intentionally Not Built
 
 ### Layer 2: In-conclave code execution
