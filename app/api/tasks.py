@@ -65,14 +65,25 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
                 "available": sorted(registered),
             },
         )
+    # Decision Memory retrieval — Phase 2.5 of post-DR plan
+    # tsk_01KRSW6AS3M66B4RRJE3JFAPRV. Frozen at create time so the user later
+    # sees exactly the prior art the agents saw.
+    from app.services.decision_memory import find_relevant
+    try:
+        prior_art = find_relevant(request.user_request, top_k=3)
+    except Exception:  # noqa: BLE001 — never block task creation on retrieval failure
+        prior_art = []
+    prior_art_json = json.dumps(prior_art) if prior_art else None
+
     with connect() as conn:
         conn.execute(
             """
             INSERT INTO tasks
             (id, created_at, updated_at, status, source, source_agent, mode,
              task_type, user_request, primary_agent, consultants, project_path,
-             context_json, permissions_json, limits_json, parent_task_id)
-            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             context_json, permissions_json, limits_json, parent_task_id,
+             prior_art_json)
+            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 tid,
@@ -90,6 +101,7 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
                 json.dumps(request.permissions.model_dump(), sort_keys=True),
                 json.dumps(request.limits.model_dump(), sort_keys=True),
                 request.parent_task_id,
+                prior_art_json,
             ),
         )
     return {
@@ -97,6 +109,7 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
         "status": "pending",
         "created_at": now,
         "parent_task_id": request.parent_task_id,
+        "prior_art": prior_art,
     }
 
 
@@ -331,6 +344,10 @@ async def get_task(task_id: str) -> dict[str, Any]:
             "export_path": _column_or_none(task_row, "export_path"),
             "source": _column_or_none(task_row, "source"),
             "source_agent": _column_or_none(task_row, "source_agent"),
+            "prior_art": (
+                json.loads(task_row["prior_art_json"])
+                if _column_or_none(task_row, "prior_art_json") else []
+            ),
         },
         "messages": [
             {

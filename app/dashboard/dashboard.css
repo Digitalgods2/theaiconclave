@@ -3723,3 +3723,105 @@ body.theme-dark .conf-traj-arrow       { color: #94a3b8; }
 body.theme-dark .conf-traj-final.convergence-i_am_done      { background: rgba(16,185,129,0.20); color: #6ee7b7; }
 body.theme-dark .conf-traj-final.convergence-still_thinking { background: rgba(245,158,11,0.20); color: #fde68a; }
 body.theme-dark .conf-traj-final.convergence-need_user_input{ background: rgba(99,102,241,0.20); color: #c7d2fe; }
+
+/* =================================================================
+   Prior Art panel — Phase 2.5 of post-DR plan tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+   Sits between user-request and answer-prompt in the detail view.
+   ================================================================= */
+.prior-art-section {
+  margin: 16px 0 20px;
+  padding: 14px 18px;
+  background: #f8fafc;
+  border: 1px solid #e3e6ed;
+  border-left: 3px solid #ca8a04;
+  border-radius: 0 8px 8px 0;
+}
+.prior-art-section h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #6b7280;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.prior-art-explainer {
+  font-size: 12.5px;
+  color: #6b7280;
+  margin: 0 0 12px;
+  line-height: 1.55;
+}
+.prior-art-list { display: flex; flex-direction: column; gap: 8px; }
+.prior-art-card {
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.prior-art-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.prior-art-number {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #8a5a00;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.prior-art-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1f2330;
+  flex: 1;
+  min-width: 0;
+}
+.prior-art-date { font-size: 11.5px; }
+.prior-art-score {
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #e0e7ff;
+  color: #3730a3;
+  cursor: help;
+}
+.prior-art-summary {
+  font-size: 12.5px;
+  color: #4a5066;
+  line-height: 1.55;
+  margin: 4px 0;
+}
+.prior-art-path {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+/* Dark — Prior Art */
+body.theme-dark .prior-art-section {
+  background: #161b26;
+  border-color: #2d3548;
+  border-left-color: #f59e0b;
+}
+body.theme-dark .prior-art-section h3 { color: #94a3b8; }
+body.theme-dark .prior-art-explainer  { color: #94a3b8; }
+body.theme-dark .prior-art-card {
+  background: #1a2035;
+  border-color: #2d3548;
+}
+body.theme-dark .prior-art-number {
+  background: rgba(245,158,11,0.20);
+  color: #fde68a;
+}
+body.theme-dark .prior-art-title    { color: #e5e7eb; }
+body.theme-dark .prior-art-summary  { color: #cbd5e1; }
+body.theme-dark .prior-art-score {
+  background: rgba(99,102,241,0.20);
+  color: #c7d2fe;
+}

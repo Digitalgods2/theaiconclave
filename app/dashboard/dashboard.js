@@ -2402,6 +2402,11 @@ function renderDetail(data) {
     }
   }
 
+  // Prior Art panel — Phase 2.5 of post-DR plan. Shows the past decision records
+  // the keeper surfaced as relevant when this task was created. Frozen — what the
+  // agents actually saw, not what they'd see today.
+  renderPriorArt(task.prior_art || []);
+
   // Answer prompt if awaiting user input
   renderAnswerPrompt(task, messages);
 
@@ -3464,6 +3469,42 @@ function renderObjectCardPayload(payload) {
   wrap.appendChild(el("div", { class: "object-card-payload-label", text: "Payload" }));
   wrap.appendChild(renderObjectAsDl(payload));
   return wrap;
+}
+
+// ------------------------------------------------------------
+// Prior Art panel — Phase 2.5 of post-DR plan tsk_01KRSW6AS3M66B4RRJE3JFAPRV.
+// Renders the past decision records the keeper matched at task-creation time.
+// ------------------------------------------------------------
+function renderPriorArt(matches) {
+  const section = document.getElementById("prior-art-section");
+  const list = document.getElementById("prior-art-list");
+  if (!section || !list) return;
+  list.innerHTML = "";
+  if (!matches || matches.length === 0) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  for (const m of matches) {
+    const card = el("div", { class: "prior-art-card" });
+    const head = el("div", { class: "prior-art-head" });
+    head.appendChild(el("span", { class: "prior-art-number", text: "DR" + m.number }));
+    head.appendChild(el("span", { class: "prior-art-title", text: m.title || "" }));
+    if (m.date) head.appendChild(el("span", { class: "prior-art-date muted", text: m.date }));
+    head.appendChild(el("span", {
+      class: "prior-art-score",
+      title: "TF-IDF cosine similarity (0.0–1.0)",
+      text: "match " + Number(m.score || 0).toFixed(2),
+    }));
+    card.appendChild(head);
+    if (m.summary) {
+      card.appendChild(el("div", { class: "prior-art-summary", text: m.summary }));
+    }
+    if (m.path) {
+      card.appendChild(el("div", { class: "prior-art-path muted", text: m.path }));
+    }
+    list.appendChild(card);
+  }
 }
 
 // ------------------------------------------------------------

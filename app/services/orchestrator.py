@@ -1042,6 +1042,24 @@ async def run_task(task_id: str) -> None:
         if ancestors:
             task.context.extra["thread_ancestors"] = ancestors
 
+    # Phase 2.5: surface Prior Art (TF-IDF-matched past decisions) computed at
+    # task-creation time. Same pattern as thread_ancestors — orchestrator reads
+    # from DB, prompt builder formats from context.extra.
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT prior_art_json FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+    if row is not None:
+        try:
+            pa_raw = row["prior_art_json"]
+        except (IndexError, KeyError):
+            pa_raw = None
+        if pa_raw:
+            try:
+                task.context.extra["prior_art"] = json.loads(pa_raw)
+            except (ValueError, TypeError):
+                pass
+
     # If the task requested a project sandbox, prepare it (or reuse an existing
     # one for a resumed task). Path is stashed on context.extra so adapters can
     # find it and so the prompt builder can render the manifest.

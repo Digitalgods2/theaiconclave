@@ -242,6 +242,20 @@ def _format_project_sandbox(task: TaskRequest) -> str:
     )
 
 
+def _format_prior_art(task: TaskRequest) -> str:
+    """Render the Decision Memory matches the API attached at task creation.
+
+    Phase 2.5 of post-DR plan tsk_01KRSW6AS3M66B4RRJE3JFAPRV. The orchestrator
+    stashes prior_art (TF-IDF matches over docs/decisions/) in context.extra.
+    Empty list / missing key → no section, no token cost.
+    """
+    matches = task.context.extra.get("prior_art") or []
+    if not matches:
+        return ""
+    from app.services.decision_memory import format_for_prompt
+    return format_for_prompt(matches)
+
+
 def _format_attachments(task: TaskRequest) -> str:
     """Inline text content from attached files. Images are noted but not embedded."""
     attachments = task.context.extra.get("attachments") or []
@@ -323,6 +337,7 @@ def build_primary_prompt(
         _format_thread_ancestors(task),
         _format_project_sandbox(task),
         _format_attachments(task),
+        _format_prior_art(task),
     ]
     if prior_messages:
         parts.append("# Prior Messages (chronological)")
@@ -356,6 +371,7 @@ def build_consultant_prompt(
         _format_thread_ancestors(task),
         _format_project_sandbox(task),
         _format_attachments(task),
+        _format_prior_art(task),
         "",
         "# Prior Messages (the primary's proposal and any earlier critiques)",
     ]
@@ -414,6 +430,7 @@ def build_conclave_prompt(
         _format_thread_ancestors(task),
         _format_project_sandbox(task),
         _format_attachments(task),
+        _format_prior_art(task),
         "",
         f"# Other Participants in This Conclave\n{', '.join(other_participants)}",
         "",

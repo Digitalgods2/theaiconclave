@@ -154,6 +154,11 @@ def init_database(path: str | Path) -> None:
         # NULL for tasks that finalized before Phase 2 of the post-DR plan on
         # tsk_01KRSW6AS3M66B4RRJE3JFAPRV. New tasks: populated by the orchestrator.
         _add_column_if_missing(conn, "final_results", "confidence_aggregate_json", "TEXT")
+        # Prior Art — TF-IDF-matched past decision records, computed at task
+        # creation and frozen so the user sees exactly what the agents saw.
+        # NULL for tasks created before Phase 2.5 of the post-DR plan. Shape:
+        # [{number, title, date, summary, path, score}, ...].
+        _add_column_if_missing(conn, "tasks", "prior_art_json", "TEXT")
 
 
 def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, type_decl: str) -> None:
