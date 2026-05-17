@@ -57,6 +57,12 @@ class MessageType(str, Enum):
     USER_INPUT_REQUEST = "user_input_request"
     USER_INPUT_RESPONSE = "user_input_response"
     ERROR = "error"
+    # DR0015: tool-loop architecture for API-based council seats. The OpenRouter
+    # adapter emits these inside a single agent_run to record the agent's
+    # iterative file-reading. Direction: TOOL_CALL is from_agent, TOOL_RESULT
+    # is to_agent.
+    TOOL_CALL = "tool_call"
+    TOOL_RESULT = "tool_result"
 
 
 class TaskType(str, Enum):

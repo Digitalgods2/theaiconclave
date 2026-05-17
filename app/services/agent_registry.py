@@ -73,6 +73,7 @@ def register_openrouter_models(config) -> None:
                 max_context_chars=getattr(m, "max_context_chars", 400_000),
                 endpoint=endpoint,
                 data_collection=data_collection,
+                tool_loop=getattr(m, "tool_loop", False),
             ))
         except Exception as e:  # noqa: BLE001
             log.error("Failed to register OpenRouter seat %r (slug=%r): %s",

@@ -178,4 +178,32 @@ def build_sandbox_section(sandbox_path: str, char_budget: int) -> str:
     return header + tree + "".join(body_parts) + footer
 
 
-__all__ = ["build_sandbox_section"]
+def build_sandbox_manifest(sandbox_path: str) -> str:
+    """Build a tool-loop-friendly project header: file tree only, no inlined
+    contents. Used by the OpenRouter adapter when `tool_loop=True` so the model
+    sees what's available but reads it on demand via read_file/list_dir/glob.
+
+    Mirrors `build_sandbox_section`'s walk + ignore behavior so a path the
+    model sees in the manifest is also a path it can request via the tools.
+    """
+    sandbox = Path(sandbox_path)
+    if not sandbox.exists() or not sandbox.is_dir():
+        return ""
+    files = _walk(sandbox)
+    if not files:
+        return ""
+    header = (
+        "## PROJECT FILES (read-only snapshot — read on demand)\n\n"
+        "You have a read-only file-browsing tool available this turn. Use the "
+        "`read_file(path)`, `list_dir(path)`, and `glob(pattern)` functions "
+        "to pull files into context as needed; the tree below shows what's "
+        "available. Cite specific files and lines in your reasoning.\n\n"
+    )
+    tree_lines = ["### File tree", "```"]
+    for rel, _p, size in sorted(files, key=lambda t: t[0]):
+        tree_lines.append(f"{rel}  ({_human_size(size)})")
+    tree_lines.append("```\n")
+    return header + "\n".join(tree_lines)
+
+
+__all__ = ["build_sandbox_section", "build_sandbox_manifest"]

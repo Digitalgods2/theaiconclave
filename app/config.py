@@ -103,6 +103,11 @@ class OpenRouterModel(BaseModel):
     name: str
     model_slug: str
     max_context_chars: int = 400_000
+    # DR0015: when True, the adapter offers read_file / list_dir / glob tools
+    # to the model instead of inlining the full sandbox into the prompt. Default
+    # off per-seat — flip to True once you've verified the specific model
+    # implements OpenAI-style tool calls cleanly on real tasks.
+    tool_loop: bool = False
 
 
 class OpenRouterConfig(BaseModel):

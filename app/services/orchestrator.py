@@ -290,6 +290,7 @@ async def _call_adapter_method(
     start = time.perf_counter()
     try:
         adapter._last_usage = {}  # reset before call
+        adapter._last_tool_events = []  # DR0015 — reset tool-loop accumulator
         result = await getattr(adapter, method)(ctx)
         duration_ms = int((time.perf_counter() - start) * 1000)
         usage = getattr(adapter, "_last_usage", None) or {}
@@ -299,6 +300,20 @@ async def _call_adapter_method(
             output_tokens=usage.get("output_tokens"),
             cost_usd=usage.get("cost_usd"),
         )
+        # DR0015: persist tool-loop events (tool_call / tool_result) BEFORE the
+        # final structured turn so the transcript reads in the order the events
+        # actually happened. All linked to the same agent_run via rid.
+        for event in (getattr(adapter, "_last_tool_events", None) or []):
+            _record_message(
+                task_id=task_id,
+                agent_run_id=rid,
+                agent_name=adapter.name,
+                role=role.value,
+                message_type=event["message_type"],
+                direction=event["direction"],
+                content=event.get("content"),
+                structured=event.get("structured"),
+            )
         _record_message(
             task_id=task_id,
             agent_run_id=rid,
