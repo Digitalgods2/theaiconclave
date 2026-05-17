@@ -72,7 +72,24 @@ def _parse_decision(path: Path) -> Optional[dict]:
     )
     date_match = re.search(r"\*\*Date\*\*:\s*([\d-]+)", text)
     date = date_match.group(1) if date_match else ""
-    # Summary: first paragraph after "## What Was Chosen", trimmed.
+
+    # Supersession detection. A record is considered superseded when its head
+    # carries an explicit `**Status: SUPERSEDED**` banner (the convention
+    # established by DR0014 superseding DR0009). The banner names the
+    # superseding DR number(s), which we pull out so the UI can link to them.
+    head = text[:2500]  # only the top of the file
+    superseded = bool(re.search(r"\*\*Status:\s*SUPERSEDED", head, re.IGNORECASE))
+    superseded_by: list[str] = []
+    if superseded:
+        for ref in re.finditer(r"DR(\d{3,5})", head):
+            num = ref.group(1).lstrip("0") or ref.group(1)
+            if num != (number.lstrip("0") or number) and num not in superseded_by:
+                superseded_by.append(num)
+
+    # Summary: first paragraph after "## What Was Chosen", trimmed. For superseded
+    # records, prepend a SUPERSEDED marker so any leakage to the agent prompt is
+    # immediately visible — see the filter in find_relevant which excludes these
+    # by default.
     chosen = re.search(
         r"^##\s+What Was Chosen\s*\n+(.+?)(?=\n##|\Z)", text, re.MULTILINE | re.DOTALL
     )
@@ -84,12 +101,14 @@ def _parse_decision(path: Path) -> Optional[dict]:
     else:
         summary = ""
     return {
-        "number":   number,
-        "title":    title,
-        "date":     date,
-        "summary":  summary,
-        "path":     "docs/decisions/" + path.name,
-        "full_text": text,
+        "number":        number,
+        "title":         title,
+        "date":          date,
+        "summary":       summary,
+        "path":          "docs/decisions/" + path.name,
+        "full_text":     text,
+        "superseded":    superseded,
+        "superseded_by": superseded_by,
     }
 
 
@@ -143,12 +162,24 @@ def _cosine(a: dict, b: dict) -> float:
 # Public API
 # ---------------------------------------------------------------------------
 
-def find_relevant(query_text: str, top_k: int = 3, min_score: float = 0.05) -> list[dict]:
+def find_relevant(
+    query_text: str,
+    top_k: int = 3,
+    min_score: float = 0.05,
+    include_superseded: bool = False,
+) -> list[dict]:
     """Return the top-K matching past decisions for the given query.
 
-    Each dict: {number, title, date, summary, path, score}. Score is the
-    cosine similarity (0.0–1.0) rounded to 3 decimals. Empty list if no
-    matches exceed min_score or if the corpus is empty.
+    Each dict: {number, title, date, summary, path, score, superseded,
+    superseded_by}. Score is the cosine similarity (0.0–1.0) rounded to 3
+    decimals. Empty list if no matches exceed min_score or if the corpus
+    is empty.
+
+    By default, decisions with a `**Status: SUPERSEDED**` banner are
+    excluded — they're history, not guidance, and feeding their
+    "What Was Chosen" text to agents misleads them. Pass
+    include_superseded=True to surface them anyway (useful for an
+    explicit "history" view).
     """
     if not query_text or not query_text.strip():
         return []
@@ -166,21 +197,52 @@ def find_relevant(query_text: str, top_k: int = 3, min_score: float = 0.05) -> l
     }
     scored: list[tuple[float, dict]] = []
     for d, v in zip(_CACHE["corpus"], _CACHE["vectors"]):
+        if not include_superseded and d.get("superseded"):
+            continue
         s = _cosine(q_vec, v)
         if s >= min_score:
             scored.append((s, d))
     scored.sort(key=lambda x: -x[0])
     return [
         {
-            "number":  d["number"],
-            "title":   d["title"],
-            "date":    d["date"],
-            "summary": d["summary"],
-            "path":    d["path"],
-            "score":   round(s, 3),
+            "number":        d["number"],
+            "title":         d["title"],
+            "date":          d["date"],
+            "summary":       d["summary"],
+            "path":          d["path"],
+            "score":         round(s, 3),
+            "superseded":    d.get("superseded", False),
+            "superseded_by": d.get("superseded_by", []),
         }
         for s, d in scored[:top_k]
     ]
+
+
+def enrich_with_supersession(matches: list[dict]) -> list[dict]:
+    """Annotate prior-art entries with *current* supersession state.
+
+    Historical tasks have `prior_art_json` frozen from before supersession
+    tracking existed. This helper re-checks each entry against the live
+    corpus so the dashboard can show a "superseded by Decision X" badge on
+    matches that were valid at task-creation time but have since been
+    superseded. Pure read; does not mutate stored data.
+    """
+    if not matches:
+        return matches
+    _build_index_if_stale()
+    by_num = {d["number"]: d for d in (_CACHE["corpus"] or [])}
+    out = []
+    for m in matches:
+        d = by_num.get(m.get("number"))
+        if d is None:
+            out.append(m)
+            continue
+        out.append({
+            **m,
+            "superseded":    d.get("superseded", m.get("superseded", False)),
+            "superseded_by": d.get("superseded_by", m.get("superseded_by", [])),
+        })
+    return out
 
 
 def format_for_prompt(matches: list[dict]) -> str:

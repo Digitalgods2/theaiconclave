@@ -3486,7 +3486,7 @@ function renderPriorArt(matches) {
   }
   section.hidden = false;
   for (const m of matches) {
-    const card = el("div", { class: "prior-art-card" });
+    const card = el("div", { class: "prior-art-card" + (m.superseded ? " prior-art-card-superseded" : "") });
     const head = el("div", { class: "prior-art-head" });
     // Strip leading zeros: "0011" -> "11" for readability.
     const num = String(m.number).replace(/^0+/, "") || m.number;
@@ -3498,6 +3498,14 @@ function renderPriorArt(matches) {
       title: "TF-IDF cosine similarity (0.0–1.0)",
       text: "match " + Number(m.score || 0).toFixed(2),
     }));
+    if (m.superseded) {
+      const supBy = (m.superseded_by || []).map(n => "Decision " + String(n).replace(/^0+/, "")).join(", ");
+      head.appendChild(el("span", {
+        class: "prior-art-superseded-badge",
+        title: supBy ? "Superseded by " + supBy : "Superseded — see docs/decisions/INDEX.md",
+        text: supBy ? "superseded by " + supBy : "superseded",
+      }));
+    }
     card.appendChild(head);
     if (m.summary) {
       card.appendChild(el("div", { class: "prior-art-summary", text: m.summary }));

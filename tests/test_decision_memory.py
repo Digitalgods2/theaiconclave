@@ -180,6 +180,89 @@ def test_format_for_prompt_includes_each_match():
 # Cache invalidation
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Supersession detection + filtering
+# ---------------------------------------------------------------------------
+
+def test_parse_detects_superseded_banner(tmp_path):
+    p = tmp_path / "0009_old.md"
+    p.write_text(dedent("""\
+        # Decision Record 0009 — Old Choice
+
+        > **Status: SUPERSEDED.** Demoted to optional in [DR0011](0011_x.md)
+        > and removed entirely in [DR0014](0014_y.md).
+
+        **Date**: 2026-05-12
+
+        ## What Was Chosen
+
+        We chose option X back then.
+    """), encoding="utf-8")
+    out = dm._parse_decision(p)
+    assert out["superseded"] is True
+    # superseded_by lists DRs referenced in the banner, leading zeros stripped,
+    # and the record's own number excluded.
+    assert "11" in out["superseded_by"]
+    assert "14" in out["superseded_by"]
+    assert "9" not in out["superseded_by"]
+
+
+def test_parse_non_superseded_returns_false(tmp_path):
+    p = tmp_path / "0001_fresh.md"
+    p.write_text("# Decision Record 0001 — Fresh\n\n**Date**: 2026-05-12\n\n## What Was Chosen\n\nWe chose X.\n",
+                 encoding="utf-8")
+    out = dm._parse_decision(p)
+    assert out["superseded"] is False
+    assert out["superseded_by"] == []
+
+
+def test_real_corpus_dr0009_is_superseded():
+    """DR0009 (Ollama Cloud seats) was superseded by DR0014 in May 2026."""
+    matches = dm.find_relevant("Ollama Cloud council seats", top_k=10,
+                                min_score=0.0, include_superseded=True)
+    by_num = {m["number"]: m for m in matches}
+    assert "0009" in by_num, "DR0009 should be findable when include_superseded=True"
+    assert by_num["0009"]["superseded"] is True
+    assert "14" in by_num["0009"]["superseded_by"]
+
+
+def test_default_retrieval_filters_superseded():
+    """Default behavior: DR0009 must NOT appear in retrieval results."""
+    matches = dm.find_relevant("Ollama Cloud council seats", top_k=10, min_score=0.0)
+    for m in matches:
+        assert m["number"] != "0009", (
+            "DR0009 leaked into default retrieval — superseded records are "
+            "history, not guidance, and shouldn't be fed to agents."
+        )
+
+
+def test_include_superseded_escape_hatch():
+    """Explicit opt-in surfaces superseded records anyway."""
+    nums_no_sup  = {m["number"] for m in dm.find_relevant(
+        "Ollama Cloud council seats", top_k=20, min_score=0.0)}
+    nums_with_sup = {m["number"] for m in dm.find_relevant(
+        "Ollama Cloud council seats", top_k=20, min_score=0.0, include_superseded=True)}
+    assert "0009" not in nums_no_sup
+    assert "0009" in nums_with_sup
+
+
+def test_enrich_with_supersession_annotates_historical_entries():
+    """Historical prior_art entries (no superseded field) get annotated from
+    the live corpus on read."""
+    stale = [{"number": "0009", "title": "Old", "date": "2026-05-12",
+              "summary": "...", "path": "docs/decisions/0009_x.md", "score": 0.12}]
+    enriched = dm.enrich_with_supersession(stale)
+    assert enriched[0]["superseded"] is True
+    assert "14" in enriched[0]["superseded_by"]
+
+
+def test_enrich_preserves_non_superseded_entries():
+    fresh = [{"number": "0011", "title": "OpenRouter", "date": "2026-05-12",
+              "summary": "...", "path": "docs/decisions/0011_x.md", "score": 0.13}]
+    enriched = dm.enrich_with_supersession(fresh)
+    assert enriched[0]["superseded"] is False
+
+
 def test_index_cache_rebuilds_when_file_added(tmp_path, monkeypatch):
     # Point the module at an isolated decisions dir.
     monkeypatch.setattr(dm, "_DECISIONS_DIR", tmp_path)

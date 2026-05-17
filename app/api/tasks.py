@@ -248,6 +248,24 @@ async def usage_summary() -> dict[str, Any]:
     }
 
 
+def _enriched_prior_art(task_row) -> list[dict[str, Any]]:
+    """Read frozen prior_art_json off the task row and annotate each entry with
+    its CURRENT supersession state. Pre-supersession-tracking tasks (frozen
+    before the supersession parser shipped) get the badge retroactively;
+    fresh tasks just round-trip their stored values."""
+    raw = _column_or_none(task_row, "prior_art_json")
+    if not raw:
+        return []
+    try:
+        matches = json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(matches, list):
+        return []
+    from app.services.decision_memory import enrich_with_supersession
+    return enrich_with_supersession(matches)
+
+
 def _row_to_final_result(row) -> dict[str, Any]:
     agg_raw = _column_or_none(row, "confidence_aggregate_json")
     return {
@@ -344,10 +362,7 @@ async def get_task(task_id: str) -> dict[str, Any]:
             "export_path": _column_or_none(task_row, "export_path"),
             "source": _column_or_none(task_row, "source"),
             "source_agent": _column_or_none(task_row, "source_agent"),
-            "prior_art": (
-                json.loads(task_row["prior_art_json"])
-                if _column_or_none(task_row, "prior_art_json") else []
-            ),
+            "prior_art": _enriched_prior_art(task_row),
         },
         "messages": [
             {

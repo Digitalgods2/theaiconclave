@@ -3825,3 +3825,38 @@ body.theme-dark .prior-art-score {
   background: rgba(99,102,241,0.20);
   color: #c7d2fe;
 }
+
+/* Superseded badge — applied when the underlying decision now carries a
+   **Status: SUPERSEDED** banner. Going forward these are filtered out of
+   retrieval; this styling exists so historical (frozen) prior_art entries
+   are still clearly marked when re-displayed. */
+.prior-art-superseded-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: lowercase;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #fbd5d0;
+  color: #8a1f17;
+  cursor: help;
+}
+.prior-art-card-superseded {
+  opacity: 0.7;
+  border-left: 3px solid #ef4444;
+}
+.prior-art-card-superseded .prior-art-title {
+  text-decoration: line-through;
+  text-decoration-color: rgba(0,0,0,0.25);
+  text-decoration-thickness: 1px;
+}
+body.theme-dark .prior-art-superseded-badge {
+  background: rgba(239,68,68,0.22);
+  color: #fca5a5;
+}
+body.theme-dark .prior-art-card-superseded {
+  border-left-color: #f87171;
+}
+body.theme-dark .prior-art-card-superseded .prior-art-title {
+  text-decoration-color: rgba(255,255,255,0.25);
+}
