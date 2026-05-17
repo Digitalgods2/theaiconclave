@@ -1,16 +1,17 @@
 # Decision Record 0015 — Tool-loop architecture for the API-based council seats
 
 **Date**: 2026-05-17
-**Mode**: Glen-directed (draft — awaiting ratification)
+**Mode**: Glen-directed (ratified)
 **Keeper**: claude-code
 **Related**: [DR0011](0011_openrouter_council_seats.md), [DR0012](0012_inline_sandbox_for_api_adapters.md).
 
 ## What Was Chosen
 
-The OpenRouter-backed council seats (`deepseek`, `glm`, `qwen`, `kimi`, plus any future config-driven seat) gain an OpenAI-style tool-call loop. Instead of receiving the entire project sandbox inlined into the prompt at task creation (the DR0012 v1 design), they can iteratively call two functions during a turn:
+The OpenRouter-backed council seats (`deepseek`, `glm`, `qwen`, `kimi`, plus any future config-driven seat) gain an OpenAI-style tool-call loop. Instead of receiving the entire project sandbox inlined into the prompt at task creation (the DR0012 v1 design), they can iteratively call three functions during a turn:
 
 - `read_file(path)` — return the contents of a specific file inside the sandbox
 - `list_dir(path)` — return the immediate contents of a sandbox directory
+- `glob(pattern)` — return file paths matching a standard glob pattern (`**/*.py`, `app/services/*.py`, etc.), capped at 200 paths per call, honoring the same ignore rules the sandbox already applies (`.git`, `node_modules`, `.venv`, etc.)
 
 The adapter intercepts each tool call, reads from the per-task sandbox, returns content, and loops back to the model until it emits its structured turn JSON.
 
@@ -39,7 +40,7 @@ A tool-loop closes the gap. The agent reads what it actually needs (specific fil
 ## What Was Rejected
 
 - **Always-on (no opt-in).** Considered, rejected. See "Why default off" above — tool-call support is uneven across providers and a regression would be invisible until someone notices weak outputs.
-- **A `glob` or `grep` tool.** Considered for v1, deferred. Two reasons: (a) the file tree manifest already gives the agent a starting picture of what's available, so a directed `list_dir` walk usually suffices; (b) `grep` opens a token-cost amplification path (one bad search can pull megabytes of matches). Revisit if real usage shows the agent floundering without it.
+- **A `grep` tool.** Rejected for v1. Unlike `glob` (which returns just file paths and is naturally bounded by a path count cap), `grep` opens a real token-cost amplification path — one bad search over a large codebase can pull megabytes of matching content. The `max_tool_bytes` cap would clip it, but a clipped result is often worse than no result (the agent reasons over a misleading partial view). Better to wait until real usage shows the agent floundering without it, then design `grep` with explicit context-bytes and match-count limits.
 - **Per-task override of `tool_loop`.** Considered, deferred. The task request would gain a per-seat-override field, which sprawls the protocol. Glen's stated usage is "verify a seat once, flip it on permanently" — that's a config edit, not a per-task knob. Add only if a real need emerges.
 - **Streaming the tool responses back to the model.** Rejected for v1. OpenRouter's chat-completions endpoint is request/response; streaming tool results would mean reworking the transport layer. The bounds (`max_tool_bytes=256KiB`) keep per-iteration payloads manageable without streaming.
 - **Treating tool calls as a permission-bearing operation.** Considered (per the charter's safety model), rejected. The tool surface is intentionally narrow: read-only access to the same sandbox the agent already had inlined. Adding a permission flag wouldn't gate anything new — it would just be ceremony. If a future tool adds write or execute capability, that *would* deserve a permission flag.
@@ -66,14 +67,14 @@ A tool-loop closes the gap. The agent reads what it actually needs (specific fil
 
 (Covered above. Two additional notes.)
 
-- **Charter §Tool surface evolution.** v1 ships with exactly two tools (`read_file`, `list_dir`). Adding a third tool later (e.g., `glob`, `git_log`) is a config + adapter change, but it's also a *capability surface expansion* and should get a follow-up decision record at that point — not just a quiet adapter PR. Recording this here so the precedent is explicit.
+- **Charter §Tool surface evolution.** v1 ships with exactly three tools (`read_file`, `list_dir`, `glob`). Adding a fourth tool later (e.g., `grep`, `git_log`, `git_blame`) is a config + adapter change, but it's also a *capability surface expansion* and should get a follow-up decision record at that point — not just a quiet adapter PR. Recording this here so the precedent is explicit.
 - **DR0012 inlined-sandbox path is preserved, not deleted.** When `tool_loop: false` (the v1 default), DR0012 behavior is unchanged. This is intentional — it lets Glen verify each seat in isolation and roll back per-seat without code changes. Once all configured seats are verified and the default flips to `true`, the inlined-contents path is still kept as a fallback for seats whose models don't support function-calling. We don't anticipate removing it.
 
 ## Open Questions
 
 - **Bounds tuning.** `max_tool_iterations=8` and `max_tool_bytes=256KiB` are first-pass guesses based on rough reasoning about how many files a useful round of exploration touches. Real-world usage may show these need tightening (cost) or loosening (capability). Both are config-driven, so tuning is a config edit. Glen should expect to revisit them after the first 5–10 tool-loop conclaves.
 - **Per-iteration prompt format on subsequent rounds.** OpenAI's spec calls for appending the original assistant message containing the tool calls plus one `role: "tool"` message per result. We follow that. If a model insists on a different shape (some OpenRouter providers handle this differently), the adapter will need per-provider adjustments — handle that case if and when it surfaces.
-- **`glob` as a v2 tool.** If the agent shows up in transcripts repeatedly doing manual `list_dir` walks to find files by name pattern, `glob` is the natural next tool to add. Tracked here, not built.
+- **`glob` cap of 200 paths.** First-pass guess. If real usage shows the agent doing follow-up `glob` calls with progressively narrower patterns to fit under the cap (`**/*.py` returns 250, so it asks for `app/**/*.py`, then `app/services/**/*.py`), the cap is too tight and should be loosened. Conversely, if a careless `**/*` over a giant repo bloats the audit trail without value, tighten. Tunable in the same way as the other bounds.
 - **Behavior when the sandbox is absent.** If a task is submitted with no `project_path`, the adapter should still surface the tools but every call returns "sandbox not present." Alternative: don't surface the tools at all on no-sandbox tasks. Decision deferred until implementation — both are cheap.
 
 ## Who Is Keeping Continuity
