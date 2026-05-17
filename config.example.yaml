@@ -72,6 +72,10 @@ retention:
   max_completed_tasks: 1000         # OR when completed-task count exceeds this
   min_task_age_days: 90             # never trim tasks newer than this
   check_interval_seconds: 21600     # 6 hours between retention passes
+  # Opt-in: drop final_results for tasks already exported to disk
+  # (the markdown export is the long-term archive). Off by default —
+  # turn on once you trust your export workflow.
+  trim_tier2_after_export: false
 
 # -----------------------------------------------------------------------------
 # Dashboard. MVP serves the dashboard on the same port as the API.

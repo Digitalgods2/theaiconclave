@@ -65,6 +65,12 @@ class RetentionConfig(BaseModel):
     max_completed_tasks: int = 1000
     min_task_age_days: int = 90
     check_interval_seconds: int = 6 * 60 * 60  # 6 hours
+    # Tier 2 (final_results) is "retain indefinitely until exported" by DR0003.
+    # With export tracking (DR0005) now in place, this opt-in flag lets the
+    # retention pass also drop final_results rows for tasks that have been
+    # exported to disk — the markdown export is the long-term archive.
+    # Off by default; turn on once you trust your export workflow.
+    trim_tier2_after_export: bool = False
 
 
 class DashboardConfig(BaseModel):

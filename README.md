@@ -34,14 +34,17 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Project sandbox** — a per-task read-only copy of your code project so agents can browse source during a deliberation without write/execute risk. (In-conclave write/execute — "Layer 2" — was [considered and intentionally not built](docs/ROADMAP.md).)
 - **Threading** — `parent_task_id`, ancestry walks, prior-thread context auto-injected into follow-ups (`/continue`).
 - **Decision records** — significant work closes with a structured record (what was chosen, why, what was rejected, known risks, open questions, who keeps continuity, and — for capability/infrastructure changes — an Operability Impact field). See [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
-- **Retention policy** — tier-based: Tier 1 (never trimmed — decisions, charter amendments, unresolved dissent), Tier 2 (retain until exported), Tier 3 (agent messages — trimmed first). Operational triggers at 2 GB DB size / 1,000 tasks; a 6-hour worker.
+- **Decision Memory** — every new task auto-retrieves the most relevant past decision records (TF-IDF over `docs/decisions/`) and surfaces them as a *Prior Art* section both in agent prompts and on the dashboard, so settled questions don't get re-litigated.
+- **Confidence-weighted convergence** — every conclave's final result carries an aggregate confidence stat (min/max/mean) plus a per-agent round-by-round trajectory, so you can see whether `consensus` was 4×0.95 (robust) or 1×0.95 + 3×0.4 (conformist drift). A wide-spread caveat fires automatically when participants converged with materially different certainty levels.
+- **Retention policy** — tier-based: Tier 1 (never trimmed — decisions, charter amendments, unresolved dissent), Tier 2 (retain until exported), Tier 3 (agent messages — trimmed first). Operational triggers at 2 GB DB size / 1,000 tasks; a 6-hour worker. Opt-in `trim_tier2_after_export` lets the worker also drop `final_results` for tasks already exported to disk.
 - **Tier 2 export/archive** — `exported_at` tracking, bulk export endpoint, inbox filter.
+- **Orphan task reaper** — startup sweep marks any task stuck in `running` for >1h as `failed` with preserved transcript and a `task_orphaned` audit-log entry. Bare-minimum recoverability without UI surface — the full recovery console is intentionally deferred until stuck tasks are observed in practice.
 - **Live deliberation visibility** — the dashboard shows the currently-active agent + elapsed time + recent runs while a task is in flight.
 - **Cost/usage tracking** — per-`agent_run` token counts and (where the provider reports it) USD-equivalent cost; per-message inline + aggregate on terminal tasks.
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
 - **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **Test suite** covering protocol, modes, threading, retention, attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, and the settings API.
+- **Test suite** (210 tests) covering protocol, modes, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, and Decision Memory.
 
 ---
 
@@ -234,9 +237,9 @@ pytest
 
 ## Status
 
-Beyond proof-of-concept. All three real adapters run end-to-end. Conclave, resolve, and consult modes are live, including the user-input pause/resume cycle, threading, multimodal attachments, the project sandbox, the convergence judge, retention, export tracking, the dashboard, and cross-CLI slash commands.
+Beyond proof-of-concept. All three real adapters run end-to-end. Conclave, resolve, and consult modes are live, including the user-input pause/resume cycle, threading, multimodal attachments, the project sandbox, the convergence judge, retention (with opt-in Tier 2 trim after export), export tracking, the orphan-task reaper, confidence-weighted convergence, Decision Memory retrieval, the dashboard, and cross-CLI slash commands.
 
-Current "Next" items (see [`docs/ROADMAP.md`](docs/ROADMAP.md)): crash-safe worker / orphan-task reaper, opt-in Tier 2 trim after export, dashboard.js modularization, inbox tagging. New capability proposals are evaluated against the Charter v1.2 *Operability before capability* principle.
+Current "Next" items (see [`docs/ROADMAP.md`](docs/ROADMAP.md)): re-draft of DR0013 (pre-fetched URL attachments v2), tool-loop architecture for the API-based seats, `dashboard.js` modularization, inbox tagging. New capability proposals are evaluated against the Charter v1.2 *Operability before capability* principle.
 
 ---
 

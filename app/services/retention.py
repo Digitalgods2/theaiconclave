@@ -105,6 +105,40 @@ def find_trimmable_tasks(min_age_days: int) -> list[str]:
     return [r["id"] for r in rows]
 
 
+def find_trimmable_tier2_tasks(min_age_days: int) -> list[str]:
+    """Return Tier-2-eligible task IDs for post-export trimming, oldest-first.
+
+    Eligibility (all must hold):
+      - status is terminal (completed | failed | cancelled)
+      - final_results row exists (something to trim)
+      - exported_at IS NOT NULL — the markdown export on disk is the
+        long-term archive of the verdict
+      - created_at older than min_age_days
+      - not referenced as parent_task_id by any other task (no live thread)
+
+    Opt-in via retention.trim_tier2_after_export — disabled by default
+    per DR0003's "retain indefinitely until exported" stance.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=min_age_days)).isoformat()
+    with connect() as conn:
+        rows = conn.execute(
+            """
+            SELECT t.id
+            FROM tasks t
+            JOIN final_results fr ON t.id = fr.task_id
+            WHERE t.status IN ('completed', 'failed', 'cancelled')
+              AND t.exported_at IS NOT NULL
+              AND t.created_at < ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM tasks child WHERE child.parent_task_id = t.id
+              )
+            ORDER BY t.created_at ASC
+            """,
+            (cutoff,),
+        ).fetchall()
+    return [r["id"] for r in rows]
+
+
 # ---------------------------------------------------------------------------
 # Trim
 # ---------------------------------------------------------------------------
@@ -112,6 +146,12 @@ def find_trimmable_tasks(min_age_days: int) -> list[str]:
 def _delete_messages_for(task_id: str) -> int:
     with connect() as conn:
         cur = conn.execute("DELETE FROM agent_messages WHERE task_id = ?", (task_id,))
+        return cur.rowcount
+
+
+def _delete_final_result_for(task_id: str) -> int:
+    with connect() as conn:
+        cur = conn.execute("DELETE FROM final_results WHERE task_id = ?", (task_id,))
         return cur.rowcount
 
 
@@ -136,8 +176,14 @@ def trim_to_budget(
     max_task_count: int,
     min_age_days: int,
     db_path: str | Path,
+    trim_tier2_after_export: bool = False,
 ) -> dict[str, Any]:
-    """Run a single retention pass. Returns a summary dict suitable for logging."""
+    """Run a single retention pass. Returns a summary dict suitable for logging.
+
+    Tier 3 (agent_messages) is trimmed first. If `trim_tier2_after_export` is
+    True and budgets are still over after Tier 3, Tier 2 (final_results) is
+    additionally trimmed for tasks whose markdown export already exists.
+    """
     initial_size = db_size_bytes(db_path)
     initial_count = completed_task_count()
 
@@ -171,8 +217,23 @@ def trim_to_budget(
         trimmed_messages += n
         trimmed_tasks.append(tid)
 
+    # Tier 2: only if opt-in flag is set AND Tier 3 wasn't enough.
+    trimmed_tier2_tasks: list[str] = []
+    trimmed_final_results = 0
+    if (trim_tier2_after_export
+            and (db_size_bytes(db_path) > max_db_size_bytes
+                 or completed_task_count() > max_task_count)):
+        for tid in find_trimmable_tier2_tasks(min_age_days):
+            if (db_size_bytes(db_path) <= max_db_size_bytes
+                    and completed_task_count() <= max_task_count):
+                break
+            n = _delete_final_result_for(tid)
+            if n:
+                trimmed_final_results += n
+                trimmed_tier2_tasks.append(tid)
+
     vacuumed = False
-    if trimmed_tasks:
+    if trimmed_tasks or trimmed_tier2_tasks:
         vacuumed = _vacuum()
 
     return {
@@ -181,6 +242,9 @@ def trim_to_budget(
         "trimmed_task_count": len(trimmed_tasks),
         "trimmed_message_count": trimmed_messages,
         "trimmed_task_ids": trimmed_tasks,
+        "trimmed_tier2_task_count": len(trimmed_tier2_tasks),
+        "trimmed_tier2_task_ids": trimmed_tier2_tasks,
+        "trimmed_final_result_count": trimmed_final_results,
         "vacuumed": vacuumed,
         "before": {"db_size_bytes": initial_size, "completed_task_count": initial_count},
         "after": {
@@ -216,6 +280,9 @@ async def retention_loop(config) -> None:
                 max_task_count=config.retention.max_completed_tasks,
                 min_age_days=config.retention.min_task_age_days,
                 db_path=config.database.path,
+                trim_tier2_after_export=getattr(
+                    config.retention, "trim_tier2_after_export", False
+                ),
             )
             if result.get("ran"):
                 logger.info("Retention pass: %s", result)

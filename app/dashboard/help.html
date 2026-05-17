@@ -1,4 +1,4 @@
-<!-- HELP_DOC_VERSION: 1.1.2 -->
+<!-- HELP_DOC_VERSION: 1.1.3 -->
 <!-- HELP_COVERED_APP_VERSION: 0.1.0 -->
 <!-- HELP_LAST_UPDATED: 2026-05-16 -->
 
@@ -110,6 +110,9 @@
             <li><a href="#help-ops-retention">11.2 Tier-based retention</a></li>
             <li><a href="#help-ops-export-tier">11.3 Tier 2 export tracking</a></li>
             <li><a href="#help-ops-never-trim">11.4 What is never auto-trimmed</a></li>
+            <li><a href="#help-ops-confidence">11.5 Confidence-weighted convergence</a></li>
+            <li><a href="#help-ops-decision-memory">11.6 Decision Memory (Prior Art)</a></li>
+            <li><a href="#help-ops-orphan-reaper">11.7 Orphan task reaper</a></li>
           </ol>
         </li>
         <li><a href="#help-exports">12. Exports</a>
@@ -850,6 +853,7 @@
 <p>Retention runs in the background on a fixed cadence — every <code>21600</code> seconds (6 hours) — via the worker started at service launch. Each pass is a no-op unless an operational trigger fires: either the on-disk database (SQLite file plus its WAL and SHM sidecars) exceeds <code>max_db_size_mb</code> (default <code>2048</code> MB, i.e. 2 GB), or the count of terminal tasks (<code>completed</code>, <code>failed</code>, <code>cancelled</code>) exceeds <code>max_completed_tasks</code> (default <code>1000</code>). Either condition alone is enough to trigger a pass.</p>
 <p>Selection is tier-based, not time-based. Tier 1 — decisions, charter amendments, and unresolved dissent — is never auto-trimmed. Tier 2 — the <code>final_results</code> row carrying the conclave's verdict and agreement level — is retained until you explicitly export it. Tier 3 — the <code>agent_messages</code> rows holding the per-turn transcript — is what gets trimmed first, oldest task first, only for tasks that are terminal, summarized, unreferenced by any child thread, and either reached consensus or have a user decision recorded.</p>
 <p>An absolute minimum age applies on top: tasks newer than <code>min_task_age_days</code> (default <code>90</code>) are never trimmed regardless of triggers or tier. After a trim, <code>VACUUM</code> runs so SQLite actually returns the space to disk.</p>
+<p><strong>Opt-in Tier 2 trim after export.</strong> Setting <code>retention.trim_tier2_after_export: true</code> in <code>config.yaml</code> lets the worker also drop <code>final_results</code> rows for tasks whose markdown export already exists on disk (the export is the long-term archive). Tier 2 only kicks in if Tier 3 trimming was insufficient to bring the database back under budget. The flag is off by default — turn it on once you trust your export workflow.</p>
 <!-- END:section-11.2 -->
         </section>
         <section id="help-ops-export-tier" class="help-subsection">
@@ -858,7 +862,7 @@
 <p>Each task has two columns supporting export tracking: <code>exported_at</code> (timestamp of last export) and <code>export_path</code> (path of the written file). Both are <code>NULL</code> for tasks you have never exported.</p>
 <p>Exporting a task — either via the "Export to decision record" button in the Detail view or by hitting <code>POST /api/tasks/{id}/export</code> directly — writes a markdown snapshot to <code>data/exports/&lt;task_id&gt;.md</code> and stamps both columns. The Inbox shows an "exported" indicator on tasks that have been exported, and the label on subsequent exports of the same task switches to "Re-export" so you know you are overwriting an existing snapshot rather than producing the first one.</p>
 <p>For bulk export, <code>POST /api/tasks/export-batch</code> iterates every terminal task with a <code>NULL</code> <code>exported_at</code> and writes each one to <code>data/exports/</code>. This is the "snapshot everything I have not preserved yet" path — useful periodically, particularly before any retention work you want to be sure does not touch unsaved verdicts. The Inbox's export-status filter lets you scan for what is still unexported before running it.</p>
-<p>The export columns are also what the planned "trim Tier 2 after export" amendment (listed in the ROADMAP under Next) would hook into.</p>
+<p>The export columns are also what the (now shipped, opt-in) <code>retention.trim_tier2_after_export</code> flag hooks into — when set, the retention worker considers exported tasks eligible to drop their <code>final_results</code> rows once Tier 3 trimming alone is not enough to come back under budget.</p>
 <!-- END:section-11.3 -->
         </section>
         <section id="help-ops-never-trim" class="help-subsection">
@@ -869,6 +873,29 @@
 <p>Third, anything still referenced as a parent by a live thread. As long as another task points at it via <code>parent_task_id</code>, the orchestrator keeps the messages around so <code>/thread</code> and <code>/continue</code> can walk the ancestry.</p>
 <p>You can tune all of this in <code>config.yaml</code> under the <code>retention</code> section. Set <code>enabled: false</code> to disable retention entirely; raise <code>max_db_size_mb</code> or <code>max_completed_tasks</code> to push the triggers out; lengthen <code>min_task_age_days</code> if you want a longer untouched window. The retention pass logs a summary line on every actual trim, so you can confirm exactly which task IDs were touched.</p>
 <!-- END:section-11.4 -->
+        </section>
+        <section id="help-ops-confidence" class="help-subsection">
+          <h4>11.5 Confidence-weighted convergence</h4>
+          <!-- BEGIN:section-11.5 -->
+<p>Every conclave participant emits a <code>confidence</code> score (0.0–1.0) on every turn. The system collects these turn-by-turn already, but Phase 2 of the post-DR plan on <code>tsk_01KRSW6AS3M66B4RRJE3JFAPRV</code> made them visible: the Final Result panel now shows an aggregate stat row (min / mean / max / participant count) with green / amber / red banding, and below it a round-by-round dot trail per participant. That round trail is the "who-persuaded-whom" record — you can see who held firm (codex 0.86 → 0.95 in a five-round task), who reached certainty fast (gemini 0.85 → 1.00), and who actually reconsidered mid-deliberation before joining the consensus (claude-code dipping to 0.65 in round 3, climbing back to 0.97 by round 5).</p>
+<p>When the spread between max and min is at least <code>0.30</code> across two or more participants, a caveat fires explicitly: "Wide spread … consensus may be conformist drift rather than robust agreement." This is exactly the failure mode the Charter v1.1 Multimodal Disagreement clause was designed to flag — a "consensus" reading of <code>agreement_level=consensus</code> that's actually 1×0.95 + 3×0.4 instead of 4×0.95. The synthesis directive (the one-shot round after weak convergence) also now includes each participant's confidence inline so the synthesizer can weight positions by stated certainty rather than treating all voices as equal.</p>
+<p>The aggregate is persisted in <code>final_results.confidence_aggregate_json</code>; the trajectory is computed on-the-fly from <code>agent_messages</code> at view time (works for any historical task, not just post-Phase-2 ones).</p>
+<!-- END:section-11.5 -->
+        </section>
+        <section id="help-ops-decision-memory" class="help-subsection">
+          <h4>11.6 Decision Memory (Prior Art)</h4>
+          <!-- BEGIN:section-11.6 -->
+<p>Every new task automatically retrieves the most relevant past decision records and surfaces them as a <em>Prior Art</em> section, both in the prompts the agents see and as a gold-accented panel in the Detail view between the user request and the transcript. The retrieval is TF-IDF cosine similarity over <code>docs/decisions/*.md</code> — zero external dependencies, computed at task-creation time, and frozen so the user sees later exactly what the agents saw when they deliberated.</p>
+<p>The top three matches with a relevance score ≥ <code>0.05</code> are persisted in <code>tasks.prior_art_json</code>. The injected prompt section reads, for each match, the decision number ("Decision 11"), title, date, relevance score, the summary paragraph from the record's <em>What Was Chosen</em> section, and the file path under <code>docs/decisions/</code>. Agents are explicitly told to consult them and either cite a record that settles the question or say why it doesn't apply — the goal is to operationalize the Charter's "decisions are reusable context for future work" mandate so settled questions don't get re-litigated.</p>
+<p>Real-corpus behavior: "OpenRouter API key storage" hits Decision 11 (relevance <code>0.13</code>) plus Decision 10 (relevance <code>0.07</code>); "multimodal disagreement" hits Decision 2 (<code>0.26</code>); "export task as pdf" hits Decision 8 (<code>0.21</code>); unrelated queries return nothing. The index is rebuilt automatically when any file under <code>docs/decisions/</code> changes.</p>
+<!-- END:section-11.6 -->
+        </section>
+        <section id="help-ops-orphan-reaper" class="help-subsection">
+          <h4>11.7 Orphan task reaper</h4>
+          <!-- BEGIN:section-11.7 -->
+<p>A small startup sweep handles the worker-crash failure mode where a task ends up stuck in <code>running</code> forever. The reaper (<code>app/services/orphan_reaper.py</code>) runs once at service launch, scans for any task whose status is still <code>running</code> and whose <code>updated_at</code> is older than one hour, marks it <code>failed</code> with the message <code>"orphaned: no progress for &gt;1h; marked failed by startup reaper"</code>, and writes a <code>task_orphaned</code> entry to the <code>logs</code> table.</p>
+<p>The transcript and any agent_runs / final_results rows are preserved untouched — only the task status changes. Idempotent (re-running on the same DB does nothing once everything is marked failed), wrapped in a try/except so a reaper failure never blocks service startup, and tunable via the <code>threshold_hours</code> parameter if you ever want a tighter or looser window. Zero UI surface by design — the full user-facing recovery console (inspect last durable state, requeue, export recovery bundle) is intentionally deferred until stuck tasks turn out to be a recurring problem.</p>
+<!-- END:section-11.7 -->
         </section>
       </section>
 
@@ -887,7 +914,7 @@
           <!-- BEGIN:section-12.2 -->
 <p>Decision record export is the canonical "I want to keep this" action for a terminal task. The "Export to decision record" button on the Detail view (or <code>POST /api/tasks/{id}/export</code> from the API) writes a markdown snapshot to <code>data/exports/&lt;task_id&gt;.md</code> and stamps the task's <code>exported_at</code> and <code>export_path</code> columns so the system knows you have preserved it.</p>
 <p>The contents mirror the markdown export pipeline in <code>app/services/exporter.py</code>: a header with task id, mode, task type, agents, timestamps, and any parent task; the original question fenced verbatim; the recorded decision (with the timestamp you recorded it at); the final result, including <code>agreement_level</code>, <code>resolution_status</code>, any disagreements with primary and consultant positions, recommended actions, risks, and commands or patches that would require approval; the full transcript grouped by round for conclave mode (flat for the others) with every agent's structured fields preserved; and a usage table showing per-run tokens and USD cost plus the task totals.</p>
-<p>Two things to note. It overwrites in place — re-exporting the same task replaces the prior file at <code>data/exports/&lt;task_id&gt;.md</code> and the dashboard label flips to "Re-export". And it is the action the retention system watches: a task with <code>exported_at</code> set is what the planned "trim Tier 2 after export" amendment would consider eligible for further trimming.</p>
+<p>Two things to note. It overwrites in place — re-exporting the same task replaces the prior file at <code>data/exports/&lt;task_id&gt;.md</code> and the dashboard label flips to "Re-export". And it is the action the retention system watches: when <code>retention.trim_tier2_after_export</code> is on (opt-in), a task with <code>exported_at</code> set becomes eligible to drop its <code>final_results</code> row during a later retention pass.</p>
 <!-- END:section-12.2 -->
         </section>
         <section id="help-exports-bulk" class="help-subsection">
@@ -931,11 +958,10 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
           <h4>13.3 Stuck tasks</h4>
           <!-- BEGIN:section-13.3 -->
 <p>If a task sits in <code>running</code> indefinitely — long past any reasonable per-agent timeout — the worker has almost certainly crashed mid-task. The task's status field is updated by the worker that owns it, so if the worker dies, the field stays stuck.</p>
-<p>The fix is to restart the service. On startup, an orphan-sandbox sweep runs and cleans up any per-task sandbox directories under <code>data/sandboxes/</code> whose owning task is no longer live. That reclaims disk space and removes confusing leftovers, but it does not touch the task row itself — the stuck task stays in <code>running</code> in the database.</p>
-<p>From there you have two practical options. Leave it as historical noise (the Inbox filter on status lets you hide running tasks if it bothers you), or manually update the row in SQLite:</p>
+<p>The fix is to restart the service. Two sweeps run at startup. First, the orphan-sandbox sweep cleans up any per-task sandbox directories under <code>data/sandboxes/</code> whose owning task is no longer live. Second, the orphan-task reaper (<code>app/services/orphan_reaper.py</code>) scans for any task still in <code>running</code> whose <code>updated_at</code> is older than one hour, marks it <code>failed</code> with the message <code>"orphaned: no progress for &gt;1h; marked failed by startup reaper"</code>, and writes a <code>task_orphaned</code> entry to the <code>logs</code> table. The transcript, agent_runs, and any final_results rows are preserved verbatim — only the task status changes.</p>
+<p>So in practice: bounce the service and the stuck task moves itself to <code>failed</code>. If for some reason you need to intervene faster than that — e.g. you want to clear a task mid-session — the manual SQL path still works:</p>
 <pre><code>sqlite3 data/switchboard.db "UPDATE tasks SET status='failed', error_message='worker crash' WHERE id='tsk_...';"</code></pre>
-<p>Pick whichever you prefer; neither affects future tasks. The retention worker will eventually consider the row eligible for trimming on its normal schedule, subject to the usual tier rules.</p>
-<p>A crash-safe reaper is on the <code>ROADMAP</code> under Next item #1: a startup sweep that resets tasks stuck in <code>running</code> beyond a configurable threshold back to <code>pending</code> or marks them <code>failed</code> with an explanatory message. Until that ships, the manual path above is the workflow.</p>
+<p>The full user-facing recovery console (inspect last durable state, requeue from last safe point, export recovery bundle) is intentionally not built — it would only earn its keep if stuck tasks become a recurring problem in practice rather than a once-in-a-blue-moon occurrence.</p>
 <!-- END:section-13.3 -->
         </section>
         <section id="help-trouble-overflow" class="help-subsection">
