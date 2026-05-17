@@ -3488,7 +3488,9 @@ function renderPriorArt(matches) {
   for (const m of matches) {
     const card = el("div", { class: "prior-art-card" });
     const head = el("div", { class: "prior-art-head" });
-    head.appendChild(el("span", { class: "prior-art-number", text: "DR" + m.number }));
+    // Strip leading zeros: "0011" -> "11" for readability.
+    const num = String(m.number).replace(/^0+/, "") || m.number;
+    head.appendChild(el("span", { class: "prior-art-number", text: "Decision " + num }));
     head.appendChild(el("span", { class: "prior-art-title", text: m.title || "" }));
     if (m.date) head.appendChild(el("span", { class: "prior-art-date muted", text: m.date }));
     head.appendChild(el("span", {

@@ -198,8 +198,10 @@ def format_for_prompt(matches: list[dict]) -> str:
     ]
     for m in matches:
         date_str = f", {m['date']}" if m.get("date") else ""
+        # Strip leading zeros: "0011" -> "11" for readability.
+        num = str(m["number"]).lstrip("0") or m["number"]
         lines.append(
-            f"## DR{m['number']} — {m['title']}{date_str} "
+            f"## Decision {num} — {m['title']}{date_str} "
             f"(relevance {m['score']:.2f})"
         )
         if m.get("summary"):

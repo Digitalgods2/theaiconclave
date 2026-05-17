@@ -168,8 +168,8 @@ def test_format_for_prompt_includes_each_match():
          "summary": "Built the panel.",     "path": "docs/decisions/0010.md", "score": 0.21},
     ]
     out = dm.format_for_prompt(matches)
-    assert "DR0011" in out
-    assert "DR0010" in out
+    assert "Decision 11" in out
+    assert "Decision 10" in out
     assert "OpenRouter seats" in out
     assert "Prior Art" in out
     assert "relevance 0.42" in out
