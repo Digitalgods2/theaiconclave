@@ -44,7 +44,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
 - **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **Test suite** (332 tests) covering protocol, modes, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, the OpenRouter tool-loop, the user-data-root resolver, config discovery, the first-run migration, per-seat readiness, the health endpoint shape, and centralized prompt-budget enforcement.
+- **Test suite** (337 tests) covering protocol, modes, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, the OpenRouter tool-loop, the user-data-root resolver, config discovery, the first-run migration, per-seat readiness, the health endpoint shape, centralized prompt-budget enforcement, and the CLI-seat sandbox-manifest toggle.
 
 ---
 

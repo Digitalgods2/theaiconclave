@@ -240,3 +240,147 @@ def test_budget_does_not_eat_into_schema_demand():
     assert '"role": "primary"' in prompt
     # The marker is there
     assert "earlier turns omitted" in prompt
+
+
+# ---------------------------------------------------------------------------
+# DR0018 — sandbox manifest toggle
+# ---------------------------------------------------------------------------
+
+def _task_with_sandbox(tmp_path) -> TaskRequest:
+    """Task with a real on-disk sandbox so build_manifest produces real output."""
+    # Populate the sandbox dir with a few files so the manifest isn't empty.
+    sb = tmp_path / "sandbox"
+    sb.mkdir()
+    (sb / "main.py").write_text("# main\n", encoding="utf-8")
+    (sb / "app.py").write_text("# app\n", encoding="utf-8")
+    (sb / "README.md").write_text("# project\n", encoding="utf-8")
+
+    perms = Permissions(
+        can_read_files=True, can_write_files=False, can_run_commands=False,
+        can_access_network=False, can_install_packages=False,
+        can_apply_patches=False, can_read_env_files=False, can_read_secrets=False,
+    )
+    limits = Limits(max_rounds=5, timeout_seconds=180, max_seconds=600)
+    return TaskRequest(
+        protocol_version="1.0",
+        source=TaskSource.API,
+        mode=TaskMode.CONSULT,
+        primary_agent="codex",
+        consultants=["claude-code"],
+        user_request="please review",
+        task_type="general_consultation",
+        permissions=perms,
+        limits=limits,
+        context={"extra": {"sandbox_path": str(sb)}},
+    )
+
+
+def test_primary_prompt_includes_manifest_by_default(tmp_path):
+    """Default behavior (OpenRouter seats) keeps the file manifest in-prompt."""
+    task = _task_with_sandbox(tmp_path)
+    prompt = build_primary_prompt(task, "tsk_test", "deepseek", prior_messages=[])
+    assert "Project Sandbox" in prompt
+    assert "File Manifest" in prompt
+    assert "main.py" in prompt
+    assert "app.py" in prompt
+
+
+def test_primary_prompt_omits_manifest_when_cli_seat_opts_out(tmp_path):
+    """CLI seats pass include_sandbox_manifest=False — path + tool guidance
+    stay, file manifest does not."""
+    task = _task_with_sandbox(tmp_path)
+    prompt = build_primary_prompt(
+        task, "tsk_test", "codex", prior_messages=[],
+        include_sandbox_manifest=False,
+    )
+    # Path mention + tool guidance are preserved
+    assert "Project Sandbox" in prompt
+    assert "read-only sandbox copy" in prompt
+    assert "Codex shell" in prompt
+    # Manifest block is dropped
+    assert "File Manifest" not in prompt
+    assert "main.py" not in prompt
+    assert "app.py" not in prompt
+
+
+def test_consultant_prompt_honors_manifest_toggle(tmp_path):
+    task = _task_with_sandbox(tmp_path)
+
+    with_manifest = build_consultant_prompt(
+        task, "tsk_test", "deepseek", prior_messages=[],
+        include_sandbox_manifest=True,
+    )
+    without_manifest = build_consultant_prompt(
+        task, "tsk_test", "codex", prior_messages=[],
+        include_sandbox_manifest=False,
+    )
+    assert "main.py" in with_manifest
+    assert "main.py" not in without_manifest
+    # Both still mention the sandbox path
+    assert "Project Sandbox" in with_manifest
+    assert "Project Sandbox" in without_manifest
+
+
+def test_conclave_prompt_honors_manifest_toggle(tmp_path):
+    """Conclave-mode tasks see the same toggle behavior."""
+    sb = tmp_path / "sandbox"
+    sb.mkdir()
+    (sb / "x.py").write_text("# x\n", encoding="utf-8")
+    perms = Permissions(
+        can_read_files=True, can_write_files=False, can_run_commands=False,
+        can_access_network=False, can_install_packages=False,
+        can_apply_patches=False, can_read_env_files=False, can_read_secrets=False,
+    )
+    limits = Limits(max_rounds=5, timeout_seconds=180, max_seconds=600)
+    task = TaskRequest(
+        protocol_version="1.0",
+        source=TaskSource.API,
+        mode=TaskMode.CONCLAVE,
+        consultants=["codex", "deepseek"],
+        user_request="conclave please",
+        task_type="general_consultation",
+        permissions=perms,
+        limits=limits,
+        context={"extra": {"sandbox_path": str(sb)}},
+    )
+
+    with_manifest = build_conclave_prompt(
+        task, "tsk_test", "deepseek",
+        prior_messages=[], other_participants=["codex"],
+        include_sandbox_manifest=True,
+    )
+    without_manifest = build_conclave_prompt(
+        task, "tsk_test", "codex",
+        prior_messages=[], other_participants=["deepseek"],
+        include_sandbox_manifest=False,
+    )
+    assert "x.py" in with_manifest
+    assert "x.py" not in without_manifest
+
+
+def test_manifest_toggle_no_sandbox_is_safe(tmp_path):
+    """If the task has no sandbox at all, the toggle has no effect (empty section either way)."""
+    perms = Permissions(
+        can_read_files=True, can_write_files=False, can_run_commands=False,
+        can_access_network=False, can_install_packages=False,
+        can_apply_patches=False, can_read_env_files=False, can_read_secrets=False,
+    )
+    limits = Limits(max_rounds=5, timeout_seconds=180, max_seconds=600)
+    task = TaskRequest(
+        protocol_version="1.0",
+        source=TaskSource.API,
+        mode=TaskMode.CONSULT,
+        primary_agent="codex",
+        consultants=["claude-code"],
+        user_request="just a question",
+        task_type="general_consultation",
+        permissions=perms,
+        limits=limits,
+    )
+    with_manifest = build_primary_prompt(task, "tsk_test", "deepseek", prior_messages=[],
+                                          include_sandbox_manifest=True)
+    without_manifest = build_primary_prompt(task, "tsk_test", "codex", prior_messages=[],
+                                             include_sandbox_manifest=False)
+    # Neither prompt mentions a sandbox at all
+    assert "Project Sandbox" not in with_manifest
+    assert "Project Sandbox" not in without_manifest

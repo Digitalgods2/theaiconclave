@@ -218,8 +218,15 @@ def _truncate_for_thread(s: str, max_chars: int) -> str:
     return s[:max_chars].rstrip() + f"\n[truncated at {max_chars} chars]"
 
 
-def _format_project_sandbox(task: TaskRequest) -> str:
-    """Render the sandbox section: path + file manifest, when a sandbox is attached.
+def _format_project_sandbox(task: TaskRequest, include_manifest: bool = True) -> str:
+    """Render the sandbox section: path + (optionally) file manifest, when a sandbox is attached.
+
+    `include_manifest` controls whether a `## File Manifest` listing is appended.
+    DR0018: CLI seats (codex / claude-code / gemini) pass `False` here because
+    they have native file-navigation tools (`-C`, `--add-dir`, `--include-directories`)
+    that can enumerate the sandbox on demand. Inlining the manifest for them
+    wastes prompt budget. OpenRouter seats pass `True` (default) — they have
+    no native tools and need the manifest to know what's available.
 
     Lazy import of sandbox.build_manifest to avoid a circular import at module
     load time (orchestrator -> prompt_builder, sandbox is loaded by both).
@@ -227,21 +234,25 @@ def _format_project_sandbox(task: TaskRequest) -> str:
     sandbox_path = task.context.extra.get("sandbox_path")
     if not sandbox_path:
         return ""
-    from pathlib import Path
-    from app.services.sandbox import build_manifest
-    sandbox = Path(sandbox_path)
-    manifest = build_manifest(sandbox)
-    return (
-        "# Project Sandbox\n"
-        f"A read-only sandbox copy of the user's project is available at:\n"
-        f"  {sandbox_path}\n\n"
+    parts = [
+        "# Project Sandbox",
+        f"A read-only sandbox copy of the user's project is available at:",
+        f"  {sandbox_path}",
+        "",
         "This is a snapshot of the source tree, fixed at the moment this task started. "
         "You may use your read tools (Codex shell in `-s read-only`, Gemini included-directory, "
         "Claude Read tool) to enumerate the file tree, open files, and reason about the code. "
-        "You CANNOT execute, modify, or run any code in the sandbox. Reasoning is static.\n\n"
-        "## File Manifest\n"
-        f"{manifest if manifest else '(empty)'}\n"
-    )
+        "You CANNOT execute, modify, or run any code in the sandbox. Reasoning is static.",
+        "",
+    ]
+    if include_manifest:
+        from pathlib import Path
+        from app.services.sandbox import build_manifest
+        manifest = build_manifest(Path(sandbox_path))
+        parts.append("## File Manifest")
+        parts.append(manifest if manifest else "(empty)")
+        parts.append("")
+    return "\n".join(parts)
 
 
 def _format_prior_art(task: TaskRequest) -> str:
@@ -318,6 +329,7 @@ def build_primary_prompt(
     agent_name: str,
     prior_messages: list[dict],
     ceiling_chars: Optional[int] = None,
+    include_sandbox_manifest: bool = True,
 ) -> str:
     """Prompt for run_primary (resolve and consult both call this).
 
@@ -325,6 +337,10 @@ def build_primary_prompt(
     oldest-first to fit within the remaining budget after reserved overhead
     (response + schema demand + tokenizer slop). Dropped messages are
     announced via an explicit marker so the agent knows the cut occurred.
+
+    `include_sandbox_manifest` (DR0018): pass `False` from CLI adapters
+    (codex / claude-code / gemini) because they have native file-navigation
+    tools. OpenRouter seats pass `True` (default) — they need the manifest.
     """
     if task.mode == TaskMode.RESOLVE:
         role_skill = _load_skill("resolution_behavior")
@@ -344,7 +360,7 @@ def build_primary_prompt(
         "",
         _format_task_framing(task),
         _format_thread_ancestors(task),
-        _format_project_sandbox(task),
+        _format_project_sandbox(task, include_manifest=include_sandbox_manifest),
         _format_attachments(task),
         _format_prior_art(task),
     ]
@@ -364,8 +380,13 @@ def build_consultant_prompt(
     agent_name: str,
     prior_messages: list[dict],
     ceiling_chars: Optional[int] = None,
+    include_sandbox_manifest: bool = True,
 ) -> str:
-    """Prompt for run_consultant."""
+    """Prompt for run_consultant.
+
+    `include_sandbox_manifest` (DR0018): CLI seats pass `False`; OpenRouter
+    seats pass `True` (default).
+    """
     role_skill = _load_skill("consultant_behavior")
     safety_skill = _load_skill("safety_behavior")
     parts = [
@@ -380,7 +401,7 @@ def build_consultant_prompt(
         "",
         _format_task_framing(task),
         _format_thread_ancestors(task),
-        _format_project_sandbox(task),
+        _format_project_sandbox(task, include_manifest=include_sandbox_manifest),
         _format_attachments(task),
         _format_prior_art(task),
         "",
@@ -401,9 +422,14 @@ def build_final_prompt(
     agent_name: str,
     prior_messages: list[dict],
     ceiling_chars: Optional[int] = None,
+    include_sandbox_manifest: bool = True,
 ) -> str:
     """Prompt for consult-mode run_final. Same as primary, but message_type guidance differs."""
-    prompt = build_primary_prompt(task, task_id, agent_name, prior_messages, ceiling_chars=ceiling_chars)
+    prompt = build_primary_prompt(
+        task, task_id, agent_name, prior_messages,
+        ceiling_chars=ceiling_chars,
+        include_sandbox_manifest=include_sandbox_manifest,
+    )
     # Nudge toward primary_final message_type. Adapter coerces this anyway.
     return prompt.replace(
         '"message_type": "primary_proposal"',
@@ -416,9 +442,14 @@ def build_peer_prompt(
     task_id: str,
     agent_name: str,
     ceiling_chars: Optional[int] = None,
+    include_sandbox_manifest: bool = True,
 ) -> str:
     """Prompt for poll-mode peers. Just primary-shaped output, no critique loop."""
-    return build_primary_prompt(task, task_id, agent_name, prior_messages=[], ceiling_chars=ceiling_chars)
+    return build_primary_prompt(
+        task, task_id, agent_name, prior_messages=[],
+        ceiling_chars=ceiling_chars,
+        include_sandbox_manifest=include_sandbox_manifest,
+    )
 
 
 def build_conclave_prompt(
@@ -428,8 +459,13 @@ def build_conclave_prompt(
     prior_messages: list[dict],
     other_participants: list[str],
     ceiling_chars: Optional[int] = None,
+    include_sandbox_manifest: bool = True,
 ) -> str:
-    """Prompt for one participant's turn in a conclave round."""
+    """Prompt for one participant's turn in a conclave round.
+
+    `include_sandbox_manifest` (DR0018): CLI seats pass `False`; OpenRouter
+    seats pass `True` (default).
+    """
     role_skill = _load_skill("conclave_behavior")
     safety_skill = _load_skill("safety_behavior")
     parts = [
@@ -444,7 +480,7 @@ def build_conclave_prompt(
         "",
         _format_task_framing(task),
         _format_thread_ancestors(task),
-        _format_project_sandbox(task),
+        _format_project_sandbox(task, include_manifest=include_sandbox_manifest),
         _format_attachments(task),
         _format_prior_art(task),
         "",
