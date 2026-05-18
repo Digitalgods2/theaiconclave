@@ -1,0 +1,16 @@
+[project]
+name = "ai-switchboard"
+version = "0.1.0"
+description = "Local FastAPI service for governed deliberation between AI coding agents (Codex, Claude Code, Gemini, plus OpenRouter open-weight seats). Single-user, local-only, SQLite-backed."
+readme = "README.md"
+requires-python = ">=3.13"
+
+# This file's other job, beyond standard project metadata, is to serve as
+# the dev-mode anchor for `app/utils/paths.user_data_root()` (DR0016).
+# When this file + `config.example.yaml` are both present in the cwd ancestor
+# chain at service startup, the runtime resolver treats `<repo>/data/` as
+# the writable state root — no migration to `%LOCALAPPDATA%` / `~/Library`.
+# Removing this file flips the service into packaged-app behavior.
+#
+# Test config (asyncio_mode, testpaths) lives in pytest.ini, not here, to keep
+# one source of truth.
