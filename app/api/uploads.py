@@ -1,8 +1,9 @@
 """File upload endpoint.
 
 Allows the dashboard to attach files (txt, md, pdf, code, images) to tasks.
-Uploads are stored at data/uploads/<file_id>/<original_filename> so the
-filename is preserved and a single endpoint can serve metadata.
+Uploads are stored at `<user_data_root>/uploads/<file_id>/<original_filename>`
+(see DR0016) so the filename is preserved and a single endpoint can serve
+metadata.
 """
 
 from __future__ import annotations
@@ -15,12 +16,12 @@ from typing import Any
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.utils.ids import _ulid
+from app.utils.paths import uploads_root
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/uploads", tags=["uploads"])
 
-UPLOADS_ROOT = Path("data/uploads")
 _MAX_BYTES = 20 * 1024 * 1024   # 20 MiB ceiling per file
 
 
@@ -40,7 +41,7 @@ def _safe_filename(raw: str) -> str:
 async def upload(file: UploadFile = File(...)) -> dict[str, Any]:
     fid = _file_id()
     filename = _safe_filename(file.filename or "unnamed")
-    dest_dir = UPLOADS_ROOT / fid
+    dest_dir = uploads_root() / fid
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / filename
 
@@ -75,7 +76,7 @@ async def info(file_id: str) -> dict[str, Any]:
     safe_id = _safe_filename(file_id)
     if safe_id != file_id:
         raise HTTPException(status_code=400, detail="invalid file_id")
-    dest_dir = UPLOADS_ROOT / file_id
+    dest_dir = uploads_root() / file_id
     if not dest_dir.exists():
         raise HTTPException(status_code=404, detail="file not found")
     files = list(dest_dir.iterdir())
@@ -94,7 +95,7 @@ def resolve_attachment_path(file_id: str) -> Path:
     """Return the filesystem path for an uploaded file_id. Raises FileNotFoundError if missing."""
     if not file_id or "/" in file_id or "\\" in file_id or ".." in file_id:
         raise ValueError(f"invalid file_id: {file_id!r}")
-    dest_dir = UPLOADS_ROOT / file_id
+    dest_dir = uploads_root() / file_id
     if not dest_dir.exists():
         raise FileNotFoundError(f"upload directory missing: {dest_dir}")
     files = list(dest_dir.iterdir())

@@ -122,6 +122,25 @@ The slash commands live in `~/.claude/commands/`. The skill that triggers on nat
   - `defaults.max_seconds` — total task time budget for resolve/conclave modes
   - `agents.<name>.command` — full path to a CLI if it's not on PATH
 
+## Where Switchboard stores its state
+
+Per [DR0016](docs/decisions/0016_user_data_root_and_lazy_config.md), all writable runtime state — the SQLite database, sandboxes, uploads, exports, logs, and pidlock — resolves through a single `user_data_root()` primitive:
+
+| Launch mode | Resolved root |
+|---|---|
+| **Dev / running from the repo** (cwd or ancestor has `pyproject.toml` + `config.example.yaml`) | `<repo>/data/` — same as before; nothing changes for contributors |
+| **Packaged build on Windows** | `%LOCALAPPDATA%\AI Switchboard\` |
+| **Packaged build on macOS** | `~/Library/Application Support/AI Switchboard/` |
+| **Packaged build on Linux** | `$XDG_DATA_HOME/ai-switchboard/` (or `~/.local/share/ai-switchboard/`) |
+| **Explicit override** | Whatever you set in `SWITCHBOARD_DATA_DIR` (test/CI/packager hook; wins over everything else) |
+
+When the packaged app launches for the first time and finds a populated `./data/` directory next to it, a one-time non-destructive migration runs: the SQLite DB is transferred via `VACUUM INTO` (handles the WAL/SHM coherence trap), and `sandboxes/`, `exports/`, `uploads/` are copied verbatim. The originals at `./data/` are preserved — you can delete them manually once you've confirmed everything moved cleanly. If an old Switchboard instance is still running against `./data/` when the new build launches, migration refuses to start and prints a clear error; stop the old instance and retry.
+
+Two env vars control this behavior:
+
+- `SWITCHBOARD_DATA_DIR=<path>` — override the resolved root entirely (handy in tests, CI, and packager build scripts).
+- `SWITCHBOARD_CONFIG=<path>` — override config-file discovery; otherwise the resolver looks at `<user_data_root>/config.yaml` (packaged) or `./config.yaml` / `./config.example.yaml` (dev).
+
 ## Troubleshooting
 
 **`pytest` fails on first run**

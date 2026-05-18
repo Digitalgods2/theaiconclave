@@ -14,13 +14,13 @@ from app.protocol.validators import MessageType, TaskRequest
 from app.services.exporter import export_to_markdown
 from app.services import doc_export
 from app.utils.ids import message_id, task_id as new_task_id
+from app.utils.paths import exports_root
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
-# Where decision-record exports land on disk. Kept deterministic so the user can
-# re-export idempotently (same task_id -> same file). The directory is created
-# on demand to avoid surprising the user with an empty folder on a fresh install.
-EXPORTS_DIR = Path("data") / "exports"
+# Decision-record exports land under `<user_data_root>/exports/` (DR0016).
+# Kept deterministic so the user can re-export idempotently (same task_id ->
+# same file). The directory is created on demand by `exports_root()`.
 
 
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
@@ -649,8 +649,7 @@ async def export_task(task_id: str) -> dict[str, Any]:
 
     markdown = export_to_markdown(task_dict, messages_list, final_result_dict, agent_runs_list)
 
-    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    export_path = (EXPORTS_DIR / f"{task_id}.md").resolve()
+    export_path = (exports_root() / f"{task_id}.md").resolve()
     bytes_written = export_path.write_text(markdown, encoding="utf-8")
 
     # Mark the task as exported so the inbox can filter / surface this and so

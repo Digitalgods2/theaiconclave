@@ -19,38 +19,56 @@ from app.api import help as help_api
 from app.api import settings as settings_api
 from app.api import tasks as tasks_api
 from app.api import uploads as uploads_api
-from app.config import load_config
+from app.config import get_config
 from app.database import init_database
 from app.services import agent_registry
+from app.services import migration
 from app.services import pidlock
 from app.services.retention import retention_loop
+from app.utils.paths import default_db_path, user_data_root
 from app.workers.task_worker import worker_loop
-
-config = load_config()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Step 1 — basic logging early so migration/startup messages have a destination.
+    # The full level is reapplied after config loads (which might raise the level).
     logging.basicConfig(
-        level=getattr(logging, config.logging.level.upper(), logging.INFO),
+        level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     logger = logging.getLogger("switchboard")
 
-    # Single-instance enforcement: if another live Switchboard is already
-    # running, refuse to start. Stale lockfiles (from crashed prior runs)
-    # are detected via PID liveness + creation-time match and quietly
-    # taken over. See app/services/pidlock.py for the full contract.
-    data_dir = Path(config.database.path).resolve().parent
+    # Step 2 — FIRST AWAITABLE per DR0016: run the first-run migration before
+    # any writer (init_database, retention worker, orphan reaper, etc.) opens
+    # the destination root. Migration is a no-op in dev mode and on every
+    # subsequent launch.
     try:
-        lock_path = pidlock.acquire(data_dir)
+        result = migration.maybe_migrate()
+        if result:
+            logger.info("Migration completed: %s", result)
+    except migration.MigrationBlocked as e:
+        logger.error("Refusing to start — migration blocked.\n%s", e)
+        raise SystemExit(2) from e
+
+    # Step 3 — resolve config (lazy), reapply logging level.
+    config = get_config()
+    logging.getLogger().setLevel(getattr(logging, config.logging.level.upper(), logging.INFO))
+
+    # Step 4 — single-instance enforcement. Pidlock lives in user_data_root()
+    # (DR0016: decoupled from config.database.path's parent — the wrong primitive).
+    data_root = user_data_root()
+    try:
+        lock_path = pidlock.acquire(data_root)
     except pidlock.PidLockBusy as e:
-        # Surface a clean message and refuse to bring the app up. uvicorn
-        # will propagate this as a non-zero exit.
         logger.error("Refusing to start — another Switchboard is running.\n%s", e)
         raise SystemExit(2) from e
 
-    init_database(config.database.path)
+    # Step 5 — initialize the DB. config.database.path = None means "use
+    # default_db_path()" per DR0016. An explicit string in config.yaml still wins.
+    db_path = Path(config.database.path) if config.database.path else default_db_path()
+    init_database(db_path)
+
     help_api.sync_help_metadata_from_file()
     agent_registry.clear()
     agent_registry.init_registry()

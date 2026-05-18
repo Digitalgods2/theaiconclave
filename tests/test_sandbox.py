@@ -13,7 +13,6 @@ import pytest
 
 from app.protocol.validators import Permissions
 from app.services.sandbox import (
-    SANDBOXES_ROOT,
     build_manifest,
     cleanup_sandbox,
     prepare_sandbox,
@@ -74,10 +73,14 @@ def task_id() -> str:
 
 
 @pytest.fixture(autouse=True)
-def isolate_sandboxes_root(tmp_path, monkeypatch):
-    """Redirect SANDBOXES_ROOT to a temp dir for each test so we don't touch real state."""
-    test_root = tmp_path / "sandboxes"
-    monkeypatch.setattr("app.services.sandbox.SANDBOXES_ROOT", test_root)
+def isolate_sandboxes_root(tmp_path):
+    """Per DR0016, sandbox state lives at `sandboxes_root()` which resolves
+    under `user_data_root()`. The `_isolated_user_data_root` autouse fixture
+    in conftest.py pins that to tmp_path for each test, so we don't need to
+    monkey-patch any constant. This fixture stays for the value, in case any
+    test needs the expected sandboxes root directly."""
+    from app.utils.paths import sandboxes_root
+    test_root = sandboxes_root()
     yield test_root
 
 

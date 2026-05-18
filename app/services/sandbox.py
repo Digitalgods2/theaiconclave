@@ -28,10 +28,9 @@ from pathlib import Path
 from typing import Optional
 
 from app.protocol.validators import Permissions
+from app.utils.paths import sandboxes_root
 
 logger = logging.getLogger(__name__)
-
-SANDBOXES_ROOT = Path("data/sandboxes")
 
 # Directories never copied. Tunable via config in a future revision.
 _SKIP_DIRS: set[str] = {
@@ -73,7 +72,7 @@ _MAX_SANDBOX_BYTES = 200 * 1024 * 1024         # 200 MiB total
 
 
 def sandbox_path_for(task_id: str) -> Path:
-    return SANDBOXES_ROOT / task_id
+    return sandboxes_root() / task_id
 
 
 def _matches_any(name: str, patterns) -> bool:
@@ -215,10 +214,11 @@ def sweep_orphan_sandboxes(active_task_ids: set[str]) -> int:
     startup so a crash mid-task doesn't leave orphans accumulating.
     Returns the number of sandboxes removed.
     """
-    if not SANDBOXES_ROOT.exists():
+    root = sandboxes_root()
+    if not root.exists():
         return 0
     removed = 0
-    for child in SANDBOXES_ROOT.iterdir():
+    for child in root.iterdir():
         if not child.is_dir():
             continue
         if child.name in active_task_ids:

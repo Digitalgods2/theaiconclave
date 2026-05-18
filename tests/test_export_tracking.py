@@ -23,15 +23,19 @@ from app.utils.ids import task_id as new_task_id, result_id
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch):
-    """Spin up a TestClient against a fresh DB and exports dir."""
+    """Spin up a TestClient against a fresh DB and exports dir.
+
+    Per DR0016, exports land at `exports_root()` which resolves under
+    `user_data_root()`. The autouse `_isolated_user_data_root` fixture
+    (conftest.py) already pins that to tmp_path, so there's no constant
+    to monkey-patch here.
+    """
     db_path = tmp_path / "test.db"
     init_database(str(db_path))
     agent_registry.clear()
     agent_registry.init_registry()
 
-    # Redirect EXPORTS_DIR to the temp tree so writes don't pollute data/exports
     from app.api import tasks as tasks_module
-    monkeypatch.setattr(tasks_module, "EXPORTS_DIR", tmp_path / "exports")
 
     # Build a minimal FastAPI app that mounts only the tasks router.
     from fastapi import FastAPI
