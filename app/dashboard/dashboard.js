@@ -1301,7 +1301,7 @@ function buildPayload(mode, agents, question) {
     context: { files: [], error: null, git_diff: null, extra: {} },
     permissions: readPermissions(),
     limits: {
-      max_rounds: 5, timeout_seconds: 240, max_seconds: 1200,
+      max_rounds: 5, timeout_seconds: 360, max_seconds: 1200,
       max_context_tokens: null, convergence_threshold: 1.0,
     },
   };
