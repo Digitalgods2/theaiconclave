@@ -78,7 +78,7 @@ OpenRouter seats are **registered at startup from config** (`agent_registry.regi
 - `services/settings_store.py` — DB-stored API keys for OpenRouter. **Rule: env var wins over DB value** (`OPENROUTER_API_KEY`).
 - `workers/task_worker.py` — the claim loop.
 - `api/` — FastAPI routers (`tasks`, `agents`, `git`, `uploads`, `settings`, `health`).
-- `dashboard/` — single-page vanilla-JS app served at `/`. `dashboard.js` is ~2000 lines; modularization is a known "Next" item but not yet acted on.
+- `dashboard/` — single-page vanilla-JS app served at `/`. `dashboard.js` is ~4400 lines; modularization is a known "Next" item but not yet acted on.
 
 ### Persistence
 SQLite at `data/switchboard.db`. **WAL mode + `busy_timeout=30s` + `with_retry()` on heavy write paths** are deliberate hardening for the worker/retention/API-call concurrency triangle — don't strip them. Schema lives in `app/database.py`; see `docs/DATABASE_SCHEMA.md` for the table reference.
