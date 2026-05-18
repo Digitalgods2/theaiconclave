@@ -349,6 +349,30 @@ textarea { resize: vertical; font-family: inherit; min-height: 120px; }
   font-weight: 600;
 }
 
+/* Per-seat readiness indicator on the New Task agents list (DR0017 follow-on).
+   Small colored dot sitting between the checkbox and the agent name. The hint
+   from /api/health is exposed via the title attribute (browser tooltip).
+   Colors reuse the existing health-badge palette so we don't introduce a new
+   one. */
+.seat-indicator {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  line-height: 10px;
+  font-size: 14px;
+  text-align: center;
+  margin: 0 2px;
+  color: #9aa3b2; /* fallback for .seat-unknown */
+  cursor: help;
+}
+.seat-indicator.seat-ok      { color: #1d6b35; }
+.seat-indicator.seat-unavail { color: #8a1f17; }
+.seat-indicator.seat-unknown { color: #9aa3b2; }
+
+body.theme-dark .seat-indicator.seat-ok      { color: #6ee7b7; }
+body.theme-dark .seat-indicator.seat-unavail { color: #fca5a5; }
+body.theme-dark .seat-indicator.seat-unknown { color: #6b7280; }
+
 /* ===== Permissions (New Task form) ===== */
 .permissions-details {
   background: #fff;

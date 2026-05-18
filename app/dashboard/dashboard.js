@@ -586,6 +586,9 @@ function switchView(name) {
   if (name === "pricing") loadPricing();
   if (name === "recent-tasks") loadRecentTasks();
   if (name === "usage") loadUsage();
+  // Refresh per-seat readiness when the New Task panel opens. Server caches
+  // /api/health for 30s, so re-firing on each panel-open is cheap.
+  if (name === "new") loadReadiness();
 }
 
 // ------------------------------------------------------------
@@ -974,11 +977,49 @@ function _onGlobalKeydown(e) {
 // ------------------------------------------------------------
 // Health badge
 // ------------------------------------------------------------
+// Per-seat readiness map populated from /api/health.seats.
+// Keyed by seat name -> { available: bool, reason: string, hint: string, kind: string }.
+// Populated by pollHealth() (which is the single shared /api/health fetcher) and
+// re-populated by loadReadiness() when the New Task panel opens.
+const _seatReadiness = {};
+
+function _updateSeatReadinessFromHealth(h) {
+  if (!h || !Array.isArray(h.seats)) return;
+  // Clear and refill so seats that disappear server-side don't linger as stale.
+  for (const k of Object.keys(_seatReadiness)) delete _seatReadiness[k];
+  for (const s of h.seats) {
+    if (s && typeof s.name === "string") {
+      _seatReadiness[s.name] = {
+        available: !!s.available,
+        reason: s.reason || "",
+        hint: s.hint || "",
+        kind: s.kind || "",
+      };
+    }
+  }
+}
+
+async function loadReadiness() {
+  // Lightweight refetch invoked when the New Task panel opens. Shares the same
+  // endpoint as pollHealth() (server has a 30s cache, so this is cheap), but
+  // we re-render the agents list afterwards so indicators update immediately.
+  try {
+    const h = await Api.health();
+    _updateSeatReadinessFromHealth(h);
+  } catch (_e) {
+    // Soft failure: leave whatever map state we had. The indicator falls back
+    // to an "unknown" dot, which is fine — the submit-time guard only blocks
+    // when we have a definite available:false signal.
+  }
+  if (State.view === "new") renderAgentsList();
+}
+
 async function pollHealth() {
   const ind = $("#health-indicator");
   let detailMsg = "";
   try {
     const h = await Api.health();
+    _updateSeatReadinessFromHealth(h);
     if (h && h.status === "ok") {
       ind.textContent = "healthy";
       ind.className = "health ok";
@@ -990,6 +1031,9 @@ async function pollHealth() {
       ind.textContent = "unknown";
       ind.className = "health";
     }
+    // If we're on the New Task view, refresh the agent indicators to reflect
+    // any seat-readiness changes from this poll.
+    if (State.view === "new") renderAgentsList();
   } catch (e) {
     ind.textContent = "offline (why?)";
     ind.className = "health down clickable";
@@ -1074,6 +1118,26 @@ function renderAgentsList() {
       renderAgentsList();
     });
     label.appendChild(cb);
+    // Seat readiness indicator (DR0017 follow-on). One small dot to the left of
+    // the agent name, sourced from /api/health.seats. Unknown seats render a
+    // neutral dot — we don't want to falsely flag an unavailable state when we
+    // simply haven't fetched health yet.
+    const readiness = _seatReadiness[name];
+    let indClass = "seat-indicator";
+    let indTitle;
+    if (readiness === undefined) {
+      indClass += " seat-unknown";
+      indTitle = "Readiness unknown — service has not reported yet.";
+    } else if (readiness.available) {
+      indClass += " seat-ok";
+      indTitle = readiness.hint || "Available.";
+    } else {
+      indClass += " seat-unavail";
+      indTitle = readiness.hint || "Currently reported unavailable.";
+    }
+    const indicator = el("span", { class: indClass, title: indTitle, text: "●" });
+    indicator.setAttribute("aria-hidden", "true");
+    label.appendChild(indicator);
     // In consult/resolve, prefix with position number so the "first-picked = primary" rule is visible.
     const prefix = (orderMatters && checked) ? " " + position + ". " : " ";
     const primaryTag = isPrimary ? " (primary — first picked)" : "";
@@ -1804,6 +1868,31 @@ async function onSubmitNewTask(ev) {
     status.className = "form-status error";
     status.textContent = "Consult mode requires a primary plus at least one consultant.";
     return;
+  }
+
+  // Seat-readiness soft gate (DR0017 follow-on). If any selected agent's seat
+  // is currently reported unavailable, confirm before submitting. The dashboard
+  // does NOT disable unavailable checkboxes — the user may have just installed
+  // the CLI and the 30s server cache hasn't refreshed yet — but we surface the
+  // warning here so accidental submissions are caught. Multiple unavailable
+  // seats are collapsed into a single confirm() so the user gets one decision.
+  const unavailableSelected = [];
+  for (const a of agents) {
+    const r = _seatReadiness[a];
+    if (r && r.available === false) {
+      unavailableSelected.push({ name: a, hint: r.hint || r.reason || "no further detail" });
+    }
+  }
+  if (unavailableSelected.length > 0) {
+    const lines = unavailableSelected.map((s) => s.name + " is currently reported unavailable: " + s.hint);
+    const msg = lines.join("\n\n") + "\n\nSubmit anyway?";
+    // Browser confirm() — intentionally a native dialog per the brief; keeps
+    // this change small and avoids a custom in-page modal.
+    if (!window.confirm(msg)) {
+      status.className = "form-status";
+      status.textContent = "";
+      return;
+    }
   }
 
   // Sandbox cross-field checks: must have a project_path, and can_read_files must be on.
