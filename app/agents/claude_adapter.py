@@ -233,6 +233,7 @@ class ClaudeCodeAdapter(BaseAdapter):
             task_id=ctx.task_id,
             agent_name=self.name,
             prior_messages=ctx.prior_messages,
+            ceiling_chars=self.max_context_chars,
         )
         text = await self._invoke(
             prompt, ctx.timeout_seconds,
@@ -251,6 +252,7 @@ class ClaudeCodeAdapter(BaseAdapter):
             task_id=ctx.task_id,
             agent_name=self.name,
             prior_messages=ctx.prior_messages,
+            ceiling_chars=self.max_context_chars,
         )
         text = await self._invoke(
             prompt, ctx.timeout_seconds,
@@ -269,6 +271,7 @@ class ClaudeCodeAdapter(BaseAdapter):
             task_id=ctx.task_id,
             agent_name=self.name,
             prior_messages=ctx.prior_messages,
+            ceiling_chars=self.max_context_chars,
         )
         text = await self._invoke(
             prompt, ctx.timeout_seconds,
@@ -282,7 +285,7 @@ class ClaudeCodeAdapter(BaseAdapter):
         return PrimaryResponse.model_validate(data)
 
     async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
-        prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name)
+        prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name, ceiling_chars=self.max_context_chars)
         text = await self._invoke(
             prompt, ctx.timeout_seconds,
             image_attachment_paths(ctx.task),

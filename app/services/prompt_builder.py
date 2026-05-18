@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Optional
 
 from app.protocol.validators import TaskMode, TaskRequest
+from app.services import prompt_budget
 from app.utils import file_loader
 
 _SKILLS_DIR = Path(__file__).resolve().parent.parent.parent / "skills" / "generic"
@@ -315,8 +317,15 @@ def build_primary_prompt(
     task_id: str,
     agent_name: str,
     prior_messages: list[dict],
+    ceiling_chars: Optional[int] = None,
 ) -> str:
-    """Prompt for run_primary (resolve and consult both call this)."""
+    """Prompt for run_primary (resolve and consult both call this).
+
+    When `ceiling_chars` is set, the prior_messages block is trimmed
+    oldest-first to fit within the remaining budget after reserved overhead
+    (response + schema demand + tokenizer slop). Dropped messages are
+    announced via an explicit marker so the agent knows the cut occurred.
+    """
     if task.mode == TaskMode.RESOLVE:
         role_skill = _load_skill("resolution_behavior")
     else:
@@ -339,11 +348,12 @@ def build_primary_prompt(
         _format_attachments(task),
         _format_prior_art(task),
     ]
-    if prior_messages:
-        parts.append("# Prior Messages (chronological)")
-        for m in prior_messages:
-            parts.append(_format_prior_message(m))
-            parts.append("")
+    _append_prior_messages(
+        parts,
+        prior_messages,
+        header="# Prior Messages (chronological)",
+        ceiling_chars=ceiling_chars,
+    )
     parts.append(_primary_schema_demand(task_id, agent_name))
     return "\n".join(parts)
 
@@ -353,6 +363,7 @@ def build_consultant_prompt(
     task_id: str,
     agent_name: str,
     prior_messages: list[dict],
+    ceiling_chars: Optional[int] = None,
 ) -> str:
     """Prompt for run_consultant."""
     role_skill = _load_skill("consultant_behavior")
@@ -373,11 +384,13 @@ def build_consultant_prompt(
         _format_attachments(task),
         _format_prior_art(task),
         "",
-        "# Prior Messages (the primary's proposal and any earlier critiques)",
     ]
-    for m in prior_messages:
-        parts.append(_format_prior_message(m))
-        parts.append("")
+    _append_prior_messages(
+        parts,
+        prior_messages,
+        header="# Prior Messages (the primary's proposal and any earlier critiques)",
+        ceiling_chars=ceiling_chars,
+    )
     parts.append(_consultant_schema_demand(task_id, agent_name))
     return "\n".join(parts)
 
@@ -387,9 +400,10 @@ def build_final_prompt(
     task_id: str,
     agent_name: str,
     prior_messages: list[dict],
+    ceiling_chars: Optional[int] = None,
 ) -> str:
     """Prompt for consult-mode run_final. Same as primary, but message_type guidance differs."""
-    prompt = build_primary_prompt(task, task_id, agent_name, prior_messages)
+    prompt = build_primary_prompt(task, task_id, agent_name, prior_messages, ceiling_chars=ceiling_chars)
     # Nudge toward primary_final message_type. Adapter coerces this anyway.
     return prompt.replace(
         '"message_type": "primary_proposal"',
@@ -401,9 +415,10 @@ def build_peer_prompt(
     task: TaskRequest,
     task_id: str,
     agent_name: str,
+    ceiling_chars: Optional[int] = None,
 ) -> str:
     """Prompt for poll-mode peers. Just primary-shaped output, no critique loop."""
-    return build_primary_prompt(task, task_id, agent_name, prior_messages=[])
+    return build_primary_prompt(task, task_id, agent_name, prior_messages=[], ceiling_chars=ceiling_chars)
 
 
 def build_conclave_prompt(
@@ -412,6 +427,7 @@ def build_conclave_prompt(
     agent_name: str,
     prior_messages: list[dict],
     other_participants: list[str],
+    ceiling_chars: Optional[int] = None,
 ) -> str:
     """Prompt for one participant's turn in a conclave round."""
     role_skill = _load_skill("conclave_behavior")
@@ -436,12 +452,59 @@ def build_conclave_prompt(
         "",
     ]
     if prior_messages:
-        parts.append("# Prior Rounds (chronological — every participant's contributions)")
-        for m in prior_messages:
-            parts.append(_format_prior_message(m))
-            parts.append("")
+        _append_prior_messages(
+            parts,
+            prior_messages,
+            header="# Prior Rounds (chronological — every participant's contributions)",
+            ceiling_chars=ceiling_chars,
+        )
     else:
         parts.append("# Prior Rounds\n(this is round 1; no prior turns yet)")
         parts.append("")
     parts.append(_conclave_schema_demand(task_id, agent_name))
     return "\n".join(parts)
+
+
+def _append_prior_messages(
+    parts: list[str],
+    prior_messages: list[dict],
+    *,
+    header: str,
+    ceiling_chars: Optional[int],
+) -> None:
+    """Append `header` and the formatted prior_messages to `parts`, applying
+    the centralized budget (DR0017 Batch C) when `ceiling_chars` is set.
+
+    If `ceiling_chars` is None the legacy behavior is preserved: every
+    message is appended verbatim. This keeps existing tests with small
+    payloads working without modification.
+
+    When the budget is enforced and some oldest messages had to be dropped,
+    an explicit omitted marker is inserted *before* the surviving block so
+    the agent knows what happened.
+    """
+    if not prior_messages:
+        return
+    if ceiling_chars is None:
+        parts.append(header)
+        for m in prior_messages:
+            parts.append(_format_prior_message(m))
+            parts.append("")
+        return
+
+    # Compute remaining budget for prior_messages after accounting for what
+    # the rest of the prompt has already consumed.
+    already_used = sum(len(p) + 1 for p in parts) + len(header) + 1
+    budget = prompt_budget.prior_messages_budget(ceiling_chars, already_used)
+
+    formatted, dropped = prompt_budget.trim_prior_messages(
+        prior_messages, _format_prior_message, budget
+    )
+
+    parts.append(header)
+    if dropped:
+        parts.append(prompt_budget.omitted_marker(dropped))
+        parts.append("")
+    for line in formatted:
+        parts.append(line)
+        parts.append("")

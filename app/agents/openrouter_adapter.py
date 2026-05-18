@@ -710,7 +710,8 @@ class OpenRouterAdapter(BaseAdapter):
     async def run_primary(self, ctx: AdapterContext) -> PrimaryResponse:
         self._last_tool_events = []
         prompt = build_primary_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
-                                      prior_messages=ctx.prior_messages)
+                                      prior_messages=ctx.prior_messages,
+                                      ceiling_chars=self._effective_max_chars())
         text = await self._invoke_dispatch(ctx, prompt)
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="primary",
                                  default_message_type=MessageType.PRIMARY_PROPOSAL.value)
@@ -719,7 +720,8 @@ class OpenRouterAdapter(BaseAdapter):
     async def run_consultant(self, ctx: AdapterContext) -> ConsultantCritique:
         self._last_tool_events = []
         prompt = build_consultant_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
-                                         prior_messages=ctx.prior_messages)
+                                         prior_messages=ctx.prior_messages,
+                                         ceiling_chars=self._effective_max_chars())
         text = await self._invoke_dispatch(ctx, prompt)
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="consultant",
                                  default_message_type=MessageType.CONSULTANT_CRITIQUE.value)
@@ -728,7 +730,8 @@ class OpenRouterAdapter(BaseAdapter):
     async def run_final(self, ctx: AdapterContext) -> PrimaryResponse:
         self._last_tool_events = []
         prompt = build_final_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
-                                    prior_messages=ctx.prior_messages)
+                                    prior_messages=ctx.prior_messages,
+                                    ceiling_chars=self._effective_max_chars())
         text = await self._invoke_dispatch(ctx, prompt)
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="primary",
                                  default_message_type=MessageType.PRIMARY_FINAL.value)
@@ -736,7 +739,8 @@ class OpenRouterAdapter(BaseAdapter):
 
     async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
         self._last_tool_events = []
-        prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name)
+        prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name,
+                                   ceiling_chars=self._effective_max_chars())
         text = await self._invoke_dispatch(ctx, prompt)
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="peer",
                                  default_message_type=MessageType.PEER_ANSWER.value)
@@ -746,7 +750,8 @@ class OpenRouterAdapter(BaseAdapter):
         self._last_tool_events = []
         others = [c for c in ctx.task.consultants if c != self.name]
         prompt = build_conclave_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
-                                       prior_messages=ctx.prior_messages, other_participants=others)
+                                       prior_messages=ctx.prior_messages, other_participants=others,
+                                       ceiling_chars=self._effective_max_chars())
         text = await self._invoke_dispatch(ctx, prompt)
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="participant",
                                  default_message_type=MessageType.CONCLAVE_TURN.value)
