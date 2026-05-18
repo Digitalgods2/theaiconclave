@@ -1,19 +1,34 @@
-"""Double-clickable launcher for AI Switchboard.
+"""Double-clickable launcher for AI Switchboard. Cross-platform.
 
-Run by `pythonw.exe` (note the .pyw extension) so no console window appears.
-The launcher:
+Windows: run by `pythonw.exe` (via the .pyw extension) so no console window
+appears. Invoked by the desktop shortcut created by
+`tools/install-desktop-shortcut.ps1`.
+
+macOS: run by `python3` from inside an .app bundle's launcher script.
+Created by `tools/install-desktop-app.sh`. The .app contains
+`Contents/MacOS/launcher` which `exec`s `python3 launch.pyw`. No Terminal
+window appears because .app bundles don't open one.
+
+Linux: same as macOS but no convenience installer ships in the repo. Drop
+a .desktop file in `~/.local/share/applications/` that points at
+`python3 /path/to/launch.pyw`.
+
+What the launcher does:
 
   1. Checks whether the service is already running by polling /api/health.
   2. If not, starts `python -m uvicorn app.main:app` as a fully detached
      background process — closing this launcher does not kill the service.
+     Windows: CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_NO_WINDOW.
+     POSIX:   start_new_session=True (POSIX setsid equivalent).
   3. Polls /api/health for up to 30 seconds until it responds.
   4. Opens http://127.0.0.1:8787/ in the default browser.
   5. Exits. (The uvicorn subprocess keeps running.)
 
-To stop the service, either kill the python process in Task Manager or
-delete the pidlock file at <repo>/data/switchboard.pid. The single-instance
-pidlock means re-running this launcher while the service is up is a no-op
-on the service side — it just opens a fresh browser tab.
+To stop the service: kill the python process (Task Manager on Windows,
+`pkill -f 'uvicorn app.main'` on macOS/Linux), or delete the pidlock file
+at <repo>/data/switchboard.pid. The single-instance pidlock means
+re-running this launcher while the service is up is a no-op on the service
+side — it just opens a fresh browser tab.
 
 Logs at `<repo>/data/launcher.log` capture both the launcher's own events
 and uvicorn's stdout/stderr — useful when the browser tab fails to open.
@@ -54,44 +69,52 @@ def _already_running() -> bool:
 
 
 def _resolve_python_exe() -> str:
-    """When running under `pythonw.exe`, switch to `python.exe` for the child
+    """Resolve the Python interpreter for the uvicorn subprocess.
+
+    On Windows when running under `pythonw.exe`, we switch to `python.exe`
     so uvicorn's stdout/stderr can be captured into the log file normally.
+    On POSIX (macOS/Linux), `sys.executable` is always the right answer.
     """
     exe = sys.executable
-    lower = exe.lower()
-    if lower.endswith("pythonw.exe"):
+    if os.name == "nt" and exe.lower().endswith("pythonw.exe"):
         return exe[: -len("pythonw.exe")] + "python.exe"
     return exe
 
 
 def _start_uvicorn() -> None:
-    """Spawn uvicorn in a fully detached child process."""
+    """Spawn uvicorn in a fully detached child process. Closing the launcher
+    does NOT kill it on either platform.
+
+    Windows: CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS | CREATE_NO_WINDOW.
+    POSIX:   start_new_session=True — equivalent of POSIX setsid(2), the
+             child runs in its own session and survives the launcher exit.
+    """
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
     logf = LOG_PATH.open("a", encoding="utf-8")
     logf.write(f"\n--- starting uvicorn {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
     logf.flush()
 
-    flags = 0
+    popen_kwargs: dict = {
+        "cwd": str(REPO),
+        "stdout": logf,
+        "stderr": logf,
+        "stdin": subprocess.DEVNULL,
+        "close_fds": False,
+    }
     if os.name == "nt":
-        flags = (
+        popen_kwargs["creationflags"] = (
             subprocess.CREATE_NEW_PROCESS_GROUP
             | subprocess.DETACHED_PROCESS
             | subprocess.CREATE_NO_WINDOW
         )
+    else:
+        popen_kwargs["start_new_session"] = True
 
     cmd = [
         _resolve_python_exe(), "-m", "uvicorn",
         "app.main:app", "--host", HOST, "--port", str(PORT),
     ]
-    subprocess.Popen(
-        cmd,
-        cwd=str(REPO),
-        stdout=logf,
-        stderr=logf,
-        stdin=subprocess.DEVNULL,
-        creationflags=flags,
-        close_fds=False,
-    )
+    subprocess.Popen(cmd, **popen_kwargs)
     # Deliberately leak `logf` — the child holds it open for the lifetime of
     # the service; the OS reaps it when uvicorn exits.
 

@@ -122,6 +122,32 @@ The slash commands live in `~/.claude/commands/`. The skill that triggers on nat
   - `defaults.max_seconds` — total task time budget for resolve/conclave modes
   - `agents.<name>.command` — full path to a CLI if it's not on PATH
 
+## One-click desktop launcher (optional)
+
+Once the manual setup works, you can install a double-clickable launcher so you don't have to type the uvicorn command every time. The launcher starts the service in the background (no terminal window) and opens the dashboard tab once `/api/health` responds. Subsequent launches while the service is up just open a new tab — the pidlock prevents a second instance.
+
+**Windows:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install-desktop-shortcut.ps1
+```
+
+Creates `AI Switchboard.lnk` on your Desktop pointing at `pythonw.exe launch.pyw` with the AI Conclave logo as the icon. Right-click the shortcut → *Pin to taskbar* if you want it on the taskbar.
+
+**macOS:**
+
+```bash
+bash tools/install-desktop-app.sh
+# Or install to ~/Applications instead of the Desktop:
+INSTALL_DIR="$HOME/Applications" bash tools/install-desktop-app.sh
+```
+
+Builds an `AI Switchboard.app` bundle on your Desktop. Drag onto the Dock to pin. First launch on a Mac may show macOS's "Apple cannot check this app for malicious software" warning — right-click → *Open* → *Open* dismisses it permanently for your user.
+
+Both installers are idempotent. The repo path is baked into the resulting shortcut/bundle, so if you move the repo, re-run the installer.
+
+To stop the service: kill the python process (Task Manager on Windows, `pkill -f 'uvicorn app.main'` on macOS/Linux), or delete `<repo>/data/switchboard.pid`. Launcher events plus uvicorn's stdout/stderr land in `<repo>/data/launcher.log`.
+
 ## Where Switchboard stores its state
 
 Per [DR0016](docs/decisions/0016_user_data_root_and_lazy_config.md), all writable runtime state — the SQLite database, sandboxes, uploads, exports, logs, and pidlock — resolves through a single `user_data_root()` primitive:
