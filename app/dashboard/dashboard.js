@@ -785,6 +785,8 @@ async function ensureHelpLoaded() {
       mount.innerHTML = await r.text();
       _helpLoaded = true;
       initHelpScrollspy();
+      const printBtn = document.getElementById("help-print-btn");
+      if (printBtn) printBtn.addEventListener("click", () => window.print());
     } else {
       mount.innerHTML = `<p class="loading">Failed to load help: HTTP ${r.status}</p>`;
     }

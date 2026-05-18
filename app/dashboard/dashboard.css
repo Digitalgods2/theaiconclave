@@ -2025,11 +2025,18 @@ body.theme-dark .help-doc-content .help-tagline p:last-child { color: #94a3b8; }
 
 @media print {
   .left-rail, .topbar, .app-footer { display: none; }
-  body { padding-left: 0; }
+  body { padding-left: 0; background: #fff !important; color: #000 !important; }
   .help-doc-toc { display: none; }
   .help-doc-layout { grid-template-columns: 1fr; }
   .help-doc-content { max-width: 100%; font-size: 11px; line-height: 1.5; }
+  .help-doc-currency, .help-print-btn { display: none; }
+  .help-doc-header, .help-doc-content,
+  .help-doc-content code, .help-doc-content pre {
+    background: #fff !important; color: #000 !important;
+  }
 }
+
+.help-print-btn { margin-left: auto; }
 
 /* ===== Pricing view (model costs table) ===== */
 .pricing-view .table-wrap {
