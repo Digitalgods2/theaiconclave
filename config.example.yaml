@@ -89,10 +89,19 @@ dashboard:
 # `enabled: false` keeps the adapter registered but causes is_available() to
 # return false; the orchestrator surfaces this as agent_unavailable.
 # -----------------------------------------------------------------------------
+#
+# Per-adapter command_path (DR0017): set to an absolute path of the CLI binary
+# if you want the adapter to skip $PATH lookup entirely. Useful in packaged-app
+# launches where the GUI process doesn't inherit your shell PATH, or when the
+# CLI lives outside the usual install locations. Leave null (commented out) to
+# fall back to `shutil.which(command)`. Applies to codex / claude-code / gemini.
+# Example: command_path: "/usr/local/bin/codex"
+#
 agents:
   codex:
     enabled: true
-    command: codex                  # absolute path or $PATH lookup
+    command: codex                  # name used for $PATH lookup
+    command_path: null              # absolute path override; null = use PATH
     args: []                        # baseline args; adapter appends prompt-specific flags
     model_slug: "openai/gpt-5.5"         # top-tier general flagship (set `model = "gpt-5.5"` in ~/.codex/config.toml to match)
     supported_modes: [consult, handoff]
@@ -106,6 +115,7 @@ agents:
   claude-code:
     enabled: true
     command: claude
+    command_path: null              # absolute path override; null = use PATH
     args: []
     model_slug: "anthropic/claude-opus-4.7"   # top-tier reasoning (run `/model opus` in Claude Code to match)
     supported_modes: [consult, handoff]
@@ -120,6 +130,7 @@ agents:
   gemini:
     enabled: false
     command: gemini
+    command_path: null              # absolute path override; null = use PATH
     args: []
     model_slug: "google/gemini-2.5-pro"   # OpenRouter slug used for pricing lookup when in API mode
     supported_modes: []

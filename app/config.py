@@ -102,6 +102,11 @@ class DashboardConfig(BaseModel):
 class AgentConfig(BaseModel):
     enabled: bool = False
     command: str = ""
+    # Absolute path override for the CLI binary. When set, the adapter uses it
+    # in preference to `shutil.which(command)`. Useful in packaged apps where
+    # GUI launches don't inherit the user's shell PATH, or when the CLI is
+    # installed in a non-standard location.
+    command_path: Optional[str] = None
     args: list[str] = Field(default_factory=list)
     model: Optional[str] = None
     # OpenRouter slug for pricing lookup. Each frontier CLI represents one

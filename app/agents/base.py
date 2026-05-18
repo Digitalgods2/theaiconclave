@@ -47,6 +47,19 @@ class AdapterTestResult(BaseModel):
     elapsed_ms: int
 
 
+class Readiness(BaseModel):
+    """Structured readiness signal for one seat. Surfaced via `/api/health` so
+    the dashboard can show *why* a seat is unavailable and how to fix it.
+
+    `reason` is a short machine-stable token (e.g. "ok", "command_not_found",
+    "configured_path_missing", "api_key_missing"). `hint` is user-facing
+    remediation text — what to install, where to authenticate, etc.
+    """
+    available: bool
+    reason: str
+    hint: str = ""
+
+
 class AdapterError(Exception):
     """
     Raised by adapters when an agent call fails. The orchestrator converts
@@ -90,6 +103,21 @@ class BaseAdapter(ABC):
     async def is_available(self) -> bool:
         """Cheap liveness check used by the registry on startup and on demand."""
 
+    async def readiness(self) -> Readiness:
+        """Structured readiness — reason + hint as well as the boolean.
+
+        Default implementation wraps `is_available()` with generic text so
+        subclasses get useful behavior without an override. Subclasses that
+        can distinguish "not on PATH" from "configured path doesn't exist"
+        from "API key missing" should override this for actionable hints.
+        """
+        ok = await self.is_available()
+        return Readiness(
+            available=ok,
+            reason="ok" if ok else "unavailable",
+            hint="" if ok else f"Seat '{self.name}' is not available.",
+        )
+
     @abstractmethod
     async def test_connection(self) -> AdapterTestResult:
         """Side-effect-free probe. Reports version and elapsed time."""
@@ -123,4 +151,5 @@ __all__ = [
     "AdapterTestResult",
     "AdapterError",
     "BaseAdapter",
+    "Readiness",
 ]

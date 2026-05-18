@@ -269,6 +269,19 @@ class OpenRouterAdapter(BaseAdapter):
     async def is_available(self) -> bool:
         return self._api_key() is not None
 
+    async def readiness(self):
+        from app.agents.base import Readiness
+        if self._api_key() is not None:
+            return Readiness(available=True, reason="ok", hint="")
+        return Readiness(
+            available=False,
+            reason="api_key_missing",
+            hint=(
+                f"OpenRouter API key not configured. Set the {_API_KEY_ENV} environment "
+                f"variable, or paste a key into Settings → API Keys in the dashboard."
+            ),
+        )
+
     async def test_connection(self) -> AdapterTestResult:
         start = time.perf_counter()
         key = self._api_key()

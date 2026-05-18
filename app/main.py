@@ -71,7 +71,7 @@ async def lifespan(app: FastAPI):
 
     help_api.sync_help_metadata_from_file()
     agent_registry.clear()
-    agent_registry.init_registry()
+    agent_registry.init_registry(config)
     agent_registry.register_openrouter_models(config)
 
     # Reap any tasks left in `running` from a previous crashed worker.

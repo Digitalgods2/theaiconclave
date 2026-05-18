@@ -17,11 +17,14 @@ import shutil
 import time
 from typing import Any, Optional
 
+from pathlib import Path
+
 from app.agents.base import (
     AdapterContext,
     AdapterError,
     AdapterTestResult,
     BaseAdapter,
+    Readiness,
 )
 from app.protocol.validators import (
     AgentRole,
@@ -57,12 +60,42 @@ class CodexAdapter(BaseAdapter):
     _cost_per_input_token = 0.0
     _cost_per_output_token = 0.0
 
+    def __init__(self, command_path: Optional[str] = None) -> None:
+        super().__init__()
+        # Absolute path override (DR0017). When set, used in preference to
+        # shutil.which(self._command). Lets a packaged GUI app find the CLI
+        # without depending on shell PATH inheritance.
+        self.command_path = command_path
+
     async def is_available(self) -> bool:
         return self._resolve_command() is not None
 
     def _resolve_command(self) -> Optional[str]:
         """Resolve the CLI to a full path. Required on Windows where npm shims are .cmd files."""
+        if self.command_path:
+            return self.command_path if Path(self.command_path).is_file() else None
         return shutil.which(self._command)
+
+    async def readiness(self) -> Readiness:
+        if self.command_path:
+            if Path(self.command_path).is_file():
+                return Readiness(available=True, reason="ok", hint="")
+            return Readiness(
+                available=False,
+                reason="configured_path_missing",
+                hint=f"agents.codex.command_path is set to '{self.command_path}' but no file exists there.",
+            )
+        if shutil.which(self._command) is None:
+            return Readiness(
+                available=False,
+                reason="command_not_found",
+                hint=(
+                    "Codex CLI not on PATH. Install it (`npm install -g @openai/codex-cli`) and "
+                    "run `codex login`, or set agents.codex.command_path to the absolute path "
+                    "of the binary."
+                ),
+            )
+        return Readiness(available=True, reason="ok", hint="")
 
     async def test_connection(self) -> AdapterTestResult:
         start = time.perf_counter()

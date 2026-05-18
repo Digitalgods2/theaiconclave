@@ -31,17 +31,29 @@ def clear() -> None:
     _registry.clear()
 
 
-def init_registry() -> None:
+def init_registry(config=None) -> None:
     """Register the static CLI adapters. Called once at startup.
 
+    When `config` is provided, each CLI adapter is instantiated with its
+    configured `command_path` (DR0017). Without `config`, adapters fall
+    back to `shutil.which()` lookup of their default command name —
+    correct behavior for tests that call init_registry() with no args.
+
     OpenRouter-backed seats are config-driven and registered separately via
-    register_openrouter_models() so that tests (which call init_registry()
-    with no config) don't pull in network-backed adapters.
+    register_openrouter_models() so that tests don't pull in network-backed
+    adapters.
     """
+    def _cmd_path(name: str):
+        if config is None:
+            return None
+        agents = getattr(config, "agents", None) or {}
+        entry = agents.get(name) if isinstance(agents, dict) else None
+        return getattr(entry, "command_path", None) if entry else None
+
     register(FakeAdapter())
-    register(CodexAdapter())
-    register(GeminiAdapter())
-    register(ClaudeCodeAdapter())
+    register(CodexAdapter(command_path=_cmd_path("codex")))
+    register(GeminiAdapter(command_path=_cmd_path("gemini")))
+    register(ClaudeCodeAdapter(command_path=_cmd_path("claude-code")))
 
 
 def register_openrouter_models(config) -> None:

@@ -18,11 +18,14 @@ import shutil
 import time
 from typing import Any, Optional
 
+from pathlib import Path
+
 from app.agents.base import (
     AdapterContext,
     AdapterError,
     AdapterTestResult,
     BaseAdapter,
+    Readiness,
 )
 from app.protocol.validators import (
     ConclaveTurn,
@@ -50,15 +53,39 @@ class ClaudeCodeAdapter(BaseAdapter):
     # Haiku 4.5 context window is 200K tokens. Conservative char ratio: 4 chars/token.
     max_context_chars = 800_000
 
-    def __init__(self, model: Optional[str] = None) -> None:
+    def __init__(self, model: Optional[str] = None, command_path: Optional[str] = None) -> None:
         super().__init__()
         self._model = model or self._default_model
+        # See CodexAdapter — absolute path override (DR0017).
+        self.command_path = command_path
 
     def _resolve_command(self) -> Optional[str]:
+        if self.command_path:
+            return self.command_path if Path(self.command_path).is_file() else None
         return shutil.which(self._command)
 
     async def is_available(self) -> bool:
         return self._resolve_command() is not None
+
+    async def readiness(self) -> Readiness:
+        if self.command_path:
+            if Path(self.command_path).is_file():
+                return Readiness(available=True, reason="ok", hint="")
+            return Readiness(
+                available=False,
+                reason="configured_path_missing",
+                hint=f"agents.claude-code.command_path is set to '{self.command_path}' but no file exists there.",
+            )
+        if shutil.which(self._command) is None:
+            return Readiness(
+                available=False,
+                reason="command_not_found",
+                hint=(
+                    "Claude Code CLI not on PATH. Install it from claude.com/code and run `claude /login`, "
+                    "or set agents.claude-code.command_path to the absolute path of the binary."
+                ),
+            )
+        return Readiness(available=True, reason="ok", hint="")
 
     async def test_connection(self) -> AdapterTestResult:
         start = time.perf_counter()
