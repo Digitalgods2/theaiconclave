@@ -372,8 +372,9 @@ const Api = {
     if (opts && (opts.exported === "true" || opts.exported === "false")) {
       params.set("exported", opts.exported);
     }
-    const q = params.toString();
-    return api("/api/tasks" + (q ? "?" + q : ""));
+    if (opts && opts.q) params.set("q", opts.q);
+    const qs = params.toString();
+    return api("/api/tasks" + (qs ? "?" + qs : ""));
   },
   getTask:  (id) => api(`/api/tasks/${id}`),
   getThread:(id) => api(`/api/tasks/${id}/thread`),
@@ -1992,6 +1993,7 @@ async function refreshInbox() {
       status: State.inboxFilters.status || undefined,
       limit: State.inboxLimit,
       exported: State.inboxFilters.exported || undefined,
+      q: (State.inboxFilters.search || "").trim() || undefined,
     });
     const tasks = Array.isArray(resp.tasks) ? resp.tasks : [];
     tasks.sort((a, b) => {
@@ -2019,26 +2021,11 @@ function renderInbox() {
   if (!tbody) return;
   const all = Array.isArray(State.inboxRawTasks) ? State.inboxRawTasks : [];
   const modeFilter = (State.inboxFilters.mode || "").toLowerCase();
-  const searchRaw = (State.inboxFilters.search || "").trim().toLowerCase();
+  // Search is server-side (id + user_request + user_decision + final_answer);
+  // see /api/tasks?q=… in app/api/tasks.py. We don't filter here.
 
   const filtered = all.filter((t) => {
     if (modeFilter && (t.mode || "").toLowerCase() !== modeFilter) return false;
-    if (searchRaw) {
-      // Build a haystack from the user-visible row content (ID + status + mode + agents + created).
-      const agentsList = [];
-      if (t.primary_agent) agentsList.push(t.primary_agent);
-      if (Array.isArray(t.consultants)) {
-        for (const c of t.consultants) if (c && !agentsList.includes(c)) agentsList.push(c);
-      }
-      const haystack = [
-        t.id || "",
-        t.status || "",
-        t.mode || "",
-        agentsList.join(", "),
-        fmtTime(t.created_at) || "",
-      ].join(" ").toLowerCase();
-      if (!haystack.includes(searchRaw)) return false;
-    }
     return true;
   });
 
@@ -2163,12 +2150,14 @@ function setupInboxFiltersUI() {
   if (searchInput) {
     searchInput.value = State.inboxFilters.search;
     searchInput.addEventListener("input", () => {
-      // Debounce ~200ms so each keystroke doesn't rerender.
+      // Debounce ~250ms so each keystroke doesn't fire a server request.
       if (State.inboxSearchDebounce) clearTimeout(State.inboxSearchDebounce);
       State.inboxSearchDebounce = setTimeout(() => {
         State.inboxFilters.search = searchInput.value;
-        renderInbox();
-      }, 200);
+        // Search runs server-side now (id + user_request + user_decision +
+        // final_answer) so we must refetch, not just re-render.
+        refreshInbox();
+      }, 250);
     });
   }
 

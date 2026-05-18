@@ -118,13 +118,18 @@ async def list_tasks(
     status: Optional[str] = None,
     limit: int = 50,
     exported: Optional[str] = None,
+    q: Optional[str] = None,
 ) -> dict[str, Any]:
     """List tasks, newest first.
 
     Filters:
-      status=<value>: server-side filter on status column (existing).
+      status=<value>: server-side filter on status column.
       exported=true: only tasks where exported_at IS NOT NULL.
       exported=false: only tasks where exported_at IS NULL.
+      q=<text>: case-insensitive substring match across task id,
+        user_request, user_decision, and the linked final_results.final_answer.
+        Whole-DB search (bypasses the `limit` paging behavior — the search
+        runs first, then the newest `limit` matches are returned).
     """
     clauses: list[str] = []
     params: list[Any] = []
@@ -137,6 +142,20 @@ async def list_tasks(
             clauses.append("exported_at IS NOT NULL")
         elif norm in ("false", "0", "no"):
             clauses.append("exported_at IS NULL")
+    if q:
+        # Case-insensitive LIKE across id + user_request + user_decision +
+        # joined final_results.final_answer. Uses LOWER() on both sides to
+        # handle non-ASCII case-insensitively (SQLite's LIKE is only ASCII
+        # case-insensitive by default).
+        needle = f"%{q.lower()}%"
+        clauses.append(
+            "(LOWER(id) LIKE ?"
+            " OR LOWER(user_request) LIKE ?"
+            " OR LOWER(COALESCE(user_decision, '')) LIKE ?"
+            " OR id IN (SELECT task_id FROM final_results"
+            "           WHERE LOWER(final_answer) LIKE ?))"
+        )
+        params.extend([needle, needle, needle, needle])
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
     sql = (
         f"""SELECT id, status, mode, task_type, primary_agent, consultants,
