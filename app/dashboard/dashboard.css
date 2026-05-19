@@ -2024,15 +2024,53 @@ body.theme-dark .help-doc-content .help-tagline p:last-child { color: #94a3b8; }
 }
 
 @media print {
+  /* Hide app chrome */
   .left-rail, .topbar, .app-footer { display: none; }
-  body { padding-left: 0; background: #fff !important; color: #000 !important; }
+  body { padding-left: 0; }
   .help-doc-toc { display: none; }
   .help-doc-layout { grid-template-columns: 1fr; }
   .help-doc-content { max-width: 100%; font-size: 11px; line-height: 1.5; }
   .help-doc-currency, .help-print-btn { display: none; }
-  .help-doc-header, .help-doc-content,
-  .help-doc-content code, .help-doc-content pre {
-    background: #fff !important; color: #000 !important;
+
+  /* CRITICAL: tell every browser to render explicit background and accent colors
+     regardless of the user's "Background graphics" print-dialog toggle. Without
+     this, Chrome strips colored backgrounds by default (ink-saving) and the help
+     doc's code-block fills, callout strips, header underlines all disappear. */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Force light palette on the page canvas regardless of body.theme-dark. We
+     override just the body and the high-level text containers; element-specific
+     accent colors (code fills, callout strips, header underlines) come from the
+     existing light-theme rules and now survive thanks to print-color-adjust. */
+  body, body.theme-dark {
+    background: #fff !important;
+    color: #1f2937 !important;
+  }
+  body.theme-dark .help-doc-header,
+  body.theme-dark .help-doc-content,
+  body.theme-dark .help-doc-content p,
+  body.theme-dark .help-doc-content li {
+    color: #1f2937 !important;
+  }
+  body.theme-dark .help-doc-content .help-section > h3,
+  body.theme-dark .help-doc-content h4 {
+    color: #1f2937 !important;
+    border-bottom-color: #e3e6ed !important;
+  }
+  /* Code accent — restore the light-theme fill rather than printing the
+     dark-theme dark-gray rectangle that would otherwise burn ink. */
+  body.theme-dark .help-doc-content code,
+  body.theme-dark .help-doc-content pre {
+    background: #f6f7f9 !important;
+    color: #be185d !important;
+    border-color: #e3e6ed !important;
+  }
+  body.theme-dark .help-doc-content a {
+    color: #1d4ed8 !important;
   }
 }
 
