@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The AI Conclave — A Governed AI Deliberation Board</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* HERO */
+.hero {
+  min-height: 100vh;
+  padding: 160px 48px 80px;
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+
+.hero-bg { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.hero-bg .orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+}
+.hero-bg .o1 { width: 520px; height: 520px; background: var(--violet); top: -120px; right: -80px; opacity: 0.4; }
+.hero-bg .o2 { width: 400px; height: 400px; background: var(--gold); bottom: -100px; left: 18%; opacity: 0.25; }
+.hero-bg .o3 { width: 340px; height: 340px; background: var(--cyan); top: 30%; left: -100px; opacity: 0.25; }
+
+/* grid overlay */
+.hero-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 80px 80px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+}
+
+.hero-content { position: relative; z-index: 2; }
+
+.hero h1 {
+  font-size: clamp(48px, 7vw, 96px);
+  margin: 28px 0;
+  letter-spacing: -0.035em;
+  color: var(--white);
+}
+.hero h1 .accent { color: var(--gold); }
+.hero h1 .violet-em { color: var(--violet); font-style: italic; font-weight: 300; }
+.hero h1 .strike { position: relative; display: inline-block; color: var(--gray-2); }
+.hero h1 .strike::after {
+  content: '';
+  position: absolute;
+  left: -4px; right: -4px;
+  top: 52%;
+  height: 5px;
+  background: var(--red);
+  transform: rotate(-2deg);
+  box-shadow: 0 0 16px rgba(255,56,56,0.6);
+}
+
+.hero-lede {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 300;
+  line-height: 1.5;
+  max-width: 560px;
+  color: var(--gray-1);
+  margin-bottom: 40px;
+}
+.hero-lede em { color: var(--gold); font-style: italic; font-weight: 400; }
+.hero-lede .v { color: var(--violet); font-style: italic; font-weight: 400; }
+
+.hero-ctas { display: flex; gap: 16px; margin-bottom: 60px; flex-wrap: wrap; }
+
+.hero-meta {
+  display: flex;
+  gap: 36px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  color: var(--gray-1);
+  border-top: 1px solid var(--rule);
+  padding-top: 24px;
+  max-width: 700px;
+  flex-wrap: wrap;
+}
+.hero-meta strong { color: var(--gold); font-weight: 600; }
+
+/* HERO CARD — live deliberation */
+.hero-card {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(22,22,30,0.95), rgba(14,14,20,0.95));
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  padding: 28px;
+  font-family: var(--mono);
+  font-size: 13px;
+  box-shadow:
+    0 30px 80px -20px rgba(0,0,0,0.8),
+    0 0 0 1px rgba(255,184,0,0.15),
+    0 0 40px -10px rgba(123,92,255,0.2);
+  transform: rotate(0.4deg);
+}
+.hero-card::before {
+  content: '◉ LIVE · CONCLAVE IN SESSION';
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--rule-strong);
+  font-weight: 600;
+}
+
+.seat {
+  margin-bottom: 18px;
+  padding-left: 14px;
+  border-left: 2px solid var(--rule-strong);
+}
+.seat-name {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.seat-name.claude { color: #ff8866; }
+.seat-name.gpt { color: var(--emerald); }
+.seat-name.gemini { color: var(--cyan); }
+.seat-name.deepseek { color: var(--violet); }
+
+.seat-text {
+  font-family: var(--serif);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--off-white);
+}
+
+.seat-tag {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 3px 9px;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  border-radius: 2px;
+  font-weight: 600;
+}
+.seat-tag.dissent { background: rgba(255,56,56,0.18); color: var(--red); border: 1px solid rgba(255,56,56,0.45); }
+.seat-tag.agree { background: rgba(0,230,118,0.12); color: var(--emerald); border: 1px solid rgba(0,230,118,0.4); }
+.seat-tag.uncertain { background: rgba(255,184,0,0.15); color: var(--gold); border: 1px solid rgba(255,184,0,0.4); }
+
+.hero-card-footer {
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--rule-strong);
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--gray-2);
+  font-weight: 600;
+}
+.hero-card-footer .keeper { color: var(--gold); }
+
+/* MARQUEE */
+.marquee {
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  padding: 26px 0;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--black-2), var(--black-3), var(--black-2));
+}
+.marquee-track {
+  display: flex;
+  gap: 60px;
+  animation: scroll 40s linear infinite;
+  white-space: nowrap;
+  font-family: var(--serif);
+  font-size: 28px;
+  font-style: italic;
+  font-weight: 300;
+  align-items: center;
+  color: var(--off-white);
+}
+.marquee-track .dot { width: 8px; height: 8px; border-radius: 50%; }
+.marquee-track .d-gold { background: var(--gold); box-shadow: 0 0 12px var(--gold); }
+.marquee-track .d-violet { background: var(--violet); box-shadow: 0 0 12px var(--violet); }
+.marquee-track .d-cyan { background: var(--cyan); box-shadow: 0 0 12px var(--cyan); }
+.marquee-track .d-red { background: var(--red); box-shadow: 0 0 12px var(--red); }
+@keyframes scroll { to { transform: translateX(-50%); } }
+
+/* PROBLEM */
+.problem { display: grid; grid-template-columns: 1fr 1.2fr; gap: 80px; align-items: start; }
+.problem-left h2 { font-size: clamp(36px, 4vw, 56px); margin: 20px 0 24px; }
+.problem-left h2 .accent { color: var(--red); font-style: italic; }
+.problem-left p {
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.65;
+  color: var(--gray-1);
+  max-width: 460px;
+}
+
+.contrast-card {
+  background: var(--black-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 32px;
+  margin-bottom: 16px;
+  position: relative;
+}
+.contrast-card.bad { border-left: 3px solid var(--red); }
+.contrast-card.good {
+  border-left: 3px solid var(--gold);
+  background: linear-gradient(135deg, rgba(255,184,0,0.06), var(--black-2) 60%);
+}
+
+.contrast-card .label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+.contrast-card.bad .label { color: var(--red); }
+.contrast-card.good .label { color: var(--gold); }
+
+.contrast-card h3 { font-size: 24px; margin-bottom: 10px; letter-spacing: -0.015em; }
+.contrast-card p { font-size: 15px; color: var(--gray-1); line-height: 1.6; }
+
+/* PILLARS */
+.pillars-head {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 60px;
+  margin-bottom: 80px;
+  align-items: end;
+}
+.pillars-head h2 { font-size: clamp(40px, 5vw, 64px); }
+.pillars-head h2 .accent { color: var(--violet); font-style: italic; }
+.pillars-head p {
+  font-family: var(--serif);
+  font-size: 19px;
+  color: var(--gray-1);
+  line-height: 1.55;
+}
+
+.pillars {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.pillar {
+  background: var(--black);
+  padding: 48px 36px;
+  position: relative;
+  transition: background 0.3s;
+}
+.pillar:hover { background: var(--black-2); }
+
+.pillar-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.25em;
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: space-between;
+  color: var(--gray-2);
+  font-weight: 600;
+}
+.pillar-num .n.gold { color: var(--gold); }
+.pillar-num .n.violet { color: var(--violet); }
+.pillar-num .n.cyan { color: var(--cyan); }
+
+.pillar-icon { margin-bottom: 28px; width: 56px; height: 56px; }
+
+.pillar h3 {
+  font-size: 26px;
+  letter-spacing: -0.02em;
+  margin-bottom: 14px;
+  line-height: 1.15;
+}
+.pillar h3 .ital { font-style: italic; font-weight: 300; }
+.pillar:nth-child(1) h3 .ital { color: var(--gold); }
+.pillar:nth-child(2) h3 .ital { color: var(--violet); }
+.pillar:nth-child(3) h3 .ital { color: var(--cyan); }
+
+.pillar p { font-size: 15px; line-height: 1.65; color: var(--gray-1); }
+
+/* MOSAIC */
+.mosaic {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, auto);
+  gap: 12px;
+}
+
+.tile {
+  background: var(--black-2);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--rule-strong);
+}
+
+.tile-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+.tile h4 { font-size: 22px; margin-bottom: 10px; letter-spacing: -0.015em; }
+.tile p { font-size: 14px; line-height: 1.6; color: var(--gray-1); }
+
+.tile.large { grid-column: span 2; grid-row: span 2; padding: 40px; }
+.tile.large h4 { font-size: 32px; }
+.tile.large p { font-size: 16px; }
+.tile.wide { grid-column: span 2; }
+
+.tile.feature-gold {
+  background: linear-gradient(135deg, rgba(255,184,0,0.12), rgba(255,184,0,0.02) 60%);
+  border-color: rgba(255,184,0,0.35);
+}
+.tile.feature-gold:hover { box-shadow: 0 12px 32px -10px rgba(255,184,0,0.3); }
+.tile.feature-gold .tile-tag { background: rgba(255,184,0,0.2); color: var(--gold); }
+
+.tile.feature-red {
+  background: linear-gradient(135deg, rgba(255,56,56,0.1), rgba(255,56,56,0.02) 60%);
+  border-color: rgba(255,56,56,0.3);
+}
+.tile.feature-red:hover { box-shadow: 0 12px 32px -10px rgba(255,56,56,0.25); }
+.tile.feature-red .tile-tag { background: rgba(255,56,56,0.18); color: var(--red); }
+
+.tile.feature-violet {
+  background: linear-gradient(135deg, rgba(123,92,255,0.1), rgba(123,92,255,0.02) 60%);
+  border-color: rgba(123,92,255,0.3);
+}
+.tile.feature-violet:hover { box-shadow: 0 12px 32px -10px rgba(123,92,255,0.3); }
+.tile.feature-violet .tile-tag { background: rgba(123,92,255,0.18); color: var(--violet); }
+
+.tile.feature-cyan {
+  background: linear-gradient(135deg, rgba(0,212,255,0.1), rgba(0,212,255,0.02) 60%);
+  border-color: rgba(0,212,255,0.3);
+}
+.tile.feature-cyan:hover { box-shadow: 0 12px 32px -10px rgba(0,212,255,0.3); }
+.tile.feature-cyan .tile-tag { background: rgba(0,212,255,0.15); color: var(--cyan); }
+
+.tile-default .tile-tag { background: var(--rule); color: var(--gray-1); }
+
+.keeper-illus { margin-top: 28px; display: flex; flex-direction: column; gap: 10px; font-family: var(--mono); font-size: 12px; }
+.keeper-illus .row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 3px;
+  border-left: 2px solid var(--rule-strong);
+  color: var(--off-white);
+}
+.keeper-illus .row.you { border-left-color: var(--gold); background: rgba(255,184,0,0.06); }
+.keeper-illus .who { width: 90px; color: var(--gray-2); font-weight: 600; }
+.keeper-illus .vote { flex: 1; }
+.keeper-illus .stamp {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  padding: 3px 7px;
+  border-radius: 2px;
+  background: var(--rule);
+  color: var(--gray-1);
+  font-weight: 600;
+}
+.keeper-illus .stamp.kept { background: var(--gold); color: var(--black); }
+.keeper-illus .stamp.dissent { background: rgba(255,56,56,0.2); color: var(--red); }
+
+/* QUOTE */
+.quote-block {
+  padding: 120px 0;
+  background: linear-gradient(180deg, var(--black-2), var(--black-3));
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+  overflow: hidden;
+}
+.quote-block::before {
+  content: '"';
+  position: absolute;
+  font-family: var(--serif);
+  font-size: 600px;
+  line-height: 0.7;
+  color: var(--gold);
+  opacity: 0.08;
+  top: -40px;
+  left: 40px;
+  font-style: italic;
+}
+.quote-inner { max-width: 1100px; margin: 0 auto; padding: 0 48px; position: relative; z-index: 2; }
+.quote-inner blockquote {
+  font-family: var(--serif);
+  font-size: clamp(28px, 3.5vw, 48px);
+  font-weight: 300;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  color: var(--white);
+}
+.quote-inner blockquote .em { color: var(--gold); font-style: italic; }
+.quote-inner blockquote .em-2 { color: var(--violet); font-style: italic; }
+.quote-attribution {
+  margin-top: 40px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  color: var(--gray-2);
+  font-weight: 600;
+}
+
+/* FLOW */
+.flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; position: relative; }
+.flow::before {
+  content: '';
+  position: absolute;
+  top: 24px;
+  left: 5%;
+  right: 5%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--gold), var(--violet), var(--cyan), transparent);
+  opacity: 0.6;
+  z-index: 0;
+}
+.flow-step { position: relative; z-index: 1; }
+.flow-step .dot {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: var(--black);
+  border: 1px solid var(--rule-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 13px;
+  margin-bottom: 24px;
+  font-weight: 600;
+  color: var(--off-white);
+}
+.flow-step:nth-child(1) .dot { border-color: var(--gold); color: var(--gold); box-shadow: 0 0 20px -5px rgba(255,184,0,0.5); }
+.flow-step:nth-child(2) .dot { border-color: var(--violet); color: var(--violet); box-shadow: 0 0 20px -5px rgba(123,92,255,0.5); }
+.flow-step:nth-child(3) .dot { border-color: var(--cyan); color: var(--cyan); box-shadow: 0 0 20px -5px rgba(0,212,255,0.5); }
+.flow-step:nth-child(4) .dot { border-color: var(--emerald); color: var(--emerald); box-shadow: 0 0 20px -5px rgba(0,230,118,0.5); }
+
+.flow-step h4 { font-size: 22px; margin-bottom: 8px; letter-spacing: -0.015em; }
+.flow-step p { font-size: 14px; line-height: 1.6; color: var(--gray-1); }
+
+/* CTA */
+.cta-final {
+  text-align: center;
+  padding: 160px 48px;
+  background: radial-gradient(ellipse at center, var(--black-2), var(--black));
+  border-top: 1px solid var(--rule);
+  position: relative;
+  overflow: hidden;
+}
+.cta-final::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 900px; height: 900px;
+  background: radial-gradient(circle, var(--gold) 0%, transparent 60%);
+  opacity: 0.1;
+  pointer-events: none;
+}
+.cta-final::after {
+  content: '';
+  position: absolute;
+  top: 30%; left: 20%;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, var(--violet) 0%, transparent 60%);
+  opacity: 0.15;
+  pointer-events: none;
+  filter: blur(60px);
+}
+
+.cta-final h2 {
+  font-size: clamp(48px, 6vw, 80px);
+  max-width: 900px;
+  margin: 0 auto 28px;
+  position: relative;
+  z-index: 1;
+}
+.cta-final h2 .em { color: var(--gold); font-style: italic; }
+.cta-final p {
+  font-family: var(--serif);
+  font-size: 20px;
+  color: var(--gray-1);
+  max-width: 600px;
+  margin: 0 auto 48px;
+  position: relative;
+  z-index: 1;
+}
+.cta-final .hero-ctas { justify-content: center; position: relative; z-index: 1; }
+
+@media (max-width: 1000px) {
+  .hero { grid-template-columns: 1fr; gap: 40px; padding: 130px 24px 60px; }
+  .problem { grid-template-columns: 1fr; gap: 40px; }
+  .pillars-head { grid-template-columns: 1fr; }
+  .pillars { grid-template-columns: 1fr; }
+  .mosaic { grid-template-columns: 1fr 1fr; }
+  .tile.large, .tile.wide { grid-column: span 2; grid-row: auto; }
+  .flow { grid-template-columns: 1fr 1fr; gap: 40px; }
+  .flow::before { display: none; }
+}
+@media (max-width: 600px) {
+  .mosaic { grid-template-columns: 1fr; }
+  .tile.large, .tile.wide { grid-column: span 1; }
+  .flow { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-mark">
+    <span class="nav-mark-glyph"></span>
+    <span class="name-line"><span class="the">The</span>AI Conclave</span>
+  </a>
+  <div class="nav-links">
+    <a href="how-it-works.html">How it works</a>
+    <a href="use-cases.html">Use cases</a>
+    <a href="pricing.html">Pricing</a>
+    <a href="manifesto.html">Manifesto</a>
+  </div>
+  <a href="#" class="nav-cta">Open the chamber →</a>
+</nav>
+
+<section class="hero">
+  <div class="hero-bg">
+    <div class="orb o1"></div>
+    <div class="orb o2"></div>
+    <div class="orb o3"></div>
+  </div>
+
+  <div class="hero-content">
+    <div class="eyebrow fade-up d-1">A local AI deliberation board</div>
+    <h1 class="fade-up d-2">
+      Most AI gives you<br>
+      <span class="strike">one answer.</span><br>
+      We give you a <span class="violet-em">verdict.</span>
+    </h1>
+    <p class="hero-lede fade-up d-3">
+      The AI Conclave is a governed reasoning chamber for high-stakes technical judgment. Multiple frontier models deliberate, <em>disagree on the record</em>, and surface dissent as a feature. You hold <span class="v">the gavel.</span>
+    </p>
+    <div class="hero-ctas fade-up d-4">
+      <a href="#" class="btn btn-primary">Convene a session <span class="btn-arrow">→</span></a>
+      <a href="how-it-works.html" class="btn btn-ghost">See the chamber</a>
+    </div>
+    <div class="hero-meta fade-up d-5">
+      <div><strong>Local.</strong> Single-user by design.</div>
+      <div><strong>Audit-grade.</strong> Every prompt, every token.</div>
+      <div><strong>Read-only.</strong> Sandbox-bounded.</div>
+    </div>
+  </div>
+
+  <div class="hero-card fade-up d-3">
+    <div class="seat">
+      <div class="seat-name claude">Seat 1 · Claude Opus</div>
+      <div class="seat-text">Recommend rollback. The migration script edits foreign keys before the constraint check fires.</div>
+      <span class="seat-tag dissent">↯ Dissents from majority</span>
+    </div>
+    <div class="seat">
+      <div class="seat-name gpt">Seat 2 · GPT-5</div>
+      <div class="seat-text">Proceed with caution. Risk is bounded if we stage the deploy and keep the previous revision warm.</div>
+      <span class="seat-tag agree">✓ Joins consensus</span>
+    </div>
+    <div class="seat">
+      <div class="seat-name gemini">Seat 3 · Gemini Pro</div>
+      <div class="seat-text">Proceed. The constraint order is benign in postgres 15+ with deferred enforcement.</div>
+      <span class="seat-tag agree">✓ Joins consensus</span>
+    </div>
+    <div class="seat">
+      <div class="seat-name deepseek">Seat 4 · DeepSeek</div>
+      <div class="seat-text">Uncertain. The schema diff doesn't show the trigger order. Request file read.</div>
+      <span class="seat-tag uncertain">? Requests inspection</span>
+    </div>
+    <div class="hero-card-footer">
+      <span>4 SEATS · 1 DISSENT</span>
+      <span class="keeper">▸ KEEPER: GLEN</span>
+    </div>
+  </div>
+</section>
+
+<section class="marquee">
+  <div class="marquee-track">
+    <span>Preserve dissent</span><span class="dot d-gold"></span>
+    <span>Record the reasoning</span><span class="dot d-violet"></span>
+    <span>You hold the gavel</span><span class="dot d-cyan"></span>
+    <span>Deliberate before you deploy</span><span class="dot d-red"></span>
+    <span>Preserve dissent</span><span class="dot d-gold"></span>
+    <span>Record the reasoning</span><span class="dot d-violet"></span>
+    <span>You hold the gavel</span><span class="dot d-cyan"></span>
+    <span>Deliberate before you deploy</span><span class="dot d-red"></span>
+  </div>
+</section>
+
+<section class="section container">
+  <div class="problem">
+    <div class="problem-left">
+      <div class="eyebrow">The problem with consensus</div>
+      <h2>One model. One answer. <span class="accent">One blind spot.</span></h2>
+      <p>Single-model AI smooths everything into a confident, generic reply. That works for drafting emails. It fails when the cost of being wrong is real.</p>
+    </div>
+    <div class="problem-right">
+      <div class="contrast-card bad">
+        <div class="label">▼ TYPICAL AI</div>
+        <h3>Confident. Singular. Untraceable.</h3>
+        <p>You ask. It answers. You can't see what it considered, what it rejected, or which assumptions it baked in. The reasoning evaporates the moment you close the tab.</p>
+      </div>
+      <div class="contrast-card good">
+        <div class="label">▲ THE AI CONCLAVE</div>
+        <h3>Deliberated. Dissent-preserved. On the record.</h3>
+        <p>Multiple models reason against each other. You see who agreed, who pushed back, and why. Every session becomes a durable decision record — yours to consult before the next call.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section container">
+  <div class="pillars-head">
+    <h2>Three modes.<br><span class="accent">One chamber.</span></h2>
+    <p>Switch the rules of engagement to match the stakes. A quick gut-check, a structured debate, or a binding decision — the chamber adapts.</p>
+  </div>
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pillar-num"><span>MODE 01</span><span class="n gold">Consult</span></div>
+      <svg class="pillar-icon" viewBox="0 0 56 56" fill="none">
+        <circle cx="28" cy="28" r="22" stroke="var(--gold)" stroke-width="1.5"/>
+        <circle cx="28" cy="28" r="6" fill="var(--gold)"/>
+        <path d="M28 14 L28 8 M28 48 L28 42 M14 28 L8 28 M48 28 L42 28" stroke="var(--gold)" stroke-width="1.5"/>
+      </svg>
+      <h3>Ask <span class="ital">one seat.</span></h3>
+      <p>Quick consultation with a single model. Useful when speed matters more than dissent — but the answer still goes on the record.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num"><span>MODE 02</span><span class="n violet">Conclave</span></div>
+      <svg class="pillar-icon" viewBox="0 0 56 56" fill="none">
+        <circle cx="20" cy="20" r="8" stroke="var(--violet)" stroke-width="1.5"/>
+        <circle cx="36" cy="20" r="8" stroke="var(--violet)" stroke-width="1.5"/>
+        <circle cx="20" cy="36" r="8" stroke="var(--violet)" stroke-width="1.5"/>
+        <circle cx="36" cy="36" r="8" stroke="var(--violet)" stroke-width="1.5"/>
+        <path d="M24 24 L32 32 M32 24 L24 32" stroke="var(--violet)" stroke-width="1.2"/>
+      </svg>
+      <h3>Convene <span class="ital">the council.</span></h3>
+      <p>Several seats deliberate in parallel. They cross-reference, challenge, and disagree. Every position lands in the transcript, verbatim.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-num"><span>MODE 03</span><span class="n cyan">Resolve</span></div>
+      <svg class="pillar-icon" viewBox="0 0 56 56" fill="none">
+        <rect x="8" y="14" width="40" height="3" fill="var(--cyan)"/>
+        <rect x="14" y="22" width="28" height="2" fill="var(--cyan)" opacity="0.7"/>
+        <rect x="14" y="28" width="20" height="2" fill="var(--cyan)" opacity="0.5"/>
+        <path d="M20 38 L28 46 L40 32" stroke="var(--cyan)" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h3>Issue <span class="ital">the verdict.</span></h3>
+      <p>The chamber drives toward a recommendation. You ratify or reject as Keeper. Decision and dissent are archived as a citable artifact.</p>
+    </div>
+  </div>
+</section>
+
+<section class="quote-block">
+  <div class="quote-inner">
+    <blockquote>
+      Most AI tools try to give you <span class="em">an answer.</span> The AI Conclave gives you a governed reasoning process, a <span class="em-2">dissent record,</span> and a decision trail.
+    </blockquote>
+    <div class="quote-attribution">— THE PRODUCT, IN ONE LINE</div>
+  </div>
+</section>
+
+<section class="section container">
+  <div class="eyebrow" style="margin-bottom: 20px">Features that earn their place</div>
+  <h2 style="font-size: clamp(40px, 5vw, 64px); margin-bottom: 60px; max-width: 800px;">
+    Not a multi-agent chat.<br>A <span style="font-style: italic; color: var(--gold)">decision instrument.</span>
+  </h2>
+
+  <div class="mosaic">
+    <div class="tile large feature-gold">
+      <span class="tile-tag">⚖ KEEPER AUTHORITY</span>
+      <h4>The vote is not the decision. You are.</h4>
+      <p>The AI Conclave is opinionated about one thing: humans hold final authority. The council recommends. You ratify. Every artifact carries your stamp, not theirs.</p>
+
+      <div class="keeper-illus">
+        <div class="row"><span class="who">Seat 1</span><span class="vote">Rollback</span><span class="stamp dissent">DISSENT</span></div>
+        <div class="row"><span class="who">Seat 2</span><span class="vote">Proceed</span><span class="stamp">VOTE</span></div>
+        <div class="row"><span class="who">Seat 3</span><span class="vote">Proceed</span><span class="stamp">VOTE</span></div>
+        <div class="row you"><span class="who">You</span><span class="vote">Rollback</span><span class="stamp kept">▸ KEPT</span></div>
+      </div>
+    </div>
+
+    <div class="tile feature-red">
+      <span class="tile-tag">⚑ DISSENT PRESERVED</span>
+      <h4>The minority report stays in the file.</h4>
+      <p>Disagreement is a signal, not noise. The chamber never collapses divergent reasoning into a fake consensus.</p>
+    </div>
+
+    <div class="tile feature-violet">
+      <span class="tile-tag">▣ PROVENANCE TRACKED</span>
+      <h4>Where the task came from.</h4>
+      <p>Claude Code, Codex, Gemini, dashboard, API — every invocation carries its origin. Audit-clean.</p>
+    </div>
+
+    <div class="tile wide feature-cyan">
+      <span class="tile-tag">▤ DURABLE ARTIFACTS</span>
+      <h4>Decisions you can come back to.</h4>
+      <p>Every session exports as PDF, DOCX, Markdown, or plaintext. Prior decisions feed forward into new sessions, so the chamber develops project memory instead of starting from zero every time.</p>
+    </div>
+
+    <div class="tile feature-cyan">
+      <span class="tile-tag">▮ READ-ONLY SANDBOX</span>
+      <h4>Inspect without mutating.</h4>
+      <p>Seats can read your project files. They cannot change them. Deliberation and execution stay surgically separated.</p>
+    </div>
+
+    <div class="tile tile-default">
+      <span class="tile-tag">◐ MIXED COUNCIL</span>
+      <h4>Frontier + open-weight.</h4>
+      <p>Run Claude, GPT, and Gemini alongside open models via OpenRouter. Same chamber. Same rules.</p>
+    </div>
+
+    <div class="tile tile-default">
+      <span class="tile-tag">⌖ VISUAL DISSENT</span>
+      <h4>Models that see differently.</h4>
+      <p>When seats interpret an image differently, the chamber surfaces the gap instead of forcing agreement.</p>
+    </div>
+
+    <div class="tile feature-violet">
+      <span class="tile-tag">◈ TOOL-LOOP READS</span>
+      <h4>Lean context for open-weight seats.</h4>
+      <p>OpenRouter seats request only the files they need. No giant context dumps. Faster, cheaper, sharper.</p>
+    </div>
+
+    <div class="tile feature-gold">
+      <span class="tile-tag">§ CHARTER-GOVERNED</span>
+      <h4>The chamber has a constitution.</h4>
+      <p>Amendment rules. Operability principles. Human ratification. The system that governs decisions is itself governed.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section container">
+  <div class="eyebrow" style="margin-bottom: 20px">The chamber, in motion</div>
+  <h2 style="font-size: clamp(40px, 5vw, 64px); margin-bottom: 80px; max-width: 800px;">
+    Four steps. <span style="font-style: italic; color: var(--gold)">No theater.</span>
+  </h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="dot">01</div>
+      <h4>Pose the question</h4>
+      <p>Code review, architecture call, deployment decision, policy draft. If judgment is involved, it qualifies.</p>
+    </div>
+    <div class="flow-step">
+      <div class="dot">02</div>
+      <h4>Pick the seats</h4>
+      <p>Choose the council per task. CLI seats, API seats, open-weight seats — any mix.</p>
+    </div>
+    <div class="flow-step">
+      <div class="dot">03</div>
+      <h4>Watch the deliberation</h4>
+      <p>Seats reason in parallel. Disagreement surfaces in the transcript. Nothing is hidden.</p>
+    </div>
+    <div class="flow-step">
+      <div class="dot">04</div>
+      <h4>Ratify as Keeper</h4>
+      <p>Accept the recommendation, override it, or send it back for re-deliberation. The verdict is yours.</p>
+    </div>
+  </div>
+
+  <div style="margin-top: 80px; text-align: center;">
+    <a href="how-it-works.html" class="btn btn-ghost">Walk the full process <span class="btn-arrow">→</span></a>
+  </div>
+</section>
+
+<section class="cta-final">
+  <div class="eyebrow" style="margin-bottom: 28px; justify-content: center; display: inline-flex;">Convene</div>
+  <h2>For decisions that <span class="em">deserve more</span> than one opinion.</h2>
+  <p>Software, security, finance, policy, research. Wherever a wrong answer costs you, the chamber earns its keep.</p>
+  <div class="hero-ctas">
+    <a href="#" class="btn btn-primary">Open the chamber <span class="btn-arrow">→</span></a>
+    <a href="pricing.html" class="btn btn-ghost">See pricing</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-mark"><span class="the">The</span>AI Conclave<span class="ital">.</span></div>
+      <p class="footer-tag">A governed reasoning chamber for technical judgment. Local. Audit-clean. Keeper-final.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="how-it-works.html">How it works</a></li>
+        <li><a href="use-cases.html">Use cases</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+        <li><a href="#">Download</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Principles</h5>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="manifesto.html">Charter</a></li>
+        <li><a href="#">Provenance</a></li>
+        <li><a href="#">Local-first</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Connect</h5>
+      <ul>
+        <li><a href="#">GitHub</a></li>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">Changelog</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-base">
+    <div class="legal">
+      <span>© 2026 <a href="https://digitalgods.ai">DIGITALGODS.AI</a> · ALL RIGHTS RESERVED</span>
+      <span>THE AI CONCLAVE™</span>
+    </div>
+    <span>SINGLE-USER · LOCAL-FIRST · KEEPER-RATIFIED</span>
+  </div>
+</footer>
+
+</body>
+</html>

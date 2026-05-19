@@ -1,0 +1,367 @@
+## FLOW
+
+- One answer is not enough.
+- Builders need inspectable reasoning.
+- Switchboard turns models into councils.
+- It deliberates; humans decide.
+- Dissent is preserved, not averaged.
+- Three modes match decision urgency.
+- Diverse seats expose different blind spots.
+- Local orchestration keeps records under control.
+- Every task becomes auditable memory.
+- Decisions feed future deliberations.
+- Coding follows a clean four-step loop.
+- Execution stays outside the council.
+- Sandboxes provide safe project context.
+- Images require honest perceptual disagreement.
+- Operability governs every new capability.
+- Start small, then record real decisions.
+- Accountable AI means human-kept judgment.
+
+## DESIRED TAKEAWAY
+
+AI Switchboard makes AI useful for serious work by turning model answers into governed, auditable deliberations where humans retain authority and decisions become reusable memory.
+
+## PRESENTATION
+
+<hr>
+
+### Slide 1: The Dangerous Part Isn't Wrong Answers
+
+**Main content**
+- It's confident answers without visible reasoning
+- It's consensus that silently erases dissent
+- It's decisions nobody can reconstruct later
+- Builders need judgment, not just autocomplete
+
+**Image description**
+A lone developer facing a glowing AI chat bubble, with hidden tangled reasoning lines behind it, cinematic lighting, minimal dark background.
+
+**Speaker notes**
+- We've all felt the magic of a fast AI answer.
+- But the risk isn't only hallucination.
+- The deeper risk is unexamined authority.
+- A project deserves more than plausible prose.
+
+<hr>
+
+### Slide 2: The New Question
+
+**Main content**
+- What if AI argued before answering?
+- What if disagreement stayed visible?
+- What if decisions became project memory?
+- What if humans remained clearly sovereign?
+
+**Image description**
+A round council table with three distinct luminous AI avatars and one human chair at the head, thoughtful and balanced, TED-style.
+
+**Speaker notes**
+- The better interface is not faster chat.
+- It is structured deliberation.
+- We need multiple perspectives, not one oracle.
+- And we need a human final call.
+
+<hr>
+
+### Slide 3: Meet AI Switchboard
+
+**Main content**
+- A governed AI deliberation council
+- Multiple models, one structured conversation
+- Preserved dissent and auditable memory
+- Built for creators making consequential choices
+
+**Image description**
+A clean dashboard showing multiple AI agents connected through a central switchboard, with transcript and decision panels visible.
+
+**Speaker notes**
+- AI Switchboard is also called the AI Conclave.
+- It lets coding agents consult one another.
+- The output is not just an answer.
+- It is a reasoning trail you can inspect.
+
+<hr>
+
+### Slide 4: What It Is Not
+
+**Main content**
+- Not an autonomous execution system
+- Not parallel agents editing files
+- Not consensus by force or flattening
+- Not a replacement for human judgment
+
+**Image description**
+A split-screen: on one side chaotic robots editing code simultaneously; on the other, calm deliberation documents and human approval.
+
+**Speaker notes**
+- This boundary matters.
+- Switchboard is the deliberation layer.
+- Your CLI remains the execution layer.
+- Merging them would damage trust.
+
+<hr>
+
+### Slide 5: The Keeper Stays Human
+
+**Main content**
+- The council recommends
+- The keeper decides
+- Decisions are separate artifacts
+- Authority remains visibly human
+
+**Image description**
+A human placing a signed decision card beside an untouched transcript, symbolizing separation between AI reasoning and human judgment.
+
+**Speaker notes**
+- In the charter, you are the keeper.
+- You ratify, reject, or return questions.
+- You do not rewrite the transcript.
+- You record the binding decision beside it.
+
+<hr>
+
+### Slide 6: Three Ways to Deliberate
+
+**Main content**
+- Conclave: equal agents seek convergence
+- Resolve: one primary iterates with critics
+- Consult: quick proposal, critique, final
+- Choose mode by decision shape
+
+**Image description**
+Three labeled pathways diverging from one question: council circle, primary with reviewers, and fast second-opinion lightning path.
+
+**Speaker notes**
+- Not every question deserves the same ritual.
+- Architecture debates need real deliberation.
+- Debugging often needs one driver.
+- Small risks need a fast second opinion.
+
+<hr>
+
+### Slide 7: Conclave Preserves Real Disagreement
+
+**Main content**
+- Every participant sees every prior turn
+- Each round includes position and convergence
+- Weak agreement gets focused synthesis
+- Real disagreement surfaces verbatim
+
+**Image description**
+Transparent layered transcript cards from different AI agents, with highlighted disagreement lines preserved in different colors.
+
+**Speaker notes**
+- The orchestrator never picks a substantive winner.
+- It can help clarify semantic agreement.
+- But if disagreement remains, you see it.
+- Dissent is signal, not mess.
+
+<hr>
+
+### Slide 8: A Council With Different Blind Spots
+
+**Main content**
+- Codex, Gemini, and Claude Code
+- Open-weight seats through OpenRouter
+- Choose seats per task
+- Diversity improves critique, not certainty
+
+**Image description**
+A diverse AI council with distinct colored lenses examining the same blueprint, each revealing different annotations.
+
+**Speaker notes**
+- Different models carry different priors.
+- That is exactly the point.
+- You can invite three seats or five.
+- The room should match the question.
+
+<hr>
+
+### Slide 9: Local Orchestration, Honest Privacy
+
+**Main content**
+- Service binds to localhost only
+- State lives on your machine
+- Providers still receive model prompts
+- Control means audit ownership
+
+**Image description**
+A laptop containing a secure local database and dashboard, with controlled outbound arrows to known AI providers.
+
+**Speaker notes**
+- Switchboard does not pretend prompts stay local.
+- Model providers still process model calls.
+- The meaningful privacy claim is narrower.
+- Your orchestration state and audit trail stay yours.
+
+<hr>
+
+### Slide 10: Every Task Becomes Evidence
+
+**Main content**
+- Prompts and responses are stored
+- Tokens, timing, cost, errors recorded
+- Provenance names the submitting surface
+- Decisions become permanent project records
+
+**Image description**
+A forensic evidence board for software decisions: transcripts, timestamps, costs, source agent labels, and a signed decision record.
+
+**Speaker notes**
+- Every task carries provenance.
+- Every message names sender and role.
+- Runs record timing, tokens, and errors.
+- Later, you can reconstruct what happened.
+
+<hr>
+
+### Slide 11: Decision Memory Stops Re-litigation
+
+**Main content**
+- Prior decisions become searchable context
+- Relevant records auto-inject into prompts
+- Threads carry questions, answers, decisions
+- Future work inherits past judgment
+
+**Image description**
+A library of glowing decision records feeding into a new AI council session, with gold-highlighted “prior art” cards.
+
+**Speaker notes**
+- Serious projects fail when decisions evaporate.
+- Switchboard turns decisions into reusable memory.
+- Follow-up tasks inherit prior context.
+- Settled questions stop returning as ghosts.
+
+<hr>
+
+### Slide 12: The Coding Loop
+
+**Main content**
+- Deliberate with the council
+- Decide in your own words
+- Execute in your interactive CLI
+- Record significant outcomes
+
+**Image description**
+A circular workflow diagram: Deliberate, Decide, Execute, Record, with a human at the center and AI tools around the loop.
+
+**Speaker notes**
+- This is the core workflow.
+- The conclave reasons.
+- You decide.
+- Your coding agent edits, tests, and iterates.
+
+<hr>
+
+### Slide 13: Why Execution Stays Separate
+
+**Main content**
+- Stable facts support better deliberation
+- Parallel writers create race conditions
+- Tool use weakens JSON discipline
+- Clean audit trails require boundaries
+
+**Image description**
+A stable frozen code snapshot under glass, contrasted with multiple robotic hands trying to edit one live file simultaneously.
+
+**Speaker notes**
+- It is tempting to let every agent act.
+- But parallel action creates coordination chaos.
+- Deliberation works best on stable state.
+- Boundaries are what make accountability possible.
+
+<hr>
+
+### Slide 14: Safe Context Through Sandboxes
+
+**Main content**
+- Read-only project snapshots per task
+- Attach text, PDFs, diffs, images
+- API seats receive bounded context
+- Tool loops read files on demand
+
+**Image description**
+A project folder copied into a transparent read-only sandbox, with documents, diffs, and images flowing safely into AI agents.
+
+**Speaker notes**
+- Agents can inspect relevant context.
+- They do not mutate your project.
+- Large projects get scoped and bounded.
+- Open-weight seats can read needed files safely.
+
+<hr>
+
+### Slide 15: When Vision Models Disagree
+
+**Main content**
+- Perception disputes are not synthesized
+- Each visual reading stays attributed
+- The system asks the human
+- Your observation resolves the fact
+
+**Image description**
+Three AI agents viewing the same screenshot but highlighting different UI elements, with a human eye adjudicating the image.
+
+**Speaker notes**
+- Images create a special failure mode.
+- Models may literally see different things.
+- Averaging perception is not wisdom.
+- The human resolves what is actually present.
+
+<hr>
+
+### Slide 16: Operability Before Capability
+
+**Main content**
+- New features must protect trust
+- Observability, durability, recoverability matter
+- Audit, retention, export come first
+- Complexity requires explicit justification
+
+**Image description**
+A bridge labeled “Capability” supported by pillars labeled Observability, Durability, Recoverability, Audit, Retention, Export.
+
+**Speaker notes**
+- The charter encodes a hard-earned principle.
+- Capability is not automatically progress.
+- If trust foundations weaken, operability wins.
+- Exceptions require explicit human approval.
+
+<hr>
+
+### Slide 17: Start With One Small Council
+
+**Main content**
+- Run the fake-adapter smoke test
+- Submit your first real conclave
+- Read the transcript before deciding
+- Save the decision immediately
+
+**Image description**
+A simple onboarding path: smoke test, first conclave, transcript review, decision saved, shown as clean stepping stones.
+
+**Speaker notes**
+- Start without spending model quota.
+- Confirm the orchestrator works end-to-end.
+- Then ask one real design question.
+- The transformation happens when you record the decision.
+
+<hr>
+
+### Slide 18: The Future Is Accountable AI
+
+**Main content**
+- Not one answer
+- Not hidden reasoning
+- Not automated authority
+- Governed deliberation, human judgment, durable memory
+
+**Image description**
+A human and multiple AI agents standing before a long illuminated timeline of recorded decisions, suggesting accountable future collaboration.
+
+**Speaker notes**
+- The practical shift is simple.
+- Stop treating AI as an oracle.
+- Treat it as a council.
+- Then keep the authority, memory, and responsibility human.

@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Use cases — The AI Conclave</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+.page-hero {
+  padding: 180px 48px 100px;
+  position: relative;
+  overflow: hidden;
+}
+.page-hero::before {
+  content: '';
+  position: absolute;
+  top: -100px; left: 30%;
+  width: 800px; height: 800px;
+  background: radial-gradient(circle, var(--cyan), transparent 60%);
+  opacity: 0.2;
+  filter: blur(70px);
+}
+.page-hero::after {
+  content: '';
+  position: absolute;
+  top: 100px; right: -200px;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, var(--violet), transparent 60%);
+  opacity: 0.2;
+  filter: blur(60px);
+}
+.page-hero h1 {
+  font-size: clamp(56px, 8vw, 110px);
+  letter-spacing: -0.035em;
+  max-width: 1100px;
+  margin: 28px 0;
+  position: relative;
+}
+.page-hero h1 .ital { font-style: italic; color: var(--gold); }
+.page-hero p {
+  font-family: var(--serif);
+  font-size: 22px;
+  max-width: 740px;
+  line-height: 1.5;
+  color: var(--gray-1);
+  position: relative;
+}
+
+/* PILL STRIP */
+.pills {
+  padding: 40px 48px 80px;
+  border-bottom: 1px solid var(--rule);
+}
+.pills-inner { max-width: 1400px; margin: 0 auto; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.pills-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  margin-right: 20px;
+  color: var(--gold);
+  font-weight: 600;
+}
+.pill {
+  padding: 9px 16px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--gray-1);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.pill:hover { border-color: var(--gold); color: var(--gold); }
+.pill.active {
+  background: var(--gold);
+  color: var(--black);
+  border-color: var(--gold);
+  font-weight: 700;
+  box-shadow: 0 0 16px -4px rgba(255,184,0,0.5);
+}
+
+/* CASES */
+.cases { padding: 0 48px; max-width: 1400px; margin: 0 auto; }
+
+.case {
+  padding: 80px 0;
+  border-bottom: 1px solid var(--rule);
+  display: grid;
+  grid-template-columns: 100px 1fr 1.4fr;
+  gap: 60px;
+  align-items: start;
+}
+
+.case-num {
+  font-family: var(--serif);
+  font-size: 96px;
+  font-weight: 300;
+  font-style: italic;
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+}
+
+/* color rotation */
+.case:nth-child(7n+1) .case-num { color: var(--gold); text-shadow: 0 0 30px rgba(255,184,0,0.4); }
+.case:nth-child(7n+2) .case-num { color: var(--violet); text-shadow: 0 0 30px rgba(123,92,255,0.4); }
+.case:nth-child(7n+3) .case-num { color: var(--cyan); text-shadow: 0 0 30px rgba(0,212,255,0.4); }
+.case:nth-child(7n+4) .case-num { color: var(--emerald); text-shadow: 0 0 30px rgba(0,230,118,0.4); }
+.case:nth-child(7n+5) .case-num { color: var(--red); text-shadow: 0 0 30px rgba(255,56,56,0.4); }
+.case:nth-child(7n+6) .case-num { color: var(--violet); text-shadow: 0 0 30px rgba(123,92,255,0.4); }
+.case:nth-child(7n) .case-num { color: var(--gold); text-shadow: 0 0 30px rgba(255,184,0,0.4); }
+
+.case-left .domain {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--gold);
+  margin-bottom: 14px;
+  font-weight: 600;
+}
+.case:nth-child(7n+2) .case-left .domain { color: var(--violet); }
+.case:nth-child(7n+3) .case-left .domain { color: var(--cyan); }
+.case:nth-child(7n+4) .case-left .domain { color: var(--emerald); }
+.case:nth-child(7n+5) .case-left .domain { color: var(--red); }
+.case:nth-child(7n+6) .case-left .domain { color: var(--violet); }
+.case:nth-child(7n) .case-left .domain { color: var(--gold); }
+
+.case-left h2 {
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  margin-bottom: 18px;
+}
+.case-left h2 .ital { font-style: italic; }
+.case:nth-child(7n+1) .case-left h2 .ital { color: var(--gold); }
+.case:nth-child(7n+2) .case-left h2 .ital { color: var(--violet); }
+.case:nth-child(7n+3) .case-left h2 .ital { color: var(--cyan); }
+.case:nth-child(7n+4) .case-left h2 .ital { color: var(--emerald); }
+.case:nth-child(7n+5) .case-left h2 .ital { color: var(--red); }
+.case:nth-child(7n+6) .case-left h2 .ital { color: var(--violet); }
+.case:nth-child(7n) .case-left h2 .ital { color: var(--gold); }
+
+.case-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 20px; }
+.case-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 5px 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  color: var(--gray-1);
+  font-weight: 500;
+}
+
+.case-right p {
+  font-family: var(--serif);
+  font-size: 19px;
+  line-height: 1.6;
+  margin-bottom: 22px;
+  color: var(--gray-1);
+}
+
+.case-example {
+  background: var(--black-2);
+  border-left: 3px solid var(--gold);
+  padding: 22px 26px;
+  margin-top: 24px;
+  border-radius: 0 4px 4px 0;
+  position: relative;
+}
+.case:nth-child(7n+2) .case-example { border-left-color: var(--violet); background: linear-gradient(90deg, rgba(123,92,255,0.06), var(--black-2)); }
+.case:nth-child(7n+3) .case-example { border-left-color: var(--cyan); background: linear-gradient(90deg, rgba(0,212,255,0.06), var(--black-2)); }
+.case:nth-child(7n+4) .case-example { border-left-color: var(--emerald); background: linear-gradient(90deg, rgba(0,230,118,0.06), var(--black-2)); }
+.case:nth-child(7n+5) .case-example { border-left-color: var(--red); background: linear-gradient(90deg, rgba(255,56,56,0.06), var(--black-2)); }
+.case:nth-child(7n+6) .case-example { border-left-color: var(--violet); background: linear-gradient(90deg, rgba(123,92,255,0.06), var(--black-2)); }
+.case:nth-child(7n+1) .case-example { background: linear-gradient(90deg, rgba(255,184,0,0.06), var(--black-2)); }
+.case:nth-child(7n) .case-example { background: linear-gradient(90deg, rgba(255,184,0,0.06), var(--black-2)); }
+
+.case-example .label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  margin-bottom: 10px;
+  color: var(--gold);
+  font-weight: 600;
+}
+.case:nth-child(7n+2) .case-example .label { color: var(--violet); }
+.case:nth-child(7n+3) .case-example .label { color: var(--cyan); }
+.case:nth-child(7n+4) .case-example .label { color: var(--emerald); }
+.case:nth-child(7n+5) .case-example .label { color: var(--red); }
+.case:nth-child(7n+6) .case-example .label { color: var(--violet); }
+
+.case-example .text {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 16.5px;
+  line-height: 1.55;
+  color: var(--white);
+}
+
+/* HIGHLIGHT BAND */
+.highlight {
+  padding: 140px 48px;
+  background: linear-gradient(180deg, var(--black-2), var(--black-3));
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  position: relative;
+  overflow: hidden;
+}
+.highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255,184,0,0.15), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(123,92,255,0.15), transparent 40%),
+    radial-gradient(circle at 50% 100%, rgba(0,212,255,0.1), transparent 50%);
+}
+.highlight-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+.highlight h2 {
+  font-size: clamp(40px, 5.5vw, 72px);
+  margin-bottom: 32px;
+  letter-spacing: -0.03em;
+}
+.highlight h2 .em { color: var(--gold); font-style: italic; }
+.highlight h2 .em-2 { color: var(--violet); font-style: italic; }
+.highlight p {
+  font-family: var(--serif);
+  font-size: 22px;
+  line-height: 1.5;
+  color: var(--gray-1);
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+@media (max-width: 1000px) {
+  .case { grid-template-columns: 1fr; gap: 24px; padding: 50px 0; }
+  .case-num { font-size: 64px; }
+  .cases { padding: 0 24px; }
+  .pills { padding: 30px 24px 60px; }
+  .highlight { padding: 80px 24px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-mark">
+    <span class="nav-mark-glyph"></span>
+    <span class="name-line"><span class="the">The</span>AI Conclave</span>
+  </a>
+  <div class="nav-links">
+    <a href="how-it-works.html">How it works</a>
+    <a href="use-cases.html" class="active">Use cases</a>
+    <a href="pricing.html">Pricing</a>
+    <a href="manifesto.html">Manifesto</a>
+  </div>
+  <a href="#" class="nav-cta">Open the chamber →</a>
+</nav>
+
+<section class="page-hero">
+  <div class="eyebrow fade-up d-1">Where the chamber earns its keep</div>
+  <h1 class="fade-up d-2">When wrong is <span class="ital">expensive.</span></h1>
+  <p class="fade-up d-3">The AI Conclave is built for decisions that depend on judgment but punish you for being wrong. The features stop being "cool" and start being practical risk reduction the moment the cost of failure shows up on a balance sheet, a security report, or a courtroom transcript.</p>
+</section>
+
+<section class="pills">
+  <div class="pills-inner">
+    <span class="pills-label">▸ DOMAINS</span>
+    <span class="pill active">All</span>
+    <span class="pill">Engineering</span>
+    <span class="pill">Security</span>
+    <span class="pill">Legal</span>
+    <span class="pill">Finance</span>
+    <span class="pill">Medicine</span>
+    <span class="pill">Product</span>
+    <span class="pill">Research</span>
+    <span class="pill">Ops</span>
+    <span class="pill">Policy</span>
+  </div>
+</section>
+
+<section class="cases">
+
+  <article class="case">
+    <div class="case-num">01</div>
+    <div class="case-left">
+      <div class="domain">▸ SOFTWARE ENGINEERING</div>
+      <h2>Code review before <span class="ital">it ships.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">refactors</span>
+        <span class="case-tag">arch</span>
+        <span class="case-tag">deps</span>
+        <span class="case-tag">debugging</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Probably the strongest fit. Codex, Claude Code, and Gemini already live in the engineering workflow. The chamber promotes them from "tab I check" to "council I consult." Architecture choices, dependency upgrades, refactors that touch shared modules, security tradeoffs in critical paths.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"We're replacing our auth library. Three candidates. Which one survives a five-year horizon and what do we lose with each?"</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">02</div>
+    <div class="case-left">
+      <div class="domain">▸ CYBERSECURITY</div>
+      <h2>The miss that costs <span class="ital">millions.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">incident</span>
+        <span class="case-tag">triage</span>
+        <span class="case-tag">threat model</span>
+        <span class="case-tag">patch risk</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Preserved dissent matters most here. One model missing an indicator is the difference between a contained incident and a public breach. The chamber records exactly who flagged what and when, so the post-incident review writes itself.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Suspicious outbound traffic from a build agent at 03:14 UTC. Triage. Is this exfiltration or a misconfigured probe?"</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">03</div>
+    <div class="case-left">
+      <div class="domain">▸ LEGAL & COMPLIANCE</div>
+      <h2>Not advice. <span class="ital">A second read.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">contracts</span>
+        <span class="case-tag">policy</span>
+        <span class="case-tag">regulatory</span>
+        <span class="case-tag">discovery</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Not a replacement for counsel. A structured review pass that catches what one reader missed. Contract redlines, policy interpretations, regulatory readings, discovery summaries. The audit trail is the deliverable: courts and regulators want to know what was considered, not just what was decided.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Vendor agreement, third draft. Indemnification clause moved. What changed materially since v2 and what are we accepting?"</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">04</div>
+    <div class="case-left">
+      <div class="domain">▸ MEDICAL & RESEARCH SUPPORT</div>
+      <h2>Second opinions, <span class="ital">traceable.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">literature</span>
+        <span class="case-tag">protocol</span>
+        <span class="case-tag">insurance</span>
+        <span class="case-tag">summary</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Not diagnosis. The chamber is for the administrative and research layer around clinical work: literature review, protocol critique, insurance documentation, summarizing treatment options for patient discussion. The value here is traceable reasoning a clinician can actually defend.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Five recent papers on this protocol. Summarize methodology, flag the weakest study, identify the assumption all five share."</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">05</div>
+    <div class="case-left">
+      <div class="domain">▸ FINANCE & INVESTMENT</div>
+      <h2>Test the thesis. <span class="ital">Stress the assumption.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">research</span>
+        <span class="case-tag">risk</span>
+        <span class="case-tag">due diligence</span>
+        <span class="case-tag">stress test</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Investment memos forget why they chose what they chose. The chamber preserves the assumption set alongside the conclusion. Comparing models, surfacing blind spots, stress-testing a thesis against a deliberately skeptical seat. When the position moves against you twelve months later, the chamber tells you whether you missed it or accepted it.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Long thesis on this name assumes 18% top-line growth and stable margins. Which assumption breaks first and what kills it?"</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">06</div>
+    <div class="case-left">
+      <div class="domain">▸ PRODUCT MANAGEMENT</div>
+      <h2>When every option <span class="ital">is defensible.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">prioritization</span>
+        <span class="case-tag">roadmap</span>
+        <span class="case-tag">build vs buy</span>
+        <span class="case-tag">pricing</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Product is dense with defensible answers. Build vs buy. Ship now vs polish. Free tier vs paywall. The chamber gives you a record of what you considered and why you rejected the alternatives — useful for the all-hands two quarters later when someone asks "why didn't we just buy it?"</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Customer feedback is split 60/40 on this feature. Ship as-is, ship gated, or kill it? Argue all three positions."</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">07</div>
+    <div class="case-left">
+      <div class="domain">▸ SCIENTIFIC RESEARCH</div>
+      <h2>Consensus can <span class="ital">hide weakness.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">paper review</span>
+        <span class="case-tag">methodology</span>
+        <span class="case-tag">grant</span>
+        <span class="case-tag">stats</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Peer review is good. A council of frontier models with adversarial roles is a different angle on the same problem. Methodology critique, experimental design pressure-testing, statistical sanity checks, grant proposal review. Dissent is what you want here.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Draft of section 4. Power analysis assumes effect size from the 2019 paper. Is that assumption defensible given the 2023 replication?"</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">08</div>
+    <div class="case-left">
+      <div class="domain">▸ DEVOPS & PLATFORM</div>
+      <h2>Decide. Deploy. <span class="ital">Don't regret.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">deploy</span>
+        <span class="case-tag">postmortem</span>
+        <span class="case-tag">migration</span>
+        <span class="case-tag">backup</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>The deliberate-decide-execute-record loop fits operations almost too cleanly. Deployment reviews. Outage postmortems. Config changes touching shared infrastructure. Backup and restore plans. The chamber's transcript becomes the runbook annotation you'll wish you had at 2am.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Postgres major version upgrade, prod. Rolling vs maintenance window vs blue-green. Trade-offs, failure modes, rollback path."</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">09</div>
+    <div class="case-left">
+      <div class="domain">▸ MANAGEMENT & POLICY</div>
+      <h2>The decision <span class="ital">behind the decision.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">hiring</span>
+        <span class="case-tag">vendor</span>
+        <span class="case-tag">policy</span>
+        <span class="case-tag">process</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>Hiring rubrics. Internal policy drafts. Vendor selection. Process changes that touch how the team operates. The chamber lets you show what was considered and why something was rejected — which is most of what good management documentation actually is.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"Remote-work policy revision. Three drafts. Which one survives contact with a quickly-growing team?"</div>
+      </div>
+    </div>
+  </article>
+
+  <article class="case">
+    <div class="case-num">10</div>
+    <div class="case-left">
+      <div class="domain">▸ TECHNICAL WRITING</div>
+      <h2>Edit pass with <span class="ital">an opinion.</span></h2>
+      <div class="case-tags">
+        <span class="case-tag">editing</span>
+        <span class="case-tag">fact-check</span>
+        <span class="case-tag">audience fit</span>
+        <span class="case-tag">structure</span>
+      </div>
+    </div>
+    <div class="case-right">
+      <p>One model gives you suggestions. A chamber gives you a contested edit pass: this paragraph is weak, no it's load-bearing, the structure is fine, no it buries the lede. Editorial dissent is sharper than editorial consensus.</p>
+      <div class="case-example">
+        <div class="label">▸ EXAMPLE SESSION</div>
+        <div class="text">"This piece runs in a developer publication. Section 3 is the part I'm least sure of. Cut, rewrite, or leave it?"</div>
+      </div>
+    </div>
+  </article>
+
+</section>
+
+<section class="highlight">
+  <div class="highlight-inner">
+    <div class="eyebrow" style="margin-bottom: 24px; justify-content: center; display: inline-flex;">The highest-value niche</div>
+    <h2>AI decision review<br>before you <span class="em">touch production,</span><br><span class="em-2">policy, or anything that bites back.</span></h2>
+    <p>That's where audit trail, dissent preservation, local control, and human authority stop being marketing words and become practical risk reduction.</p>
+  </div>
+</section>
+
+<section style="text-align: center; padding: 140px 48px; position: relative; overflow: hidden;">
+  <div style="position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(0,212,255,0.1), transparent 60%); pointer-events: none;"></div>
+  <div style="position: absolute; top: 20%; right: 15%; width: 300px; height: 300px; background: radial-gradient(circle, var(--gold), transparent 60%); opacity: 0.15; filter: blur(60px);"></div>
+  <h2 style="font-size: clamp(40px, 5.5vw, 72px); max-width: 800px; margin: 0 auto 28px; position: relative;">
+    Your decision deserves <span style="color: var(--gold); font-style: italic;">a record.</span>
+  </h2>
+  <div style="display: flex; gap: 16px; justify-content: center; position: relative;">
+    <a href="#" class="btn btn-primary">Convene a session <span class="btn-arrow">→</span></a>
+    <a href="pricing.html" class="btn btn-ghost">See pricing</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-mark"><span class="the">The</span>AI Conclave<span class="ital">.</span></div>
+      <p class="footer-tag">A governed reasoning chamber for technical judgment. Local. Audit-clean. Keeper-final.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="how-it-works.html">How it works</a></li>
+        <li><a href="use-cases.html">Use cases</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+        <li><a href="#">Download</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Principles</h5>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="manifesto.html">Charter</a></li>
+        <li><a href="#">Provenance</a></li>
+        <li><a href="#">Local-first</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Connect</h5>
+      <ul>
+        <li><a href="#">GitHub</a></li>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">Changelog</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-base">
+    <div class="legal">
+      <span>© 2026 <a href="https://digitalgods.ai">DIGITALGODS.AI</a> · ALL RIGHTS RESERVED</span>
+      <span>THE AI CONCLAVE™</span>
+    </div>
+    <span>SINGLE-USER · LOCAL-FIRST · KEEPER-RATIFIED</span>
+  </div>
+</footer>
+
+</body>
+</html>

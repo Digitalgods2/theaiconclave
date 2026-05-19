@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing — The AI Conclave</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+.page-hero {
+  padding: 180px 48px 80px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.page-hero::before {
+  content: '';
+  position: absolute;
+  top: -200px; left: 50%;
+  transform: translateX(-50%);
+  width: 1000px; height: 1000px;
+  background: radial-gradient(circle, var(--gold), transparent 60%);
+  opacity: 0.15;
+  filter: blur(50px);
+}
+.page-hero::after {
+  content: '';
+  position: absolute;
+  top: 100px; left: 10%;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, var(--violet), transparent 60%);
+  opacity: 0.2;
+  filter: blur(60px);
+}
+.page-hero .eyebrow { justify-content: center; display: inline-flex; }
+.page-hero h1 {
+  font-size: clamp(56px, 8vw, 110px);
+  letter-spacing: -0.035em;
+  max-width: 1100px;
+  margin: 28px auto;
+  position: relative;
+}
+.page-hero h1 .ital { font-style: italic; color: var(--gold); }
+.page-hero p {
+  font-family: var(--serif);
+  font-size: 22px;
+  max-width: 700px;
+  line-height: 1.5;
+  color: var(--gray-1);
+  margin: 0 auto;
+  position: relative;
+}
+
+/* TIERS */
+.pricing { padding: 60px 48px 100px; max-width: 1400px; margin: 0 auto; }
+.tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+
+.tier {
+  background: var(--black-2);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 40px 36px 36px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.tier:hover { border-color: var(--rule-strong); transform: translateY(-3px); }
+
+.tier.featured {
+  background: linear-gradient(180deg, rgba(255,184,0,0.1), var(--black-2) 50%);
+  border-color: var(--gold);
+  transform: scale(1.03);
+  box-shadow:
+    0 20px 60px -20px rgba(255,184,0,0.35),
+    0 0 0 1px rgba(255,184,0,0.3);
+}
+.tier.featured:hover { transform: scale(1.03) translateY(-3px); }
+
+.tier-ribbon {
+  position: absolute;
+  top: -12px;
+  left: 36px;
+  background: var(--gold);
+  color: var(--black);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  padding: 6px 14px;
+  border-radius: 2px;
+  font-weight: 700;
+  box-shadow: 0 6px 20px -6px rgba(255,184,0,0.6);
+}
+
+.tier-name {
+  font-family: var(--serif);
+  font-size: 36px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+  color: var(--white);
+}
+.tier-name .ital { font-style: italic; }
+.tier:nth-child(1) .tier-name .ital { color: var(--cyan); }
+.tier:nth-child(2) .tier-name .ital { color: var(--gold); }
+.tier:nth-child(3) .tier-name .ital { color: var(--violet); }
+
+.tier-subtitle {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  color: var(--gray-2);
+  margin-bottom: 32px;
+  font-weight: 600;
+}
+
+.tier-price { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.tier-price .currency {
+  font-family: var(--mono);
+  font-size: 20px;
+  color: var(--gray-1);
+  font-weight: 500;
+}
+.tier-price .amount {
+  font-family: var(--serif);
+  font-size: 72px;
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--white);
+}
+.tier-price .period {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--gray-1);
+  letter-spacing: 0.05em;
+}
+.tier.featured .tier-price .amount { color: var(--gold); }
+.tier:nth-child(1) .tier-price .amount { color: var(--cyan); }
+.tier:nth-child(3) .tier-price .amount { color: var(--violet); }
+
+.tier-price-note {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--gray-2);
+  margin-bottom: 32px;
+  letter-spacing: 0.05em;
+}
+
+.tier-features { list-style: none; margin-bottom: 36px; flex: 1; }
+.tier-features li {
+  padding: 11px 0;
+  border-bottom: 1px dashed var(--rule);
+  font-size: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  line-height: 1.5;
+  color: var(--off-white);
+}
+.tier-features li::before {
+  content: '▸';
+  font-family: var(--mono);
+  font-size: 10px;
+  margin-top: 4px;
+  font-weight: 700;
+  color: var(--gold);
+}
+.tier:nth-child(1) .tier-features li::before { color: var(--cyan); }
+.tier:nth-child(3) .tier-features li::before { color: var(--violet); }
+
+.tier-features li.muted { color: var(--gray-3); }
+.tier-features li.muted::before { content: '−'; color: var(--gray-3); }
+
+.tier-cta {
+  display: block;
+  text-align: center;
+  padding: 16px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.tier-cta.primary { background: var(--gold); color: var(--black); }
+.tier-cta.primary:hover {
+  background: var(--white);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -8px rgba(255,184,0,0.5);
+}
+.tier-cta.ghost { background: transparent; border: 1px solid var(--rule-strong); color: var(--off-white); }
+.tier-cta.ghost:hover { border-color: var(--gold); color: var(--gold); }
+.tier:nth-child(1) .tier-cta.ghost:hover { border-color: var(--cyan); color: var(--cyan); }
+.tier:nth-child(3) .tier-cta.ghost:hover { border-color: var(--violet); color: var(--violet); }
+
+/* COMPARE */
+.compare {
+  padding: 120px 48px;
+  background: linear-gradient(180deg, var(--black-2), var(--black-3));
+  border-top: 1px solid var(--rule);
+}
+.compare-inner { max-width: 1200px; margin: 0 auto; }
+.compare h2 {
+  font-size: clamp(36px, 4.5vw, 56px);
+  margin-bottom: 60px;
+  text-align: center;
+}
+.compare h2 .ital { color: var(--gold); font-style: italic; }
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.compare-table thead th {
+  text-align: left;
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--rule-strong);
+  letter-spacing: 0.1em;
+  font-size: 11px;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--gray-1);
+}
+.compare-table thead th.col-tier-1 { color: var(--cyan); }
+.compare-table thead th.col-tier-2 { color: var(--violet); }
+.compare-table thead th.col-featured {
+  background: rgba(255,184,0,0.1);
+  color: var(--gold);
+  font-weight: 700;
+}
+.compare-table tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px dashed var(--rule);
+  vertical-align: top;
+  color: var(--off-white);
+}
+.compare-table tbody td.feature {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  width: 35%;
+  color: var(--white);
+}
+.compare-table tbody td.col-featured {
+  background: rgba(255,184,0,0.06);
+  color: var(--gold);
+}
+.compare-table .check { color: var(--emerald); font-size: 16px; font-weight: 700; }
+.compare-table .x { color: var(--gray-3); }
+
+/* FAQ */
+.faq { padding: 120px 48px; max-width: 900px; margin: 0 auto; }
+.faq h2 {
+  font-size: clamp(36px, 4.5vw, 56px);
+  margin-bottom: 60px;
+  text-align: center;
+}
+.faq h2 .ital { color: var(--violet); font-style: italic; }
+
+.faq-item { border-bottom: 1px solid var(--rule); padding: 32px 0; }
+.faq-q {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+  margin-bottom: 14px;
+  letter-spacing: -0.015em;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  color: var(--white);
+}
+.faq-q .q-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--gold);
+  font-weight: 700;
+}
+.faq-a {
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--gray-1);
+  padding-left: 50px;
+}
+.faq-a em { color: var(--gold); font-style: italic; }
+
+@media (max-width: 1000px) {
+  .tiers { grid-template-columns: 1fr; gap: 16px; }
+  .tier.featured { transform: none; }
+  .tier.featured:hover { transform: translateY(-3px); }
+  .compare { padding: 80px 24px; }
+  .compare-table { font-size: 11px; }
+  .compare-table thead th, .compare-table tbody td { padding: 10px 8px; }
+  .faq { padding: 80px 24px; }
+  .faq-a { padding-left: 0; }
+  .pricing { padding: 40px 24px 60px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-mark">
+    <span class="nav-mark-glyph"></span>
+    <span class="name-line"><span class="the">The</span>AI Conclave</span>
+  </a>
+  <div class="nav-links">
+    <a href="how-it-works.html">How it works</a>
+    <a href="use-cases.html">Use cases</a>
+    <a href="pricing.html" class="active">Pricing</a>
+    <a href="manifesto.html">Manifesto</a>
+  </div>
+  <a href="#" class="nav-cta">Open the chamber →</a>
+</nav>
+
+<section class="page-hero">
+  <div class="eyebrow fade-up d-1">Pricing</div>
+  <h1 class="fade-up d-2">You bring the models.<br>We bring the <span class="ital">chamber.</span></h1>
+  <p class="fade-up d-3">The AI Conclave is a thin layer over your existing AI subscriptions and API keys. We don't mark up tokens. We don't middleman your data. You pay for the orchestration, dissent engine, and audit infrastructure. Nothing else.</p>
+</section>
+
+<section class="pricing">
+  <div class="tiers">
+
+    <div class="tier">
+      <div class="tier-name">Solo<span class="ital">.</span></div>
+      <div class="tier-subtitle">▸ FOR THE INDEPENDENT KEEPER</div>
+      <div class="tier-price">
+        <span class="currency">$</span>
+        <span class="amount">0</span>
+        <span class="period">/forever</span>
+      </div>
+      <div class="tier-price-note">Bring your own keys. No card required.</div>
+      <ul class="tier-features">
+        <li>Up to 3 seats per session</li>
+        <li>Frontier API seats (Anthropic, OpenAI, Google)</li>
+        <li>Open-weight seats via OpenRouter</li>
+        <li>Local-only deliberation</li>
+        <li>Read-only sandbox</li>
+        <li>Audit-grade transcripts</li>
+        <li>Markdown + plaintext exports</li>
+        <li class="muted">CLI seat integration</li>
+        <li class="muted">Project memory injection</li>
+        <li class="muted">PDF/DOCX export</li>
+      </ul>
+      <a href="#" class="tier-cta ghost">Download → free forever</a>
+    </div>
+
+    <div class="tier featured">
+      <span class="tier-ribbon">★ RECOMMENDED</span>
+      <div class="tier-name">Keeper<span class="ital">.</span></div>
+      <div class="tier-subtitle">▸ FOR DECISIONS THAT BITE BACK</div>
+      <div class="tier-price">
+        <span class="currency">$</span>
+        <span class="amount">24</span>
+        <span class="period">/month</span>
+      </div>
+      <div class="tier-price-note">Or $228/year. Cancel anytime.</div>
+      <ul class="tier-features">
+        <li>Unlimited seats per session</li>
+        <li>Everything in Solo, plus:</li>
+        <li>CLI seats (Claude Code, Codex, Gemini)</li>
+        <li>Project memory injection</li>
+        <li>Canonical decision records</li>
+        <li>PDF, DOCX, Markdown, plaintext exports</li>
+        <li>Tool-loop reading for open-weight seats</li>
+        <li>Visual disagreement engine</li>
+        <li>Charter-customizable</li>
+        <li>Email support</li>
+      </ul>
+      <a href="#" class="tier-cta primary">Become a Keeper</a>
+    </div>
+
+    <div class="tier">
+      <div class="tier-name">Chamber<span class="ital">.</span></div>
+      <div class="tier-subtitle">▸ FOR REGULATED & HIGH-STAKES TEAMS</div>
+      <div class="tier-price">
+        <span class="currency">$</span>
+        <span class="amount">96</span>
+        <span class="period">/seat/month</span>
+      </div>
+      <div class="tier-price-note">Min 3 seats. Annual contracts.</div>
+      <ul class="tier-features">
+        <li>Everything in Keeper, plus:</li>
+        <li>Shared decision archive across team</li>
+        <li>Role-based Keeper hierarchy</li>
+        <li>SSO / SAML</li>
+        <li>Self-hosted option</li>
+        <li>Compliance bundles (SOC2 / HIPAA-ready)</li>
+        <li>Custom seat charters</li>
+        <li>Audit log export to SIEM</li>
+        <li>Priority support + onboarding</li>
+        <li>Dedicated Slack channel</li>
+      </ul>
+      <a href="#" class="tier-cta ghost">Talk to the bench →</a>
+    </div>
+  </div>
+</section>
+
+<section class="compare">
+  <div class="compare-inner">
+    <div class="eyebrow" style="margin-bottom: 18px; justify-content: center; display: flex;">Side by side</div>
+    <h2>What you get, by <span class="ital">tier.</span></h2>
+
+    <table class="compare-table">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          <th class="col-tier-1">Solo</th>
+          <th class="col-featured">★ Keeper</th>
+          <th class="col-tier-2">Chamber</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="feature">Seats per session</td>
+          <td>Up to 3</td>
+          <td class="col-featured">Unlimited</td>
+          <td>Unlimited</td>
+        </tr>
+        <tr>
+          <td class="feature">API seats (BYO keys)</td>
+          <td><span class="check">✓</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Frontier CLI seats</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Open-weight via OpenRouter</td>
+          <td><span class="check">✓</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Audit-grade transcripts</td>
+          <td><span class="check">✓</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Read-only sandbox</td>
+          <td><span class="check">✓</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Project memory injection</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">PDF / DOCX export</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Canonical decision records</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Visual disagreement engine</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="check">✓</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Shared team archive</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="x">—</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">SSO / SAML</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="x">—</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Self-hosted option</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="x">—</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+        <tr>
+          <td class="feature">Audit log → SIEM</td>
+          <td><span class="x">—</span></td>
+          <td class="col-featured"><span class="x">—</span></td>
+          <td><span class="check">✓</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="faq">
+  <div class="eyebrow" style="margin-bottom: 18px; justify-content: center; display: flex;">Frequently asked</div>
+  <h2>The honest <span class="ital">answers.</span></h2>
+
+  <div class="faq-item">
+    <div class="faq-q"><span class="q-num">Q01</span>Do you mark up API tokens?</div>
+    <div class="faq-a">No. You bring your own keys and pay the model providers directly at their rates. The AI Conclave only charges for the chamber infrastructure: orchestration, dissent engine, audit recording, exports, and project memory.</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><span class="q-num">Q02</span>What happens to my data?</div>
+    <div class="faq-a">It stays on your machine. The AI Conclave runs locally. Your prompts, transcripts, and decision records never touch our servers on Solo or Keeper plans. Chamber plan customers can choose self-hosted or our hosted infrastructure — never both default.</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><span class="q-num">Q03</span>Can I run this entirely on open-weight models?</div>
+    <div class="faq-a">Yes. Set up OpenRouter, point the chamber at it, and you can run a full session without ever touching a frontier provider. The tool-loop reading feature means open-weight seats stay cost-effective even on long contexts.</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><span class="q-num">Q04</span>Why is Solo free forever?</div>
+    <div class="faq-a">Because the value compounds the more you use it. Project memory, decision archives, and the Charter all get sharper over time. Solo gives you a real working chamber. Keeper is where it becomes a daily tool. We'd rather have you on Solo for a year than churn off a trial.</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><span class="q-num">Q05</span>Is there a free trial of Keeper?</div>
+    <div class="faq-a">Fourteen days, no card. If you don't ratify at least one verdict during the trial you've probably picked the wrong tool — refund without questions.</div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><span class="q-num">Q06</span>What does "Charter-customizable" actually mean?</div>
+    <div class="faq-a">The chamber operates under an internal constitution that governs seat roles, dissent handling, ratification rules, and audit requirements. Keeper users can amend it within bounds. Chamber users can ratify their own. <em>The system that governs decisions is itself governed.</em></div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><span class="q-num">Q07</span>Will you ever turn this into a SaaS that holds my data?</div>
+    <div class="faq-a">No. Local-first, single-user is a load-bearing design decision. If we change it, it won't be The AI Conclave anymore.</div>
+  </div>
+</section>
+
+<section style="text-align: center; padding: 140px 48px; position: relative; overflow: hidden; border-top: 1px solid var(--rule);">
+  <div style="position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(255,184,0,0.12), transparent 60%); pointer-events: none;"></div>
+  <div style="position: absolute; top: 20%; left: 15%; width: 300px; height: 300px; background: radial-gradient(circle, var(--violet), transparent 60%); opacity: 0.2; filter: blur(60px);"></div>
+  <h2 style="font-size: clamp(40px, 5.5vw, 72px); max-width: 800px; margin: 0 auto 28px; position: relative;">
+    Pay for the chamber.<br>Own the <span style="color: var(--gold); font-style: italic;">verdict.</span>
+  </h2>
+  <div style="display: flex; gap: 16px; justify-content: center; position: relative;">
+    <a href="#" class="btn btn-primary">Start with Solo <span class="btn-arrow">→</span></a>
+    <a href="#" class="btn btn-ghost">Talk to us</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-mark"><span class="the">The</span>AI Conclave<span class="ital">.</span></div>
+      <p class="footer-tag">A governed reasoning chamber for technical judgment. Local. Audit-clean. Keeper-final.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="how-it-works.html">How it works</a></li>
+        <li><a href="use-cases.html">Use cases</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+        <li><a href="#">Download</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Principles</h5>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="manifesto.html">Charter</a></li>
+        <li><a href="#">Provenance</a></li>
+        <li><a href="#">Local-first</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Connect</h5>
+      <ul>
+        <li><a href="#">GitHub</a></li>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">Changelog</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-base">
+    <div class="legal">
+      <span>© 2026 <a href="https://digitalgods.ai">DIGITALGODS.AI</a> · ALL RIGHTS RESERVED</span>
+      <span>THE AI CONCLAVE™</span>
+    </div>
+    <span>SINGLE-USER · LOCAL-FIRST · KEEPER-RATIFIED</span>
+  </div>
+</footer>
+
+</body>
+</html>

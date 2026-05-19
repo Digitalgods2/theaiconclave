@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manifesto — The AI Conclave</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+/* MASTHEAD */
+.masthead {
+  padding: 180px 48px 80px;
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: center;
+  position: relative;
+}
+.masthead::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 900px; height: 600px;
+  background: radial-gradient(ellipse, var(--violet), transparent 60%);
+  opacity: 0.2;
+  filter: blur(60px);
+  pointer-events: none;
+}
+.masthead::after {
+  content: '';
+  position: absolute;
+  top: 100px; left: 20%;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, var(--gold), transparent 60%);
+  opacity: 0.15;
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+.masthead-rule {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  margin-bottom: 60px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--gray-1);
+  font-weight: 600;
+  position: relative;
+}
+.masthead-rule span:nth-child(1) { color: var(--gold); }
+.masthead-rule span:nth-child(3) { color: var(--cyan); }
+
+.masthead h1 {
+  font-family: var(--serif);
+  font-size: clamp(64px, 10vw, 140px);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+  margin-bottom: 40px;
+  position: relative;
+}
+.masthead h1 .ital { font-style: italic; color: var(--gold); }
+.masthead h1 .ital-2 { font-style: italic; color: var(--violet); }
+
+.masthead-deck {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 26px;
+  font-weight: 300;
+  line-height: 1.4;
+  max-width: 800px;
+  margin: 0 auto;
+  color: var(--gray-1);
+  position: relative;
+}
+.masthead-deck .em { color: var(--gold); font-style: normal; }
+
+.masthead-byline {
+  margin-top: 60px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  color: var(--cyan);
+  font-weight: 600;
+  position: relative;
+}
+
+/* ARTICLE */
+.article {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 80px 48px 120px;
+  font-family: var(--serif);
+  font-size: 20px;
+  line-height: 1.7;
+  color: var(--off-white);
+}
+
+.article > p:first-of-type::first-letter {
+  float: left;
+  font-family: var(--serif);
+  font-size: 110px;
+  line-height: 0.85;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--gold);
+  padding-right: 14px;
+  padding-top: 8px;
+  text-shadow: 0 0 40px rgba(255,184,0,0.4);
+}
+
+.article p { margin-bottom: 28px; }
+.article p .em { color: var(--gold); font-style: italic; }
+.article p .em-violet { color: var(--violet); font-style: italic; }
+.article p .red { color: var(--red); }
+
+.article h2 {
+  font-size: 38px;
+  margin: 60px 0 24px;
+  letter-spacing: -0.025em;
+  color: var(--white);
+}
+.article h2 .ital { font-style: italic; color: var(--gold); }
+.article h2::before {
+  content: '§';
+  display: block;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--cyan);
+  margin-bottom: 10px;
+}
+
+.pull {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 32px;
+  line-height: 1.3;
+  margin: 50px -60px;
+  padding: 28px 60px;
+  border-top: 1px solid var(--gold);
+  border-bottom: 1px solid var(--gold);
+  letter-spacing: -0.02em;
+  color: var(--gold);
+  position: relative;
+}
+.pull::before, .pull::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 1px;
+  background: var(--gold);
+  opacity: 0.5;
+}
+.pull::before { top: 0; }
+.pull::after { bottom: 0; }
+
+.pull.violet { color: var(--violet); border-top-color: var(--violet); border-bottom-color: var(--violet); }
+.pull.violet::before, .pull.violet::after { background: var(--violet); }
+
+/* CHARTER */
+.charter {
+  background: linear-gradient(180deg, var(--black-2), var(--black));
+  padding: 140px 48px;
+  position: relative;
+  overflow: hidden;
+  border-top: 1px solid var(--rule);
+}
+.charter::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,184,0,0.15), transparent 40%),
+    radial-gradient(circle at 80% 80%, rgba(123,92,255,0.18), transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(0,212,255,0.08), transparent 50%);
+  pointer-events: none;
+}
+
+.charter-inner { max-width: 900px; margin: 0 auto; position: relative; z-index: 1; }
+
+.charter-header { text-align: center; margin-bottom: 80px; }
+
+.charter-header .seal {
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 32px;
+  position: relative;
+  filter: drop-shadow(0 0 30px rgba(255,184,0,0.4));
+}
+.charter-header .seal svg { width: 100%; height: 100%; }
+
+.charter-header .eyebrow {
+  color: var(--gold);
+  justify-content: center;
+  display: inline-flex;
+  margin-bottom: 16px;
+}
+
+.charter-header h2 {
+  font-family: var(--serif);
+  font-size: clamp(48px, 6vw, 80px);
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+.charter-header h2 .ital { font-style: italic; color: var(--gold); }
+
+.charter-header p {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 20px;
+  color: var(--gray-1);
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.articles { display: grid; gap: 10px; }
+
+.article-clause {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--gold);
+  padding: 32px 36px;
+  border-radius: 0 4px 4px 0;
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 32px;
+  align-items: baseline;
+  transition: background 0.2s, transform 0.2s;
+}
+.article-clause:hover { background: rgba(255,255,255,0.05); transform: translateX(4px); }
+
+.article-clause:nth-child(2) { border-left-color: var(--red); }
+.article-clause:nth-child(3) { border-left-color: var(--violet); }
+.article-clause:nth-child(4) { border-left-color: var(--cyan); }
+.article-clause:nth-child(5) { border-left-color: var(--emerald); }
+.article-clause:nth-child(6) { border-left-color: var(--gold); }
+.article-clause:nth-child(7) { border-left-color: var(--violet); }
+
+.clause-num {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 64px;
+  font-weight: 300;
+  line-height: 0.85;
+  letter-spacing: -0.04em;
+  color: var(--gold);
+}
+.article-clause:nth-child(2) .clause-num { color: var(--red); }
+.article-clause:nth-child(3) .clause-num { color: var(--violet); }
+.article-clause:nth-child(4) .clause-num { color: var(--cyan); }
+.article-clause:nth-child(5) .clause-num { color: var(--emerald); }
+.article-clause:nth-child(6) .clause-num { color: var(--gold); }
+.article-clause:nth-child(7) .clause-num { color: var(--violet); }
+
+.clause-body h3 {
+  font-family: var(--serif);
+  font-size: 26px;
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+  color: var(--white);
+}
+.clause-body h3 .ital { font-style: italic; color: var(--gold); }
+.article-clause:nth-child(2) .clause-body h3 .ital { color: var(--red); }
+.article-clause:nth-child(3) .clause-body h3 .ital { color: var(--violet); }
+.article-clause:nth-child(4) .clause-body h3 .ital { color: var(--cyan); }
+.article-clause:nth-child(5) .clause-body h3 .ital { color: var(--emerald); }
+.article-clause:nth-child(7) .clause-body h3 .ital { color: var(--violet); }
+
+.clause-body p {
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--gray-1);
+}
+
+/* AMENDMENT */
+.amendment {
+  margin-top: 80px;
+  padding: 32px;
+  background: linear-gradient(135deg, rgba(255,184,0,0.1), rgba(255,184,0,0.02));
+  border: 1px dashed rgba(255,184,0,0.5);
+  border-radius: 4px;
+  text-align: center;
+}
+.amendment .label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  color: var(--gold);
+  margin-bottom: 14px;
+  font-weight: 700;
+}
+.amendment p {
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 19px;
+  color: var(--off-white);
+}
+
+/* SIGNATURES */
+.signatures {
+  padding: 120px 48px;
+  max-width: 900px;
+  margin: 0 auto;
+  text-align: center;
+}
+.signatures .eyebrow { justify-content: center; display: inline-flex; margin-bottom: 24px; }
+.signatures h2 {
+  font-family: var(--serif);
+  font-size: clamp(36px, 4.5vw, 56px);
+  margin-bottom: 60px;
+  letter-spacing: -0.025em;
+}
+.signatures h2 .ital { font-style: italic; color: var(--violet); }
+
+.signature-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+
+.signature { text-align: center; }
+.signature .sig {
+  font-family: 'IBM Plex Serif', serif;
+  font-style: italic;
+  font-size: 38px;
+  font-weight: 400;
+  color: var(--gold);
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: 8px;
+  margin-bottom: 14px;
+  letter-spacing: -0.02em;
+}
+.signature:nth-child(2) .sig { color: var(--violet); }
+.signature:nth-child(3) .sig { color: var(--cyan); }
+
+.signature .role {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--gray-1);
+  font-weight: 600;
+}
+
+/* FINAL */
+.final {
+  text-align: center;
+  padding: 140px 48px;
+  background: linear-gradient(180deg, var(--black-2), var(--black));
+  border-top: 1px solid var(--rule);
+  position: relative;
+  overflow: hidden;
+}
+.final::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(255,184,0,0.12), transparent 60%);
+  pointer-events: none;
+}
+.final::after {
+  content: '';
+  position: absolute;
+  top: 30%; right: 20%;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, var(--violet), transparent 60%);
+  opacity: 0.2;
+  filter: blur(60px);
+}
+.final h2 {
+  font-family: var(--serif);
+  font-size: clamp(40px, 5.5vw, 72px);
+  max-width: 800px;
+  margin: 0 auto 28px;
+  letter-spacing: -0.03em;
+  position: relative;
+}
+.final h2 .ital { font-style: italic; color: var(--gold); }
+
+@media (max-width: 1000px) {
+  .article { padding: 60px 24px 80px; font-size: 18px; }
+  .pull { margin: 40px 0; padding: 24px 0; font-size: 24px; border-left: 0; border-right: 0; }
+  .article > p:first-of-type::first-letter { font-size: 80px; }
+  .charter { padding: 80px 24px; }
+  .article-clause { grid-template-columns: 1fr; gap: 12px; padding: 24px; }
+  .clause-num { font-size: 48px; }
+  .signature-row { grid-template-columns: 1fr; gap: 30px; }
+  .masthead { padding: 130px 24px 60px; }
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="index.html" class="nav-mark">
+    <span class="nav-mark-glyph"></span>
+    <span class="name-line"><span class="the">The</span>AI Conclave</span>
+  </a>
+  <div class="nav-links">
+    <a href="how-it-works.html">How it works</a>
+    <a href="use-cases.html">Use cases</a>
+    <a href="pricing.html">Pricing</a>
+    <a href="manifesto.html" class="active">Manifesto</a>
+  </div>
+  <a href="#" class="nav-cta">Open the chamber →</a>
+</nav>
+
+<section class="masthead">
+  <div class="masthead-rule">
+    <span>VOL. I · NO. 01</span>
+    <span>A POSITION PAPER</span>
+    <span>RATIFIED · 2026</span>
+  </div>
+  <h1 class="fade-up d-1">A vote is not a <span class="ital">verdict.</span></h1>
+  <p class="masthead-deck fade-up d-2">On why most AI tools are unsafe for stakes that matter, and what we built <span class="em">instead.</span></p>
+  <div class="masthead-byline fade-up d-3">▸ FROM THE BENCH · THE AI CONCLAVE</div>
+</section>
+
+<article class="article">
+  <p>The dominant pattern in AI products is to give you an answer. One model. One reply. The reasoning behind it evaporates the moment you close the tab. This is fine for drafting an email. It is dangerous for anything else.</p>
+
+  <p>The pitch of "multi-agent AI" usually inherits the same flaw with extra steps. Multiple models, sure — but they get smoothed into a single confident output, the disagreements quietly resolved by whichever orchestration script wrote the final paragraph. The user sees one answer. The dissent is gone.</p>
+
+  <p>We don't think that's a product. We think that's a <span class="em">liability dressed up as a feature.</span></p>
+
+  <div class="pull">"The decision is yours. Always. The system exists to make that decision better-informed, not to relieve you of it."</div>
+
+  <h2>What we built <span class="ital">instead.</span></h2>
+
+  <p>The AI Conclave is a chamber. Models sit as seats. They reason in parallel and then against each other in counter-rounds. Their positions are recorded verbatim. When they disagree, the dissent stays on the record. When they agree, the agreement is itemized. A single Keeper — a human, you — ratifies, overrides, or sends it back.</p>
+
+  <p>The transcript is audit-grade. Every prompt, every response, every token count, every retraction. The decision becomes a durable artifact: PDF for stakeholders, Markdown for the repo, plaintext for your records. Future sessions inherit prior decisions as memory, so the chamber gets sharper over time instead of starting from zero every morning.</p>
+
+  <p>Deliberation does not execute. The chamber reasons, and other tools act. That boundary is load-bearing. <span class="red">Many agent systems rush past it and then spend years apologizing for the consequences.</span> We refused to ship across that line.</p>
+
+  <h2>What makes this <span class="ital">different.</span></h2>
+
+  <p>Most AI products try to give you an answer. The AI Conclave gives you a governed reasoning process, a dissent record, and a decision trail. Not "multi-agent chat." Not "AI automation." Something stricter: <span class="em-violet">a local AI deliberation board for high-stakes technical judgment.</span></p>
+
+  <p>The audit trail, the preserved dissent, the local control, the human authority — these aren't marketing. They're risk reduction. They start mattering the instant your decision touches production code, security posture, customer-facing policy, or anything else that bites back when it's wrong.</p>
+
+  <h2>Why <span class="ital">local.</span> Why <span class="ital">single-user.</span></h2>
+
+  <p>Cloud agent platforms have a blast radius. A bug in their inference, a leak in their multi-tenant store, a policy change that touches your data — none of that is your problem until suddenly it is. The AI Conclave runs on your machine. Your conversations are yours. Your transcripts are yours. The chamber doesn't phone home.</p>
+
+  <p>This is a design choice with consequences. We will never be the most convenient. We will never have the slickest signup flow. But we will also never be the company that quietly retrained on your decision records.</p>
+
+  <div class="pull violet">"We will never be the most convenient. We will also never be the company that quietly retrained on your decision records."</div>
+
+  <h2>The promise we won't break.</h2>
+
+  <p>The Charter that follows isn't decoration. It's the operating constitution of the chamber, ratified by us and amendable only by Keepers. The system that governs your decisions is itself governed.</p>
+
+  <p>Read it. Hold us to it.</p>
+</article>
+
+<section class="charter">
+  <div class="charter-inner">
+    <div class="charter-header">
+      <div class="seal">
+        <svg viewBox="0 0 100 100" fill="none">
+          <circle cx="50" cy="50" r="47" stroke="var(--gold)" stroke-width="1.2"/>
+          <circle cx="50" cy="50" r="40" stroke="var(--gold)" stroke-width="1" stroke-dasharray="2 3" opacity="0.6"/>
+          <circle cx="50" cy="50" r="32" stroke="var(--violet)" stroke-width="1" opacity="0.8"/>
+          <circle cx="50" cy="50" r="8" fill="var(--gold)"/>
+          <path d="M50 16 L50 26 M50 74 L50 84 M16 50 L26 50 M74 50 L84 50" stroke="var(--gold)" stroke-width="1.5"/>
+          <path d="M26 26 L32 32 M68 68 L74 74 M74 26 L68 32 M32 68 L26 74" stroke="var(--cyan)" stroke-width="1" opacity="0.7"/>
+        </svg>
+      </div>
+      <div class="eyebrow">The Charter</div>
+      <h2>Seven articles. <span class="ital">No exceptions.</span></h2>
+      <p>The operating constitution of the chamber. Each clause is load-bearing.</p>
+    </div>
+
+    <div class="articles">
+      <div class="article-clause">
+        <div class="clause-num">I.</div>
+        <div class="clause-body">
+          <h3>The Keeper holds <span class="ital">final authority.</span></h3>
+          <p>No session's recommendation is a decision until a human Keeper ratifies it. The vote is not the verdict. This article cannot be amended.</p>
+        </div>
+      </div>
+
+      <div class="article-clause">
+        <div class="clause-num">II.</div>
+        <div class="clause-body">
+          <h3>Dissent is <span class="ital">preserved.</span></h3>
+          <p>Minority positions remain in the transcript verbatim and travel with the decision record. The chamber may not synthesize disagreement into consensus.</p>
+        </div>
+      </div>
+
+      <div class="article-clause">
+        <div class="clause-num">III.</div>
+        <div class="clause-body">
+          <h3>Deliberation does <span class="ital">not execute.</span></h3>
+          <p>Seats reason. Seats may not act. Execution requires the Keeper and the Keeper's tools. This separation is structural.</p>
+        </div>
+      </div>
+
+      <div class="article-clause">
+        <div class="clause-num">IV.</div>
+        <div class="clause-body">
+          <h3>Sandbox is <span class="ital">read-only.</span></h3>
+          <p>The chamber may inspect project files. It may not mutate them. The integrity of the working tree is the Keeper's, not the council's.</p>
+        </div>
+      </div>
+
+      <div class="article-clause">
+        <div class="clause-num">V.</div>
+        <div class="clause-body">
+          <h3>Provenance is <span class="ital">always recorded.</span></h3>
+          <p>Every session knows where it originated and what it touched. The audit trail is the substrate of the chamber, not a setting that can be disabled.</p>
+        </div>
+      </div>
+
+      <div class="article-clause">
+        <div class="clause-num">VI.</div>
+        <div class="clause-body">
+          <h3>The chamber runs <span class="ital">locally.</span></h3>
+          <p>Single-user by design. The AI Conclave does not transmit transcripts, prompts, or decision records to any party other than the model APIs the Keeper has chosen to invoke.</p>
+        </div>
+      </div>
+
+      <div class="article-clause">
+        <div class="clause-num">VII.</div>
+        <div class="clause-body">
+          <h3>The Charter is <span class="ital">amendable.</span></h3>
+          <p>Articles II through VI may be amended by Keepers within published bounds. Article I cannot. Article VII may be amended only to add further immutable articles, never to subtract them.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="amendment">
+      <div class="label">▸ AMENDMENT NOTE</div>
+      <p>Charter amendments require Keeper ratification under the same rules as any other verdict. The system that governs decisions is itself governed.</p>
+    </div>
+  </div>
+</section>
+
+<section class="signatures">
+  <div class="eyebrow">Ratified by the bench</div>
+  <h2>The chamber <span class="ital">signs its own document.</span></h2>
+
+  <div class="signature-row">
+    <div class="signature">
+      <div class="sig">C. Opus</div>
+      <div class="role">PRINCIPAL · SEAT 01</div>
+    </div>
+    <div class="signature">
+      <div class="sig">G. Pro</div>
+      <div class="role">REVIEWER · SEAT 02</div>
+    </div>
+    <div class="signature">
+      <div class="sig">The Keeper</div>
+      <div class="role">RATIFYING AUTHORITY</div>
+    </div>
+  </div>
+</section>
+
+<section class="final">
+  <h2>Hold the gavel. <span class="ital">Convene the chamber.</span></h2>
+  <div style="display: flex; gap: 16px; justify-content: center; position: relative;">
+    <a href="#" class="btn btn-primary">Open the chamber <span class="btn-arrow">→</span></a>
+    <a href="pricing.html" class="btn btn-ghost">See pricing</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-mark"><span class="the">The</span>AI Conclave<span class="ital">.</span></div>
+      <p class="footer-tag">A governed reasoning chamber for technical judgment. Local. Audit-clean. Keeper-final.</p>
+    </div>
+    <div class="footer-col">
+      <h5>Product</h5>
+      <ul>
+        <li><a href="how-it-works.html">How it works</a></li>
+        <li><a href="use-cases.html">Use cases</a></li>
+        <li><a href="pricing.html">Pricing</a></li>
+        <li><a href="#">Download</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Principles</h5>
+      <ul>
+        <li><a href="manifesto.html">Manifesto</a></li>
+        <li><a href="manifesto.html">Charter</a></li>
+        <li><a href="#">Provenance</a></li>
+        <li><a href="#">Local-first</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h5>Connect</h5>
+      <ul>
+        <li><a href="#">GitHub</a></li>
+        <li><a href="#">Docs</a></li>
+        <li><a href="#">Changelog</a></li>
+        <li><a href="#">Contact</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-base">
+    <div class="legal">
+      <span>© 2026 <a href="https://digitalgods.ai">DIGITALGODS.AI</a> · ALL RIGHTS RESERVED</span>
+      <span>THE AI CONCLAVE™</span>
+    </div>
+    <span>SINGLE-USER · LOCAL-FIRST · KEEPER-RATIFIED</span>
+  </div>
+</footer>
+
+</body>
+</html>

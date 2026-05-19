@@ -1,0 +1,308 @@
+# FLOW
+
+- Open: AI gave us answers, but lost the reasoning trail
+- The single-answer problem: confident, plausible, unverifiable
+- Introducing the deliberation council, not the oracle
+- Show three modes: conclave, resolve, consult
+- The keeper principle: humans decide, AIs deliberate
+- Preserved dissent matters more than smooth consensus
+- Visual disagreement: when models literally see differently
+- The audit trail as long-term memory
+- Operability before capability — a hard discipline
+- Why we refused in-conclave execution
+- The four-step loop: deliberate, decide, execute, record
+- Decisions become reusable context for future work
+- Local-only, single-user: control of the trail
+- The practical takeaway for builders
+- Close: reasoning you can inspect, revise, reuse
+
+# DESIRED TAKEAWAY
+
+The future of working with AI isn't a better single answer — it's a governed council whose disagreements you preserve, whose reasoning you can audit, and whose decisions you, the human, own forever.
+
+# PRESENTATION
+
+---
+
+## Slide 1: The Confident Answer Problem
+
+- One model. One answer. One voice.
+- Sounds authoritative. Often is wrong.
+- No reasoning trail to inspect.
+- No dissent to weigh.
+- We mistake fluency for truth.
+
+**Image:** A single glowing oracle on a pedestal in a dark room, audience nodding in silhouette, dramatic chiaroscuro lighting.
+
+**Speaker notes:**
+- We've spent two years asking AI for answers.
+- The answers come back confident, fluent, fast.
+- But we never see the reasoning that produced them.
+- We never see what the model rejected.
+- We never see what it almost said instead.
+
+---
+
+## Slide 2: What We Actually Need
+
+- Not an answer. A deliberation.
+- Multiple perspectives, reasoning in parallel.
+- Disagreements preserved, not averaged away.
+- A trail we can revisit later.
+- A decision that stays ours.
+
+**Image:** A round wooden council table with three glowing screens facing inward, papers scattered, warm light overhead.
+
+**Speaker notes:**
+- For real decisions, one voice isn't enough.
+- We need perspectives that can disagree productively.
+- We need to see where they diverge and why.
+- We need a record we can return to.
+- And we need to remain the ones who decide.
+
+---
+
+## Slide 3: Meet the Conclave
+
+- A governed council of AI models.
+- Codex, Gemini, Claude — at one table.
+- Structured deliberation, not free-form chat.
+- Disagreements surfaced verbatim.
+- You get a reasoning trail, not a verdict.
+
+**Image:** Three distinct AI avatars sitting at a circular table, speech bubbles overlapping, a human silhouette presiding from outside the circle.
+
+**Speaker notes:**
+- This is AI Switchboard — a deliberation council.
+- Three frontier models consult one another formally.
+- You ask a question. They deliberate. You watch.
+- Every disagreement is preserved word for word.
+- Nothing gets flattened into false consensus.
+
+---
+
+## Slide 4: Three Modes, Three Shapes of Thinking
+
+- Conclave: equal voices, full deliberation.
+- Resolve: one driver, others as checks.
+- Consult: quick three-step second opinion.
+- Pick by the answer you want.
+- Architecture? Conclave. Debugging? Resolve.
+
+**Image:** Three abstract geometric diagrams side by side — a circle of nodes, an arrow with checkpoints, and a triangle of three steps.
+
+**Speaker notes:**
+- Different questions need different deliberation shapes.
+- Conclave is for genuine disagreement on hard choices.
+- Resolve is for iterating toward a concrete answer.
+- Consult is for a fast sanity check.
+- The mode determines whether you get debate or convergence.
+
+---
+
+## Slide 5: The Keeper Principle
+
+- The conclave deliberates.
+- You decide.
+- Ratify, reject, or return to council.
+- The AI never overrides your judgment.
+- Authority is not delegated. Ever.
+
+**Image:** A human hand holding a quill above a parchment, three glowing orbs hovering nearby offering scrolls, the hand alone signs.
+
+**Speaker notes:**
+- This is the most important word in the system.
+- You are called the keeper.
+- The council provides alternatives and critique.
+- You provide intent, judgment, and approval.
+- That separation is what keeps the audit trail clean.
+
+---
+
+## Slide 6: Preserved Dissent
+
+- Consensus is sometimes conformist drift.
+- A 4-out-of-4 vote can hide weak agreement.
+- Confidence scores expose hidden uncertainty.
+- Wide spread triggers an explicit caveat.
+- You see who actually agreed, and how strongly.
+
+**Image:** Four voting cards face-up on a table, three marked "yes" boldly, one marked "yes" faintly with a question mark, spotlight on the faint one.
+
+**Speaker notes:**
+- Averaging models is worse than admitting they disagree.
+- We surface confidence per participant, per round.
+- If three say ninety-five percent and one says forty, you'll know.
+- That spread is information, not noise.
+- Conformist consensus is the failure mode we fight hardest.
+
+---
+
+## Slide 7: When Models Disagree About Reality
+
+- Image deliberation reveals perceptual conflict.
+- Codex sees a red button. Gemini sees green.
+- The system refuses to force consensus.
+- The disagreement is escalated to you.
+- Vision is fact, not opinion.
+
+**Image:** Two overlapping screenshots of the same UI, one with a red button, one with a green button, a human eye between them deciding.
+
+**Speaker notes:**
+- Vision models have different perceptual stacks.
+- When they disagree on pixels, that's information.
+- We don't synthesize a fake middle ground.
+- We hand the disagreement back to the human.
+- You have the actual eyes on the actual image.
+
+---
+
+## Slide 8: The Audit Trail as Memory
+
+- Every prompt, every response, recorded.
+- Every decision, permanent and timestamped.
+- Nothing summarized away.
+- Nothing anonymized.
+- Past reasoning becomes future context.
+
+**Image:** A library of glowing scroll cases stretching into the distance, each scroll labeled with a timestamp, a person walking among them.
+
+**Speaker notes:**
+- Reasoning that vanishes is reasoning you can't learn from.
+- Every deliberation is written to a local database.
+- Every decision you make is preserved verbatim.
+- Future conclaves automatically see your prior calls.
+- Settled questions stop getting re-litigated.
+
+---
+
+## Slide 9: Operability Before Capability
+
+- New features must preserve foundations.
+- Observability, durability, recoverability, audit.
+- Cool capability that breaks the trail loses.
+- This is a charter principle, not a preference.
+- Trust compounds. Capability churns.
+
+**Image:** A grand stone foundation labeled with six pillars, a shiny new tower being considered above, an architect's hand weighing both.
+
+**Speaker notes:**
+- This is the discipline that keeps the system honest.
+- Every proposed capability is weighed against operability.
+- If a feature degrades the audit trail, it loses.
+- If it raises complexity beyond what we can support, it loses.
+- The foundations come first, every time.
+
+---
+
+## Slide 10: What We Refused to Build
+
+- Letting the council edit your code mid-debate.
+- It was technically feasible.
+- It was deliberated and declined.
+- Race conditions, audit divergence, output drift.
+- Some capabilities cost more than they give.
+
+**Image:** A diagram labeled "Layer 2" crossed out with a red X, surrounded by smaller diagrams showing tangled file edits and conflict arrows.
+
+**Speaker notes:**
+- The obvious next step was to let agents execute code.
+- We considered it carefully and said no.
+- Three agents writing in parallel produces chaos.
+- The deliberation softens when reality shifts mid-debate.
+- Saying no to features is sometimes the design.
+
+---
+
+## Slide 11: The Four-Step Loop
+
+- Deliberate with the council.
+- Decide in your own words.
+- Execute through your CLI.
+- Record as a decision document.
+- Repeat for the next hard question.
+
+**Image:** A circular workflow diagram with four labeled stations, a small human figure walking the path, each station glowing in sequence.
+
+**Speaker notes:**
+- The conclave is the deliberation layer.
+- Your interactive CLI is the execution layer.
+- You are the bridge that connects them.
+- Each loop produces a permanent record.
+- That record becomes input for the next loop.
+
+---
+
+## Slide 12: Local, Yours, Permanent
+
+- Runs only on your machine.
+- Single user, no remote surface.
+- Your decisions never leave your disk.
+- No telemetry. No accounts. No cloud.
+- The trail belongs to you.
+
+**Image:** A laptop on a desk with a glowing shield icon, fortress walls drawn lightly around it, no network cables, just a single human at the keyboard.
+
+**Speaker notes:**
+- The orchestration plane stays entirely local.
+- There's no authentication because there's no remote surface.
+- Your transcripts, decisions, exports — all on your machine.
+- The providers see prompts. We don't add a third party.
+- Control of the audit trail is the meaningful claim.
+
+---
+
+## Slide 13: The Real Takeaway
+
+- AI shouldn't replace your reasoning.
+- It should multiply the perspectives feeding it.
+- Disagreement is signal, not noise.
+- Decisions are yours, recorded forever.
+- The trail is the product.
+
+**Image:** A single human figure at the center of a circle of glowing advisors, holding a lit lamp, the figure's shadow casts forward into the future.
+
+**Speaker notes:**
+- The future of working with AI isn't a smarter oracle.
+- It's a council whose disagreements you preserve.
+- It's reasoning you can inspect, revise, and reuse.
+- It's decisions that remain unambiguously yours.
+- That's the shift. From answers to deliberation.
+
+---
+
+## Slide 14: Start Small
+
+- Run one smoke test first.
+- Then one real conclave on a real question.
+- Record one decision in your own words.
+- Watch the trail accumulate.
+- Trust builds from there.
+
+**Image:** A small seedling growing in cupped hands, with faint glowing roots branching into a network below ground.
+
+**Speaker notes:**
+- Don't try to adopt everything at once.
+- Submit one question to the council this week.
+- Record what you actually decided and why.
+- Come back to it in a month. Read it again.
+- That moment is when the system earns its keep.
+
+---
+
+## Slide 15: Reasoning You Can Return To
+
+- Inspectable. Revisable. Reusable.
+- Your decisions, your trail, your authority.
+- The council deliberates. You decide.
+- Build with memory, not amnesia.
+- Thank you.
+
+**Image:** An open journal on a desk with handwritten decisions, three small AI avatars fading into the margins, warm lamp light, a closing page turn.
+
+**Speaker notes:**
+- Reasoning you can read is reasoning you can trust.
+- Decisions you can return to are decisions that compound.
+- The council exists to serve your judgment, not replace it.
+- Build with a memory. Build with a trail.
+- Thank you.

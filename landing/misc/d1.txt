@@ -1,0 +1,276 @@
+## FLOW
+1. We don’t need answers; we need decision confidence.  
+2. Single-model chat flattens dissent and loses memory.  
+3. AI Switchboard: a governed deliberation council.  
+4. What it is not: not autonomous execution.  
+5. Local-first architecture: single-user, 127.0.0.1.  
+6. Audit philosophy: provenance, transcripts, costs, immutability.  
+7. Three modes: conclave, resolve, consult.  
+8. Conclave mode: equal seats, preserved disagreement.  
+9. Resolve mode: primary drives, backstops control cost.  
+10. Consult mode: fast critique, bounded exchange.  
+11. The keeper model: humans decide, AIs deliberate.  
+12. Quick start: fake adapter, then first real conclave.  
+13. Dashboard: Inbox, Detail, Decisions, exports.  
+14. Slash commands: conclave, consult, continue, decide.  
+15. Sandboxes and attachments: read-only, multimodal images.  
+16. Privacy reality: orchestration local, prompts still outbound.  
+17. Retention and exports: keep what matters, trim safely.  
+18. The practical loop: Deliberate → Decide → Execute → Record.
+
+## DESIRED TAKEAWAY
+Use AI Switchboard to turn multi-model debate into an auditable, human-owned decision record—then execute confidently in your existing CLI.
+
+---
+
+## PRESENTATION
+
+- ### Slide 1 — The Real Problem Isn’t “Getting an Answer”
+  - Answers are cheap; decisions are expensive  
+  - You need reasoning you can revisit  
+  - You need dissent, not averaged prose  
+  - You need memory across weeks  
+  **Image description:** A lone builder at a workbench facing three translucent “advisor” silhouettes, with a visible paper trail on the table.  
+  **Speaker notes:**
+  - I’m not here to help you get answers faster.  
+  - I’m here to help you decide with confidence.  
+  - Because the cost isn’t the prompt.  
+  - The cost is living with the consequences.
+
+<hr>
+
+- ### Slide 2 — Single-Model Chat Has Two Failure Modes
+  - Disagreement gets smoothed into “one voice”  
+  - Reasons disappear after the window closes  
+  - You can’t audit how you got there  
+  - Future-you re-litigates old choices  
+  **Image description:** A chat bubble dissolving into fog, while a forked path sign fades behind it.  
+  **Speaker notes:**
+  - Most tools optimize for fluent output.  
+  - But real work needs visible tradeoffs.  
+  - And it needs durable memory.  
+  - Otherwise you repeat decisions endlessly.
+
+<hr>
+
+- ### Slide 3 — AI Switchboard: A Deliberation Council
+  - Multiple models, structured deliberation rounds  
+  - Preserved dissent, surfaced verbatim  
+  - Human authority remains final  
+  - Auditable decision memory persists  
+  **Image description:** A “council table” diagram with labeled seats (Codex, Gemini, Claude), arrows between them, and a stamped decision record.  
+  **Speaker notes:**
+  - Switchboard turns models into a council.  
+  - Not a single oracle.  
+  - You ask once; they deliberate together.  
+  - You receive a structured verdict plus dissent.
+
+<hr>
+
+- ### Slide 4 — What It Deliberately Is Not
+  - Not autonomous code execution  
+  - Not “agents editing in parallel”  
+  - Deliberation layer, not execution layer  
+  - Your CLI remains the doer  
+  **Image description:** Two-layer diagram: “Deliberation” above “Execution,” with a hard boundary line and a human hand on the boundary.  
+  **Speaker notes:**
+  - This is a conscious design refusal.  
+  - Deliberation must see a stable reality.  
+  - Execution changes reality.  
+  - Mixing them breaks trust and traceability.
+
+<hr>
+
+- ### Slide 5 — Local-First, Single-User, No Remote Surface
+  - FastAPI bound to 127.0.0.1:8787  
+  - SQLite state on your machine  
+  - No auth because no public binding  
+  - Exports happen only when you choose  
+  **Image description:** A laptop with a loopback arrow “127.0.0.1” and a locked filing cabinet labeled “switchboard.db.”  
+  **Speaker notes:**
+  - Switchboard is local-only by default.  
+  - It’s built for one person: you.  
+  - Your orchestration state stays on your machine.  
+  - Nothing leaves unless you export it.
+
+<hr>
+
+- ### Slide 6 — The Audit Philosophy: Nothing Gets “Summarized Away”
+  - Every prompt and response stored verbatim  
+  - Every task records source agent provenance  
+  - Runs track tokens, timing, errors, costs  
+  - Decisions are permanent task artifacts  
+  **Image description:** An “audit log” timeline with entries: prompt, response, run metadata, decision stamp.  
+  **Speaker notes:**
+  - The system treats reasoning as an artifact.  
+  - Not a transient conversation.  
+  - You can inspect every turn later.  
+  - And you can see who submitted what.
+
+<hr>
+
+- ### Slide 7 — The Three Modes: Pick Your Shape
+  - Conclave: equals deliberate to convergence  
+  - Resolve: primary iterates with critiques  
+  - Consult: propose, critique, finalize  
+  - Choose mode by decision type  
+  **Image description:** Three cards labeled Conclave, Resolve, Consult with distinct flow arrows.  
+  **Speaker notes:**
+  - “More models” isn’t the point.  
+  - The point is a deliberate structure.  
+  - Different questions need different shapes.  
+  - Switchboard makes that explicit.
+
+<hr>
+
+- ### Slide 8 — Conclave Mode: Independent Minds, Visible Dissent
+  - N equal seats, full-mesh visibility  
+  - Convergence signals: done, thinking, need input  
+  - Unanimous by default, not forced  
+  - Disagreements surfaced, not averaged  
+  **Image description:** A roundtable with equal chairs; two chairs have “dissent” flags, all visible.  
+  **Speaker notes:**
+  - Use conclave for defensible forks in the road.  
+  - Architecture, refactors, security calls.  
+  - If disagreement persists, you see it clearly.  
+  - The orchestrator never hides it.
+
+<hr>
+
+- ### Slide 9 — Resolve Mode: One Driver, Others As Brakes
+  - Primary chooses status each round  
+  - Consultants critique until primary resolves  
+  - Backstops bound time, rounds, repetition  
+  - Ideal for debugging and deep dives  
+  **Image description:** A lead car labeled “Primary” with two following cars labeled “Critique,” approaching a finish flag.  
+  **Speaker notes:**
+  - Resolve is for “let’s get to ground truth.”  
+  - One agent drives forward.  
+  - Others keep it honest.  
+  - And cost is bounded by backstops.
+
+<hr>
+
+- ### Slide 10 — Consult Mode: The Fast Second Opinion
+  - Fixed three steps, always terminates  
+  - Primary proposes, consultant critiques  
+  - Primary finalizes with critique incorporated  
+  - Perfect for “did I miss something?”  
+  **Image description:** A three-step checklist: Draft → Critique → Final, with a timer icon.  
+  **Speaker notes:**
+  - Consult is your speed tool.  
+  - It’s not a debate tournament.  
+  - It’s a critique pass with closure.  
+  - Great for small reviews and sanity checks.
+
+<hr>
+
+- ### Slide 11 — The Keeper Model: Authority Stays Human
+  - You are named “the keeper”  
+  - You ratify, reject, or return  
+  - You don’t edit conclave output  
+  - Decision is separate, authoritative record  
+  **Image description:** A judge’s gavel labeled “Keeper,” beside two documents: “Transcript” and “Decision.”  
+  **Speaker notes:**
+  - The transcript is evidence.  
+  - The verdict is a recommendation.  
+  - Your decision is the binding artifact.  
+  - That separation keeps the audit trail clean.
+
+<hr>
+
+- ### Slide 12 — Quick Start: Prove the Wiring First
+  - Run the fake adapter smoke test  
+  - Confirm worker, database, orchestrator end-to-end  
+  - Then add real CLI seats  
+  - Start with a real conclave task  
+  **Image description:** A “system checklist” with green checks: Orchestrator, Worker, DB, Dashboard.  
+  **Speaker notes:**
+  - Before burning real quota, test the plumbing.  
+  - The fake adapter is deterministic by design.  
+  - If that works, the system is healthy.  
+  - Then move to real seats confidently.
+
+<hr>
+
+- ### Slide 13 — The Dashboard: Where Decisions Become Memory
+  - Inbox filters by status, mode, export  
+  - Detail view shows live activity  
+  - Transcript and final result are first-class  
+  - Decision panel turns work into record  
+  **Image description:** A clean UI mock: Inbox list on left, transcript and Decision panel on right.  
+  **Speaker notes:**
+  - The dashboard is your deliberation cockpit.  
+  - You watch the task run in real time.  
+  - Then you record what you actually chose.  
+  - That’s when it becomes reusable.
+
+<hr>
+
+- ### Slide 14 — Slash Commands: Stay Inside Your Coding Flow
+  - /conclave asks the full council  
+  - /consult gets a bounded critique  
+  - /continue threads follow-ups with context  
+  - /decide writes your binding outcome  
+  **Image description:** A terminal window with four highlighted commands, connected to a local service icon.  
+  **Speaker notes:**
+  - You shouldn’t context-switch to get governance.  
+  - Submit from the CLI you’re already using.  
+  - Then record decisions without leaving flow.  
+  - The tool meets you where you work.
+
+<hr>
+
+- ### Slide 15 — Sandboxes and Attachments: Read-Only By Design
+  - Per-task sandbox copy of project path  
+  - Hard caps prevent runaway disk usage  
+  - Text and PDFs inline into prompts  
+  - Images pass natively to CLI seats  
+  **Image description:** A sealed “snapshot folder” stamped “READ ONLY,” plus file icons: PDF, MD, PNG.  
+  **Speaker notes:**
+  - Agents see a snapshot, not your live repo.  
+  - That keeps deliberation grounded and stable.  
+  - Attachments become direct context, not vague references.  
+  - And images stay multimodal, not lossy OCR.
+
+<hr>
+
+- ### Slide 16 — Privacy: The Honest Claim
+  - Orchestration state stays local  
+  - Prompts still go to model providers  
+  - OpenRouter data_collection defaults to deny  
+  - Control of audit trail is the win  
+  **Image description:** Two pipes: “Local state” staying inside a laptop; “Model prompts” flowing outward to provider clouds.  
+  **Speaker notes:**
+  - Switchboard is not a magic privacy cloak.  
+  - Your prompts still hit your providers.  
+  - The promise is control of the orchestration plane.  
+  - And durable, inspectable reasoning at home.
+
+<hr>
+
+- ### Slide 17 — Retention and Export: Keep What Matters
+  - Tiered retention trims transcripts first  
+  - Decisions and unresolved dissent never trimmed  
+  - Export marks “preserved” for safety  
+  - Bulk export snapshots unexported tasks  
+  **Image description:** A three-tier shelf: Tier 1 locked, Tier 2 archived box, Tier 3 recyclable papers.  
+  **Speaker notes:**
+  - A real memory system must manage growth.  
+  - Switchboard keeps the most important artifacts.  
+  - It trims safely, with clear rules.  
+  - And exports let you preserve deliberately.
+
+<hr>
+
+- ### Slide 18 — The Loop That Actually Works
+  - Deliberate with the council  
+  - Decide in your own words  
+  - Execute in your interactive CLI  
+  - Record the decision for future reuse  
+  **Image description:** A four-step circular loop diagram: Deliberate → Decide → Execute → Record, ending at “Decision Library.”  
+  **Speaker notes:**
+  - This is the practical takeaway.  
+  - Don’t let tools collapse steps into a blur.  
+  - Deliberate, then decide, then execute, then record.  
+  - That’s how you scale judgment, not just output.
