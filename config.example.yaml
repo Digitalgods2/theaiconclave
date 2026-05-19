@@ -181,21 +181,24 @@ openrouter:
     #
     # tool_loop (DR0015): when true AND a task has a sandbox, the adapter
     # offers read_file / list_dir / glob tools to the model instead of
-    # inlining the whole sandbox into the prompt. Default false — flip per
-    # seat after verifying the model implements OpenAI tool-calls cleanly.
+    # inlining the whole sandbox into the prompt. Originally shipped `false`
+    # per seat (DR0015 v1) so each seat could be verified individually;
+    # default flipped to `true` 2026-05-18 after all four configured seats
+    # were observed emitting tool_calls cleanly on real tasks. Flip back to
+    # `false` per seat if a particular model regresses.
     - name: deepseek
       model_slug: "deepseek/deepseek-v4-pro"   # DeepSeek V4 Pro — 1.6T MoE / 49B activated; built for advanced reasoning + coding
       max_context_chars: 1500000               # real limit ~1M tokens; conservative under 3-chars-per-token worst case
-      tool_loop: false                         # verify on a real task before flipping on
+      tool_loop: true                          # verified 2026-05-17
     - name: glm
       model_slug: "z-ai/glm-4.6"               # Z.ai GLM — reasoning + agentic; verify slug
       max_context_chars: 400000                # real limit ~200K tokens
-      tool_loop: false
+      tool_loop: true                          # verified 2026-05-18
     - name: qwen
       model_slug: "qwen/qwen3.6-plus"          # Alibaba Qwen 3.6 Plus — hybrid linear-attention + sparse-MoE reasoning tier
       max_context_chars: 1500000               # real limit ~1M tokens; conservative under 3-chars-per-token worst case
-      tool_loop: false
+      tool_loop: true                          # verified 2026-05-17
     - name: kimi
       model_slug: "moonshotai/kimi-k2.6"       # Moonshot Kimi K2.6 — outside-axis voice (Chinese training data); strong long-context
       max_context_chars: 700000                # real limit ~262K tokens; ~2× the per-token cost of the others, still ~$0.005–$0.015/turn
-      tool_loop: false
+      tool_loop: true                          # verified 2026-05-18
