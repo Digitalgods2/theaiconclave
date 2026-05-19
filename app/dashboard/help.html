@@ -1,6 +1,6 @@
-<!-- HELP_DOC_VERSION: 1.1.4 -->
+<!-- HELP_DOC_VERSION: 1.2.0 -->
 <!-- HELP_COVERED_APP_VERSION: 0.1.0 -->
-<!-- HELP_LAST_UPDATED: 2026-05-16 -->
+<!-- HELP_LAST_UPDATED: 2026-05-19 -->
 
 <div class="help-doc">
   <header class="help-doc-header">
@@ -74,6 +74,8 @@
             <li><a href="#help-dashboard-newtask">6.2 New Task form</a></li>
             <li><a href="#help-dashboard-detail">6.3 Detail view</a></li>
             <li><a href="#help-dashboard-settings">6.4 Settings</a></li>
+            <li><a href="#help-dashboard-launcher">6.5 One-click desktop launcher</a></li>
+            <li><a href="#help-dashboard-readiness">6.6 Seat readiness signals</a></li>
           </ol>
         </li>
         <li><a href="#help-slash">7. Slash Commands</a>
@@ -140,7 +142,8 @@
             <li><a href="#help-reference-glossary">14.1 Glossary</a></li>
             <li><a href="#help-reference-shortcuts">14.2 Keyboard shortcuts</a></li>
             <li><a href="#help-reference-files">14.3 File locations</a></li>
-            <li><a href="#help-reference-docs">14.4 Links to deep docs</a></li>
+            <li><a href="#help-reference-stateroot">14.4 Where state lives</a></li>
+            <li><a href="#help-reference-docs">14.5 Links to deep docs</a></li>
           </ol>
         </li>
         <li><a href="#help-about-docs">15. About This Documentation</a>
@@ -185,7 +188,7 @@
           <!-- BEGIN:section-1.2 -->
 <p>Switchboard runs as a FastAPI service bound to <code>127.0.0.1:8787</code>. It is single-user and local-only. There is no authentication layer because there is no remote surface — the service does not bind to a public interface, and nothing in the design assumes more than one user.</p>
 
-<p>State lives in a SQLite database at <code>data/switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, and exports also live under <code>data/</code>. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
+<p>State lives in a SQLite database called <code>switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, exports, and logs share the same runtime-state root. Running from a repo checkout, that root is <code>&lt;repo&gt;/data/</code>; a packaged install resolves to the platform-conventional user-data directory (e.g. <code>%LOCALAPPDATA%\AI Switchboard\</code> on Windows). See <em>14.4 Where state lives</em> for the full table. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
 
 <p><strong>What this does and doesn't mean for privacy.</strong> The orchestration plane — the service, the dashboard, transcripts, decision records, and API keys — never leaves your machine. The deliberation content itself does: every prompt sent to a CLI seat traverses that CLI's provider (OpenAI for Codex, Anthropic for Claude Code, Google for Gemini), and every prompt to an open-weight seat traverses OpenRouter (and then whichever provider hosts the model). Switchboard does not <em>add</em> a third party — it uses the providers you already have a relationship with — but it does not <em>remove</em> one either. The meaningful claim here is <strong>control of the audit trail and orchestration state</strong>, not privacy of the prompt content.</p>
 
@@ -556,13 +559,13 @@
   <tbody>
     <tr><td><code>Status</code></td><td>Limit to <code>pending</code>, <code>running</code>, <code>awaiting_user_input</code>, <code>completed</code>, <code>failed</code>, or <code>cancelled</code>.</td></tr>
     <tr><td><code>Mode</code></td><td>Limit to <code>conclave</code>, <code>consult</code>, or <code>resolve</code>.</td></tr>
-    <tr><td><code>Export status</code></td><td><code>Exported</code> shows only tasks already written to <code>data/exports/</code>; <code>Not exported</code> shows only terminal tasks that have not been exported yet.</td></tr>
-    <tr><td><code>Search</code></td><td>Case-insensitive substring match against task ID and the user request text.</td></tr>
+    <tr><td><code>Export status</code></td><td><code>Exported</code> shows only tasks already written to the exports directory; <code>Not exported</code> shows only terminal tasks that have not been exported yet.</td></tr>
+    <tr><td><code>Search</code></td><td>Case-insensitive substring match across task ID, the user request, your recorded decision, and the conclave's final answer. Runs whole-DB server-side — independent of the <code>Show last</code> page size — and returns the newest matches.</td></tr>
     <tr><td><code>Show last</code></td><td>How many rows to fetch: 50, 100, 500, 1000, or 5000.</td></tr>
   </tbody>
 </table>
 <p>The <code>X</code> button beside the search box resets all filters to defaults. A counter under the filter bar shows how many tasks are visible out of the total fetched.</p>
-<p>The <code>Bulk export unexported</code> button writes every unexported terminal task (<code>completed</code>, <code>failed</code>, or <code>cancelled</code>) to <code>data/exports/</code> as a markdown decision record. Tasks that succeed are marked exported so the next bulk run skips them.</p>
+<p>The <code>Bulk export unexported</code> button writes every unexported terminal task (<code>completed</code>, <code>failed</code>, or <code>cancelled</code>) to the exports directory as a markdown decision record. Tasks that succeed are marked exported so the next bulk run skips them.</p>
 <!-- END:section-6.1 -->
         </section>
         <section id="help-dashboard-newtask" class="help-subsection">
@@ -571,7 +574,7 @@
 <p>The <code>New Task</code> tab is where you compose and submit a new deliberation. Every field maps directly onto the task request the orchestrator stores in SQLite.</p>
 <ul>
   <li><code>Mode</code> — one of <code>conclave</code> (N equal participants, deliberate to convergence), <code>consult</code> (primary proposes, consultant critiques, primary finalizes), or <code>resolve</code> (primary-driven loop with backstops). The hint line under the dropdown summarizes the selected mode.</li>
-  <li><code>Agents</code> — a checkbox list of every agent the orchestrator can currently reach. Real CLI agents (<code>codex</code>, <code>gemini</code>, <code>claude-code</code>) appear only if their adapters report available; configured OpenRouter seats appear too.</li>
+  <li><code>Agents</code> — a checkbox list of every registered, user-facing agent. Each row carries a small coloured dot pulled from <code>/api/health</code>: green if the seat is ready, red if unreachable (with the remediation hint as a tooltip), grey if readiness hasn't resolved yet. You can still tick a red seat — local knowledge may be ahead of the 30-second readiness cache — but the form will ask for confirmation at submit time. See <em>6.6 Seat readiness signals</em> for the full state machine.</li>
   <li><code>Permissions</code> — collapsed by default. Inside, three preset buttons quickly set the checkboxes: <code>Read-only</code>, <code>Read + .env</code>, and <code>Read everything</code>. You can also tick individual permissions by hand.</li>
   <li><code>Project path</code> — optional. When set, the orchestrator scopes permissions to this directory. Tick <code>Provide a read-only sandbox copy</code> to give each agent a per-task read-only snapshot of the project.</li>
   <li><code>Question</code> — the prompt itself. The <code>Attach current git diff</code> button beside the label is enabled once <code>Project path</code> is set.</li>
@@ -592,7 +595,7 @@
   <li><strong>Transcript</strong> — every message in the deliberation, including each agent's position and convergence signal per round.</li>
   <li><strong>Final result</strong> — the structured outcome once the task terminates.</li>
   <li><strong>Decision panel</strong> — your authoritative decision in your own words; save and edit at any time.</li>
-  <li><strong>Post-task action bar</strong> — <code>Start New Task</code>, <code>Continue this thread</code>, <code>Export to decision record</code> (writes markdown to <code>data/exports/</code>), and <code>Download…</code> for the full detail as PDF, DOCX, MD, or TXT.</li>
+  <li><strong>Post-task action bar</strong> — <code>Start New Task</code>, <code>Continue this thread</code>, <code>Export to decision record</code> (writes markdown to the exports directory under the runtime state root), and <code>Download…</code> for the full detail as PDF, DOCX, MD, or TXT.</li>
 </ul>
 <!-- END:section-6.3 -->
         </section>
@@ -604,12 +607,40 @@
 <ul>
   <li>A password input (the key is masked by default).</li>
   <li>An eyeball button that toggles the input between password and plain text so you can verify what you pasted.</li>
-  <li>A <code>Save</code> button (writes the key to the local SQLite database at <code>data/switchboard.db</code>).</li>
+  <li>A <code>Save</code> button (writes the key to the local <code>switchboard.db</code> SQLite database under the runtime state root).</li>
   <li>A <code>Clear stored key</code> button (removes it from the database).</li>
 </ul>
 <p><strong>Precedence rule.</strong> The environment variable always wins over the stored value. If <code>OPENROUTER_API_KEY</code> is set in the shell you launched the service from, that key is used for OpenRouter calls regardless of what is saved in the database. The database entry is a fallback used only when the env var is absent.</p>
 <p>OpenRouter backs the open-weight seats (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>, <code>kimi</code>); a conclave turn typically costs $0.001–$0.02 pay-per-token.</p>
 <!-- END:section-6.4 -->
+        </section>
+        <section id="help-dashboard-launcher" class="help-subsection">
+          <h4>6.5 One-click desktop launcher</h4>
+          <!-- BEGIN:section-6.5 -->
+<p>Once the manual <code>uvicorn</code> invocation works, there's a double-clickable launcher so you don't have to keep a terminal open. The launcher (<code>launch.pyw</code> at the repo root) polls <code>/api/health</code> first: if the service is already up, it just opens a fresh browser tab. If not, it spawns <code>python -m uvicorn app.main:app</code> as a fully detached background process, waits up to 30 seconds for <code>/api/health</code> to respond, then opens the dashboard. Closing the launcher does not kill the service.</p>
+<p><strong>Windows.</strong> Run <code>tools\install-desktop-shortcut.ps1</code> in PowerShell. It creates <code>AI Switchboard.lnk</code> on your Desktop, pointing <code>pythonw.exe</code> at <code>launch.pyw</code> with the AI Conclave logo as the icon. Right-click → <em>Pin to taskbar</em> for one-click access from the taskbar.</p>
+<p><strong>macOS.</strong> Run <code>tools/install-desktop-app.sh</code>. It builds an <code>AI Switchboard.app</code> bundle on your Desktop; drag it onto the Dock to pin. First launch may trip macOS's "cannot check for malicious software" warning — right-click → <em>Open</em> → <em>Open</em> clears it permanently.</p>
+<p><strong>Linux.</strong> No bundled installer; drop a <code>.desktop</code> file in <code>~/.local/share/applications/</code> pointing at <code>python3 /path/to/launch.pyw</code>.</p>
+<p>Launcher events plus uvicorn's stdout/stderr land in <code>&lt;repo&gt;/data/launcher.log</code> — that's the place to look when a browser tab fails to appear. To stop the service: kill the python process (Task Manager / <code>pkill -f 'uvicorn app.main'</code>) or delete the <code>switchboard.pid</code> file at the runtime state root.</p>
+<!-- END:section-6.5 -->
+        </section>
+        <section id="help-dashboard-readiness" class="help-subsection">
+          <h4>6.6 Seat readiness signals</h4>
+          <!-- BEGIN:section-6.6 -->
+<p>Per DR0017, <code>/api/health</code> returns a <code>seats: [...]</code> array alongside the service status — one entry per registered, user-facing adapter, with <code>available</code>, a short machine-stable <code>reason</code>, and a user-facing <code>hint</code>. The dashboard polls this and paints the dot next to each agent checkbox on the New Task form. Reasons you'll see:</p>
+<table>
+  <thead><tr><th><code>reason</code></th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>ok</code></td><td>Seat is reachable. CLI binary on PATH (or at <code>command_path</code>); OpenRouter API key present.</td></tr>
+    <tr><td><code>command_not_found</code></td><td>CLI adapter could not locate the binary. Install the CLI or set <code>agents.&lt;name&gt;.command_path</code> in <code>config.yaml</code> to an absolute path.</td></tr>
+    <tr><td><code>configured_path_missing</code></td><td><code>command_path</code> is set but no file exists at that path. Strict precedence — the adapter will not silently fall back to PATH. Fix the path or unset it.</td></tr>
+    <tr><td><code>api_key_missing</code></td><td>OpenRouter seat without <code>OPENROUTER_API_KEY</code> in the env or a stored key in Settings.</td></tr>
+    <tr><td><code>readiness_check_failed</code></td><td>The adapter raised while computing readiness. Detail is in the hint; check the service log.</td></tr>
+  </tbody>
+</table>
+<p>The seats array is cached server-side for 30 seconds so chatty dashboard polling doesn't spawn a <code>shutil.which</code> + HTTP probe per call. After fixing a missing CLI or pasting a fresh API key into Settings, expect up to a 30-second lag before the dot turns green; a service restart clears the cache immediately.</p>
+<p><strong>The <code>command_path</code> escape hatch.</strong> Windows double-click and macOS Finder launches don't inherit your shell PATH. If a CLI works in your terminal but the adapter reports <code>command_not_found</code>, the cause is usually GUI PATH inheritance — paste the absolute binary path into <code>agents.&lt;name&gt;.command_path</code> in <code>config.yaml</code> and restart. This is documented inline in <code>config.example.yaml</code> next to each CLI agent's <code>command</code> field.</p>
+<!-- END:section-6.6 -->
         </section>
       </section>
 
@@ -731,7 +762,7 @@
 <ul>
   <li>PDF extraction is text-only. Images embedded inside the PDF aren't passed through to the multimodal channel; if you need agents to actually <em>see</em> a figure, save it as PNG/JPG and attach it separately (see <em>Images</em>).</li>
   <li>Inlined text counts against each agent's effective context window. Large attachments may force the API seats to omit some of an inlined project sandbox — the orchestrator prioritises the user-submitted attachment over auto-inlined source.</li>
-  <li>Attached files are stored under <code>data/uploads/</code> and are not committed to the repo.</li>
+  <li>Attached files are stored under the runtime <code>uploads/</code> directory (see <em>14.4 Where state lives</em>) and are not committed to the repo.</li>
 </ul>
 <!-- END:section-9.1 -->
         </section>
@@ -799,7 +830,7 @@
         <section id="help-sandbox-copy" class="help-subsection">
           <h4>10.1 The read-only copy</h4>
           <!-- BEGIN:section-10.1 -->
-<p>When you tick <strong>"Provide a read-only sandbox copy"</strong> on the New Task form and <code>project_path</code> is set, the orchestrator copies your project to a per-task directory under <code>data/sandboxes/&lt;task_id&gt;/</code> before the deliberation starts. Each agent then gets <strong>read-only access</strong> to that copy via its native mechanism:</p>
+<p>When you tick <strong>"Provide a read-only sandbox copy"</strong> on the New Task form and <code>project_path</code> is set, the orchestrator copies your project to a per-task directory under <code>&lt;runtime-state-root&gt;/sandboxes/&lt;task_id&gt;/</code> before the deliberation starts. Each agent then gets <strong>read-only access</strong> to that copy via its native mechanism:</p>
 <ul>
   <li><strong>Codex</strong> — <code>-C &lt;sandbox&gt;</code> plus <code>-s read-only</code></li>
   <li><strong>Claude Code</strong> — <code>--tools "Read" --add-dir &lt;sandbox&gt;</code></li>
@@ -816,27 +847,28 @@
 <p>The CLI seats browse the sandbox natively via their own tools. The <strong>API seats — OpenRouter — cannot</strong>. They are HTTP calls to a chat-completions endpoint; there is no <code>Read</code> tool, no <code>--add-dir</code>, no shell. They only receive prompt text.</p>
 <p>So when a task has a sandbox attached, the API adapters do something different: they <strong>inline a read-only view of the project</strong> directly into the prompt. The work happens in <code>app/utils/sandbox_inline.py</code>, and the section is built fresh for every call. It contains:</p>
 <ul>
-  <li>A <strong>file tree</strong> of every inlineable file with its size, so the model has the lay of the land even if not every file fits.</li>
+  <li>A <strong>file manifest</strong> of every inlineable file with its size, so the model has the lay of the land even if not every file fits.</li>
   <li>The <strong>contents</strong> of as many files as fit in that seat's character budget.</li>
   <li>An <strong>omission note</strong> stating how many files were left out, so the model knows the view is partial and can ask for specific paths if needed.</li>
 </ul>
 <p>File inclusion is <strong>priority-ordered</strong>: known entry-point names (<code>main.py</code>, <code>index.ts</code>, <code>package.json</code>, <code>pyproject.toml</code>, <code>README</code>, <code>Dockerfile</code>, …) come first, then shallow source/config files, then deeper ones. Binaries, generated assets, and files larger than 200 KB are skipped.</p>
-<p>The budget is per-seat: each model's <code>max_context_chars</code> from <code>config.yaml</code>, minus headroom for the base prompt and response. If the OpenRouter adapter learns a tighter real ceiling from a provider's "context length exceeded" reply, the inlined section is re-sized automatically on the retry. See decision 0012 for the rationale; decision 0009 Open Questions flag the tool-loop alternative that's queued on the ROADMAP.</p>
+<p>The budget is per-seat: each model's <code>max_context_chars</code> from <code>config.yaml</code>, minus headroom for the base prompt and response. If the OpenRouter adapter learns a tighter real ceiling from a provider's "context length exceeded" reply, the inlined section is re-sized automatically on the retry. See decision 0012 for the rationale.</p>
+<p><strong>CLI seats get the sandbox path but not the manifest.</strong> Per DR0018, the <code>## File Manifest</code> block is only emitted to OpenRouter seats. Codex, Claude Code, and Gemini still receive the sandbox path and the read-only tool guidance in their prompt — they just don't get the static file listing, because their native tools (Codex's <code>-C &lt;sandbox&gt;</code> shell, Claude's <code>Read</code>/<code>Glob</code> via <code>--add-dir</code>, Gemini's <code>--include-directories</code>) produce a richer, on-demand view of the same tree. Cuts 5–30 KB out of every CLI prompt — budget reclaimed for <code>prior_messages</code> in deep continue-threads.</p>
 <!-- END:section-10.2 -->
         </section>
         <section id="help-sandbox-cleanup" class="help-subsection">
           <h4>10.3 Cleanup and orphan sweep</h4>
           <!-- BEGIN:section-10.3 -->
-<p>Sandboxes are <strong>cleaned up when a task terminates</strong>. The orchestrator calls <code>cleanup_sandbox(task_id)</code> on the task's completion path, which removes <code>data/sandboxes/&lt;task_id&gt;/</code> from disk. The original project is, again, never touched — only the per-task copy is removed.</p>
+<p>Sandboxes are <strong>cleaned up when a task terminates</strong>. The orchestrator calls <code>cleanup_sandbox(task_id)</code> on the task's completion path, which removes <code>&lt;runtime-state-root&gt;/sandboxes/&lt;task_id&gt;/</code> from disk. The original project is, again, never touched — only the per-task copy is removed.</p>
 <p>That covers the happy path. The unhappy path is the one where the service is killed mid-task: the worker process exits before reaching its cleanup, and a sandbox directory is left behind. Without intervention, these would accumulate across crashes and consume disk indefinitely.</p>
 <p>The mitigation is the <strong>orphan sweep</strong>. On service startup, <code>sweep_orphan_sandboxes()</code> runs once. It:</p>
 <ul>
-  <li>Lists every directory under <code>data/sandboxes/</code>.</li>
+  <li>Lists every directory under the <code>sandboxes/</code> root.</li>
   <li>Builds the set of <em>active</em> task IDs from the database — anything in <code>pending</code>, <code>running</code>, or <code>awaiting_user_input</code> state.</li>
   <li>Deletes any sandbox directory whose name is <strong>not</strong> in that active set.</li>
 </ul>
 <p>The net effect: every restart of the service self-heals the sandbox directory. A clean shutdown leaves nothing for the sweep to do; a crash leaves orphans that the next startup removes. The startup log line tells you how many were swept, if any.</p>
-<p>If you ever want to inspect a sandbox by hand, look under <code>data/sandboxes/&lt;task_id&gt;/</code> while the task is still alive — once the task reaches a terminal state, that directory is gone.</p>
+<p>If you ever want to inspect a sandbox by hand, look under <code>&lt;runtime-state-root&gt;/sandboxes/&lt;task_id&gt;/</code> while the task is still alive — once the task reaches a terminal state, that directory is gone.</p>
 <!-- END:section-10.3 -->
         </section>
       </section>
@@ -847,7 +879,7 @@
           <h4>11.1 Per-message and aggregate cost</h4>
           <!-- BEGIN:section-11.1 -->
 <p>Every agent invocation writes an <code>agent_run</code> row that records the input and output token counts the provider returns, plus a USD-equivalent cost when the provider exposes one. The Detail view shows these per-message inline (alongside each turn in the transcript) and totals them on the post-task bar once a task reaches a terminal state, so you can see at a glance what a deliberation actually cost.</p>
-<p>OpenRouter is the seat that reports money directly: each call is metered and lands in the roughly <code>$0.001</code> to <code>$0.02</code> per turn range for the open-weight models bundled in <code>config.example.yaml</code> (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>). Those numbers show up verbatim in the per-run accounting.</p>
+<p>OpenRouter is the seat that reports money directly: each call is metered and lands in the roughly <code>$0.001</code> to <code>$0.02</code> per turn range for the four open-weight models bundled in <code>config.example.yaml</code> (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>, <code>kimi</code>). Those numbers show up verbatim in the per-run accounting.</p>
 <p>The CLI seats (<code>codex</code>, <code>gemini</code>, <code>claude-code</code>) default to subscription auth — your ChatGPT Plus/Pro, Gemini Advanced, or Claude Pro/Max session — so the underlying CLI does not return a per-call USD figure. Token counts may still be recorded where the CLI emits them, but the cost column will be blank. If a task mixes CLI seats and OpenRouter seats, the aggregate at the bottom reflects only the OpenRouter portion; the CLI portion is already accounted for inside your subscription. Exports include the same per-run table, so a saved decision record carries the cost breakdown forward.</p>
 <!-- END:section-11.1 -->
         </section>
@@ -864,8 +896,8 @@
           <h4>11.3 Tier 2 export tracking</h4>
           <!-- BEGIN:section-11.3 -->
 <p>Each task has two columns supporting export tracking: <code>exported_at</code> (timestamp of last export) and <code>export_path</code> (path of the written file). Both are <code>NULL</code> for tasks you have never exported.</p>
-<p>Exporting a task — either via the "Export to decision record" button in the Detail view or by hitting <code>POST /api/tasks/{id}/export</code> directly — writes a markdown snapshot to <code>data/exports/&lt;task_id&gt;.md</code> and stamps both columns. The Inbox shows an "exported" indicator on tasks that have been exported, and the label on subsequent exports of the same task switches to "Re-export" so you know you are overwriting an existing snapshot rather than producing the first one.</p>
-<p>For bulk export, <code>POST /api/tasks/export-batch</code> iterates every terminal task with a <code>NULL</code> <code>exported_at</code> and writes each one to <code>data/exports/</code>. This is the "snapshot everything I have not preserved yet" path — useful periodically, particularly before any retention work you want to be sure does not touch unsaved verdicts. The Inbox's export-status filter lets you scan for what is still unexported before running it.</p>
+<p>Exporting a task — either via the "Export to decision record" button in the Detail view or by hitting <code>POST /api/tasks/{id}/export</code> directly — writes a markdown snapshot to <code>&lt;runtime-state-root&gt;/exports/&lt;task_id&gt;.md</code> and stamps both columns. The Inbox shows an "exported" indicator on tasks that have been exported, and the label on subsequent exports of the same task switches to "Re-export" so you know you are overwriting an existing snapshot rather than producing the first one.</p>
+<p>For bulk export, <code>POST /api/tasks/export-batch</code> iterates every terminal task with a <code>NULL</code> <code>exported_at</code> and writes each one to the same exports directory. This is the "snapshot everything I have not preserved yet" path — useful periodically, particularly before any retention work you want to be sure does not touch unsaved verdicts. The Inbox's export-status filter lets you scan for what is still unexported before running it.</p>
 <p>The export columns are also what the (now shipped, opt-in) <code>retention.trim_tier2_after_export</code> flag hooks into — when set, the retention worker considers exported tasks eligible to drop their <code>final_results</code> rows once Tier 3 trimming alone is not enough to come back under budget.</p>
 <!-- END:section-11.3 -->
         </section>
@@ -904,9 +936,9 @@
         <section id="help-ops-tool-loop" class="help-subsection">
           <h4>11.8 OpenRouter tool-loop (per-seat opt-in)</h4>
           <!-- BEGIN:section-11.8 -->
-<p>OpenRouter-backed seats (<code>deepseek</code>, <code>qwen</code>, <code>glm</code>, <code>kimi</code>) can be flipped into <strong>tool-loop mode</strong> per seat. Default off. When on AND a task has a sandbox, the adapter exposes three function-calls to the model — <code>read_file(path)</code>, <code>list_dir(path)</code>, <code>glob(pattern)</code> — and loops POST → tool_call → tool_result → POST until the model emits its structured turn JSON or a per-turn cap fires. The agent reads exactly what it actually needs instead of receiving the entire project sandbox inlined at task creation. Ratified as DR0015.</p>
+<p>All four OpenRouter-backed seats (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>, <code>kimi</code>) support <strong>tool-loop mode</strong>, configured per seat in <code>config.yaml</code>. The current live config ships them all with <code>tool_loop: true</code>; <code>config.example.yaml</code> still documents <code>false</code> as the historically-conservative starting point so a fresh install verifies one seat at a time before flipping the rest. When the flag is on AND a task has a sandbox, the adapter exposes three function-calls to the model — <code>read_file(path)</code>, <code>list_dir(path)</code>, <code>glob(pattern)</code> — and loops POST → tool_call → tool_result → POST until the model emits its structured turn JSON or a per-turn cap fires. The agent reads exactly what it actually needs instead of receiving the entire project sandbox inlined at task creation. Ratified as DR0015.</p>
 <p><strong>Why this matters.</strong> Without tool-loop, on a code-heavy conclave with ~95K-token inlined prompts, the open-weight seats fall back to template best-practices because their effective attention budget (somewhere in the 50–80K range) is exhausted before they get to your actual code. With tool-loop, the same model on the same task pulls the 5–10 files it actually needs and reasons over those — strictly better signal per token.</p>
-<p><strong>How to enable.</strong> In <code>config.yaml</code>, under <code>openrouter.models[]</code>, set <code>tool_loop: true</code> on the specific seat you want to verify. Submit a task with that seat included, watch the transcript: each tool call and its result appear as compact ribbon entries under the agent's row, click-to-expand for the full payload. If the model behaves cleanly (no infinite loops, no malformed calls, the structured turn JSON looks right), keep it on. If something looks off, flip it back to <code>false</code> — no code change, just a restart.</p>
+<p><strong>How to toggle.</strong> In <code>config.yaml</code>, under <code>openrouter.models[]</code>, set <code>tool_loop: true</code> (or <code>false</code> to revert) on the specific seat. Submit a task with that seat included and watch the transcript: each tool call and its result appears as a compact ribbon entry under the agent's row, click-to-expand for the full payload. If the model behaves cleanly (no infinite loops, no malformed calls, the structured turn JSON looks right), keep it on. If something looks off, flip it back to <code>false</code> — no code change, just a restart.</p>
 <p><strong>Bounds.</strong> Per-turn: maximum 8 tool calls, maximum 256 KiB cumulative tool-response bytes, and maximum 3 consecutive malformed tool calls. Any one of these fires a forced final-turn POST instructing the model to emit its structured turn now with whatever it has. The forced-final case is logged so you can spot a seat that's chronically running into a cap (and tune the bounds in code, or disable the seat). Per-call: <code>read_file</code> caps content at 80,000 chars with a truncation signal; <code>glob</code> caps results at 200 paths.</p>
 <p><strong>Safety.</strong> Read-only access to the same sandbox the seat already had inlined under DR0012 — no capability expansion. Path-traversal attempts (<code>../</code>, absolute paths escaping the sandbox, symlinks pointing out) are refused with an error returned to the model so it can self-correct. The same ignore set the sandbox already applies (<code>.git</code>, <code>node_modules</code>, <code>__pycache__</code>, build outputs, binaries, …) is honored by all three tools.</p>
 <p><strong>Audit trail.</strong> Every <code>tool_call</code> and <code>tool_result</code> is persisted as its own row in <code>agent_messages</code>, linked to the same <code>agent_run</code> as the structured turn that followed. Exports (markdown / PDF / DOCX / TXT) include them. You can post-hoc reconstruct exactly which files an agent read, the order it read them in, how big each result was, and whether any call failed.</p>
@@ -928,15 +960,15 @@
         <section id="help-exports-decision" class="help-subsection">
           <h4>12.2 Decision record export</h4>
           <!-- BEGIN:section-12.2 -->
-<p>Decision record export is the canonical "I want to keep this" action for a terminal task. The "Export to decision record" button on the Detail view (or <code>POST /api/tasks/{id}/export</code> from the API) writes a markdown snapshot to <code>data/exports/&lt;task_id&gt;.md</code> and stamps the task's <code>exported_at</code> and <code>export_path</code> columns so the system knows you have preserved it.</p>
+<p>Decision record export is the canonical "I want to keep this" action for a terminal task. The "Export to decision record" button on the Detail view (or <code>POST /api/tasks/{id}/export</code> from the API) writes a markdown snapshot to <code>&lt;runtime-state-root&gt;/exports/&lt;task_id&gt;.md</code> and stamps the task's <code>exported_at</code> and <code>export_path</code> columns so the system knows you have preserved it.</p>
 <p>The contents mirror the markdown export pipeline in <code>app/services/exporter.py</code>: a header with task id, mode, task type, agents, timestamps, and any parent task; the original question fenced verbatim; the recorded decision (with the timestamp you recorded it at); the final result, including <code>agreement_level</code>, <code>resolution_status</code>, any disagreements with primary and consultant positions, recommended actions, risks, and commands or patches that would require approval; the full transcript grouped by round for conclave mode (flat for the others) with every agent's structured fields preserved; and a usage table showing per-run tokens and USD cost plus the task totals.</p>
-<p>Two things to note. It overwrites in place — re-exporting the same task replaces the prior file at <code>data/exports/&lt;task_id&gt;.md</code> and the dashboard label flips to "Re-export". And it is the action the retention system watches: when <code>retention.trim_tier2_after_export</code> is on (opt-in), a task with <code>exported_at</code> set becomes eligible to drop its <code>final_results</code> row during a later retention pass.</p>
+<p>Two things to note. It overwrites in place — re-exporting the same task replaces the prior file at <code>&lt;runtime-state-root&gt;/exports/&lt;task_id&gt;.md</code> and the dashboard label flips to "Re-export". And it is the action the retention system watches: when <code>retention.trim_tier2_after_export</code> is on (opt-in), a task with <code>exported_at</code> set becomes eligible to drop its <code>final_results</code> row during a later retention pass.</p>
 <!-- END:section-12.2 -->
         </section>
         <section id="help-exports-bulk" class="help-subsection">
           <h4>12.3 Bulk export</h4>
           <!-- BEGIN:section-12.3 -->
-<p>Bulk export is the inverse of one-at-a-time decision record export. From the Inbox, the "Bulk export unexported" action iterates every terminal task with a <code>NULL</code> <code>exported_at</code> and writes each one to <code>data/exports/&lt;task_id&gt;.md</code>, stamping <code>exported_at</code> and <code>export_path</code> as it goes. The underlying endpoint is <code>POST /api/tasks/export-batch</code>.</p>
+<p>Bulk export is the inverse of one-at-a-time decision record export. From the Inbox, the "Bulk export unexported" action iterates every terminal task with a <code>NULL</code> <code>exported_at</code> and writes each one to <code>&lt;runtime-state-root&gt;/exports/&lt;task_id&gt;.md</code>, stamping <code>exported_at</code> and <code>export_path</code> as it goes. The underlying endpoint is <code>POST /api/tasks/export-batch</code>.</p>
 <p>The output is identical to the per-task decision record export — same renderer in <code>app/services/exporter.py</code>, same header / question / decision / final result / transcript / usage layout, same overwrite semantics if a file is somehow already present.</p>
 <p>Useful patterns. Run it periodically — say, once a week or before any kind of retention work — to snapshot fresh decisions you have not gotten around to exporting individually. The Inbox's export-status filter lets you preview what is still unexported before running it; sort by date to confirm nothing important is about to roll out from under you. After a run, the Inbox indicators flip to "exported" for every task that was processed.</p>
 <p>Bulk export only processes terminal tasks (<code>completed</code>, <code>failed</code>, <code>cancelled</code>) — in-flight tasks are skipped. Tasks that already have an <code>exported_at</code> are also skipped, so the operation is idempotent: running it twice in a row does no extra work the second time.</p>
@@ -949,14 +981,15 @@
         <section id="help-trouble-unavail" class="help-subsection">
           <h4>13.1 Agent unavailable</h4>
           <!-- BEGIN:section-13.1 -->
-<p>If an agent shows up as unreachable, the first signal is the test endpoint. Hit <code>POST /api/agents/&lt;name&gt;/test</code> directly:</p>
+<p>If an agent shows up as unreachable, the dashboard's New Task form will paint a red dot next to its checkbox with a remediation hint as the tooltip. The same data is available programmatically at <code>GET /api/health</code> as a <code>seats: [...]</code> array — each entry includes <code>{available, reason, hint}</code>. See <em>6.6 Seat readiness signals</em> for the full reason-code table.</p>
+<p>For a deeper probe, hit the per-agent test endpoint <code>POST /api/agents/&lt;name&gt;/test</code> directly — it actually invokes the CLI's <code>--version</code> path rather than just checking presence:</p>
 <pre><code>curl.exe -X POST http://127.0.0.1:8787/api/agents/codex/test
 curl.exe -X POST http://127.0.0.1:8787/api/agents/gemini/test
 curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
 </code></pre>
 <p>A healthy agent returns <code>{"available": true, "version": "...", ...}</code>. <code>{"available": false, ...}</code> means the adapter could not invoke the underlying CLI.</p>
 <p>First thing to check: is the CLI actually on <code>PATH</code>? On Windows: <code>where.exe codex</code>, <code>where.exe gemini</code>, <code>where.exe claude</code>. On Unix: <code>which codex</code>, <code>which gemini</code>, <code>which claude</code>.</p>
-<p>If <code>where.exe</code> / <code>which</code> finds nothing, install the CLI (see Prerequisites in <code>INSTALL.md</code>) or set <code>agents.&lt;name&gt;.command</code> in <code>config.yaml</code> to the absolute path.</p>
+<p>If <code>where.exe</code> / <code>which</code> finds nothing, install the CLI (see Prerequisites in <code>INSTALL.md</code>) or set <code>agents.&lt;name&gt;.command_path</code> in <code>config.yaml</code> to the absolute path of the binary. Strict precedence applies — if <code>command_path</code> is set but the file doesn't exist, the seat reports <code>configured_path_missing</code> rather than silently falling back to PATH. (This is the usual fix when the CLI works in your terminal but not under a GUI launch — Windows and macOS GUI processes don't inherit shell PATH.)</p>
 <p>If the CLI is on <code>PATH</code> but the adapter still reports unavailable, the most common cause is authentication. Run the CLI directly with <code>--version</code>. Confirm it does not prompt for login. If it does, re-authenticate: <code>codex login</code>, <code>gemini /auth</code>, or <code>claude /login</code>. The Switchboard adapters use your OAuth session by default; they do not pass <code>--bare</code> or require <code>ANTHROPIC_API_KEY</code>.</p>
 <p>If <code>GET /api/agents</code> returns <code>{"agents": []}</code>, none of your real CLIs are reachable — install at least one or use the <code>fake</code> adapter via the API directly.</p>
 <!-- END:section-13.1 -->
@@ -974,9 +1007,9 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
           <h4>13.3 Stuck tasks</h4>
           <!-- BEGIN:section-13.3 -->
 <p>If a task sits in <code>running</code> indefinitely — long past any reasonable per-agent timeout — the worker has almost certainly crashed mid-task. The task's status field is updated by the worker that owns it, so if the worker dies, the field stays stuck.</p>
-<p>The fix is to restart the service. Two sweeps run at startup. First, the orphan-sandbox sweep cleans up any per-task sandbox directories under <code>data/sandboxes/</code> whose owning task is no longer live. Second, the orphan-task reaper (<code>app/services/orphan_reaper.py</code>) scans for any task still in <code>running</code> whose <code>updated_at</code> is older than one hour, marks it <code>failed</code> with the message <code>"orphaned: no progress for &gt;1h; marked failed by startup reaper"</code>, and writes a <code>task_orphaned</code> entry to the <code>logs</code> table. The transcript, agent_runs, and any final_results rows are preserved verbatim — only the task status changes.</p>
-<p>So in practice: bounce the service and the stuck task moves itself to <code>failed</code>. If for some reason you need to intervene faster than that — e.g. you want to clear a task mid-session — the manual SQL path still works:</p>
-<pre><code>sqlite3 data/switchboard.db "UPDATE tasks SET status='failed', error_message='worker crash' WHERE id='tsk_...';"</code></pre>
+<p>The fix is to restart the service. Two sweeps run at startup. First, the orphan-sandbox sweep cleans up any per-task sandbox directories under the runtime <code>sandboxes/</code> root whose owning task is no longer live. Second, the orphan-task reaper (<code>app/services/orphan_reaper.py</code>) scans for any task still in <code>running</code> whose <code>updated_at</code> is older than one hour, marks it <code>failed</code> with the message <code>"orphaned: no progress for &gt;1h; marked failed by startup reaper"</code>, and writes a <code>task_orphaned</code> entry to the <code>logs</code> table. The transcript, agent_runs, and any final_results rows are preserved verbatim — only the task status changes.</p>
+<p>So in practice: bounce the service and the stuck task moves itself to <code>failed</code>. If for some reason you need to intervene faster than that — e.g. you want to clear a task mid-session — the manual SQL path still works (substitute your resolved runtime-state root for <code>&lt;state-root&gt;</code>):</p>
+<pre><code>sqlite3 &lt;state-root&gt;/switchboard.db "UPDATE tasks SET status='failed', error_message='worker crash' WHERE id='tsk_...';"</code></pre>
 <p>The full user-facing recovery console (inspect last durable state, requeue from last safe point, export recovery bundle) is intentionally not built — it would only earn its keep if stuck tasks become a recurring problem in practice rather than a once-in-a-blue-moon occurrence.</p>
 <!-- END:section-13.3 -->
         </section>
@@ -986,7 +1019,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
 <p>The OpenRouter and vLLM-style seats run into context limits in a way the CLI seats usually do not: they receive a single inlined prompt rather than browsing files on demand, so a large project sandbox or a thick stack of attachments can push past the model's effective window.</p>
 <p>The adapters mitigate this in two ways. First, each adapter self-discovers the model's context limit from the provider when it can, instead of trusting <code>max_context_chars</code> blindly. Second, on a context-overflow response, the adapter automatically retries with a tighter budget — trimming the inlined sandbox or attachments down before the next attempt.</p>
 <p>If retries still fail, you will see an actionable error on the task. The recommended fixes, in order of effort: scope <code>project_path</code> to a subdirectory rather than the repo root so less code is inlined; remove non-essential attachments from the request; or raise the seat's <code>max_context_chars</code> in <code>config.yaml</code> under the <code>openrouter.models</code> entry if your model actually has a larger window than the conservative default. The defaults in <code>config.example.yaml</code> are set well below each model's true token window because code-heavy prompts hit roughly 3 chars/token, worse than prose's 4.</p>
-<p>The structural fix — a tool-loop architecture letting the API seats <code>read_file</code> / <code>list_dir</code> on demand instead of getting everything inlined — is the ROADMAP's Next item #2.</p>
+<p>The structural fix — a tool-loop architecture letting the API seats <code>read_file</code> / <code>list_dir</code> / <code>glob</code> on demand instead of getting everything inlined — has now shipped as DR0015 and is opt-in per seat (see <em>11.8 OpenRouter tool-loop</em>). Flipping <code>tool_loop: true</code> for a seat that keeps tripping over its context window is usually a better fix than narrowing scope.</p>
 <!-- END:section-13.4 -->
         </section>
         <section id="help-trouble-sandbox" class="help-subsection">
@@ -1046,26 +1079,55 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
         <section id="help-reference-files" class="help-subsection">
           <h4>14.3 File locations</h4>
           <!-- BEGIN:section-14.3 -->
+<p>Runtime-state paths below are relative to the resolved <em>runtime state root</em> — see <em>14.4 Where state lives</em> for how the root is chosen. The "repo" paths assume you're running from a Switchboard checkout.</p>
 <table>
   <thead><tr><th>Path</th><th>What it holds</th></tr></thead>
   <tbody>
-    <tr><td><code>data/switchboard.db</code></td><td>SQLite database. Every task, message, decision, and transcript lives here (plus the <code>-wal</code> and <code>-shm</code> sidecar files).</td></tr>
-    <tr><td><code>data/sandboxes/&lt;task_id&gt;/</code></td><td>Per-task read-only sandbox — the copy of <code>project_path</code> that agents may browse during the deliberation.</td></tr>
-    <tr><td><code>data/uploads/</code></td><td>Task attachments uploaded from the dashboard or the API.</td></tr>
-    <tr><td><code>data/exports/</code></td><td>Exported decision records and per-task downloads (PDF / DOCX / Markdown / text).</td></tr>
-    <tr><td><code>config.yaml</code></td><td>Operator configuration. Copy from <code>config.example.yaml</code> and edit ports, adapter paths, and the open-weight seat list.</td></tr>
+    <tr><td><code>&lt;state-root&gt;/switchboard.db</code></td><td>SQLite database. Every task, message, decision, and transcript lives here (plus the <code>-wal</code> and <code>-shm</code> sidecar files).</td></tr>
+    <tr><td><code>&lt;state-root&gt;/sandboxes/&lt;task_id&gt;/</code></td><td>Per-task read-only sandbox — the copy of <code>project_path</code> that agents may browse during the deliberation.</td></tr>
+    <tr><td><code>&lt;state-root&gt;/uploads/</code></td><td>Task attachments uploaded from the dashboard or the API.</td></tr>
+    <tr><td><code>&lt;state-root&gt;/exports/</code></td><td>Exported decision records and per-task downloads (PDF / DOCX / Markdown / text).</td></tr>
+    <tr><td><code>&lt;state-root&gt;/logs/</code></td><td>Reserved for durable file logging. Today's runtime logs are stderr-only; the directory exists so a future record can adopt it without further plumbing.</td></tr>
+    <tr><td><code>&lt;state-root&gt;/switchboard.pid</code></td><td>Single-instance pidlock. Delete only if you're certain no service is running.</td></tr>
+    <tr><td><code>&lt;repo&gt;/config.yaml</code></td><td>Operator configuration. Copy from <code>config.example.yaml</code> and edit ports, adapter paths, <code>command_path</code> overrides, and the open-weight seat list. In a packaged install, the resolver also checks <code>&lt;state-root&gt;/config.yaml</code> first.</td></tr>
+    <tr><td><code>&lt;repo&gt;/pyproject.toml</code></td><td>Project metadata. Also serves as the dev-mode anchor — its presence (alongside <code>config.example.yaml</code>) is how <code>user_data_root()</code> decides the runtime state root resolves to <code>&lt;repo&gt;/data/</code>.</td></tr>
+    <tr><td><code>&lt;repo&gt;/launch.pyw</code></td><td>Cross-platform desktop launcher (see <em>6.5 One-click desktop launcher</em>). The installer scripts in <code>tools/</code> wire shortcuts to it.</td></tr>
+    <tr><td><code>&lt;repo&gt;/data/launcher.log</code></td><td>Launcher events plus uvicorn stdout/stderr — the first place to look if the desktop launcher fails to open a browser.</td></tr>
     <tr><td><code>~/.claude/commands/</code></td><td>Claude Code slash commands, installed by <code>python clients/install.py</code>.</td></tr>
     <tr><td><code>~/.claude/skills/switchboard-conclave/</code></td><td>Claude Code natural-language skill that backs the conclave triggers.</td></tr>
     <tr><td><code>~/.codex/skills/switchboard-conclave/</code></td><td>Codex skill — Codex has no literal slash commands, so it activates from trigger phrases.</td></tr>
     <tr><td><code>~/.gemini/extensions/</code></td><td>Gemini extension link installed by the clients installer.</td></tr>
   </tbody>
 </table>
-<p>Everything under <code>data/</code> is gitignored — the database contains the full text of every deliberation and any source copied into per-task sandboxes, so treat it as sensitive.</p>
+<p>Everything under the runtime state root is gitignored (in dev mode) and never leaves your machine. The database contains the full text of every deliberation plus any source copied into per-task sandboxes — treat it as sensitive.</p>
 <!-- END:section-14.3 -->
         </section>
-        <section id="help-reference-docs" class="help-subsection">
-          <h4>14.4 Links to deep docs</h4>
+        <section id="help-reference-stateroot" class="help-subsection">
+          <h4>14.4 Where state lives</h4>
           <!-- BEGIN:section-14.4 -->
+<p>Per DR0016, all writable runtime state — the SQLite database, sandboxes, uploads, exports, logs, and pidlock — resolves through a single <code>user_data_root()</code> primitive in <code>app/utils/paths.py</code>. The root is picked at startup using this precedence (first match wins):</p>
+<ol>
+  <li><strong><code>SWITCHBOARD_DATA_DIR</code> environment variable.</strong> Wins over everything else. Tests, CI runs, and packaged installers use this hook.</li>
+  <li><strong>Dev-mode anchor.</strong> If the current working directory (or any ancestor) contains both <code>pyproject.toml</code> and <code>config.example.yaml</code>, the root resolves to <code>&lt;that-dir&gt;/data/</code>. This preserves the in-repo developer experience exactly — running <code>python -m uvicorn …</code> from a checkout still writes to <code>./data/</code>.</li>
+  <li><strong>Platform-conventional user-data directory.</strong> Used by packaged installs that don't ship inside a repo checkout.</li>
+</ol>
+<table>
+  <thead><tr><th>Launch mode</th><th>Resolved root</th></tr></thead>
+  <tbody>
+    <tr><td>Dev / running from the repo</td><td><code>&lt;repo&gt;/data/</code></td></tr>
+    <tr><td>Packaged build on Windows</td><td><code>%LOCALAPPDATA%\AI Switchboard\</code></td></tr>
+    <tr><td>Packaged build on macOS</td><td><code>~/Library/Application Support/AI Switchboard/</code></td></tr>
+    <tr><td>Packaged build on Linux</td><td><code>$XDG_DATA_HOME/ai-switchboard/</code> (or <code>~/.local/share/ai-switchboard/</code>)</td></tr>
+    <tr><td>Explicit override</td><td>Whatever <code>SWITCHBOARD_DATA_DIR</code> points at.</td></tr>
+  </tbody>
+</table>
+<p><strong>Config discovery</strong> has its own precedence, layered on top: <code>SWITCHBOARD_CONFIG</code> env var, then <code>&lt;state-root&gt;/config.yaml</code>, then dev-mode <code>./config.yaml</code>, then <code>./config.example.yaml</code>, then built-in defaults. The example file is checked in; the live <code>config.yaml</code> is gitignored.</p>
+<p><strong>First-run migration.</strong> When a packaged build launches and finds a populated <code>./data/</code> from a prior dev-mode run, it copies (not moves) the state into the new root before opening any writer: the DB is transferred with <code>VACUUM INTO</code> for a consistent single-file snapshot, then <code>sandboxes/</code>, <code>exports/</code>, and <code>uploads/</code> are copied via atomic <code>.tmp</code> rename. The original files at <code>./data/</code> are left intact so you can verify the migration before deleting them. If a live process holds <code>./data/switchboard.pid</code>, migration refuses to run and tells you to stop the old service first.</p>
+<!-- END:section-14.4 -->
+        </section>
+        <section id="help-reference-docs" class="help-subsection">
+          <h4>14.5 Links to deep docs</h4>
+          <!-- BEGIN:section-14.5 -->
 <ul>
   <li><code>docs/CONCLAVE_CHARTER.md</code> — The binding charter (v1.2), embedded in every agent prompt.</li>
   <li><code>docs/SWITCHBOARD_PROTOCOL.md</code> — Wire format, mode definitions, and message schemas.</li>
@@ -1080,7 +1142,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
   <li><code>clients/README.md</code> — Slash-command parity across Claude Code, Codex, and Gemini.</li>
   <li><code>CLAUDE.md</code> — Guidance for Claude Code instances working in this repo.</li>
 </ul>
-<!-- END:section-14.4 -->
+<!-- END:section-14.5 -->
         </section>
       </section>
 
@@ -1091,6 +1153,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
           <!-- BEGIN:section-15.1 -->
 <p>This document carries its own version number, bumped whenever the docs are edited. The scheme is semver: a <strong>patch</strong> bump for typos and small fixes, a <strong>minor</strong> bump when new sections or substantive content land, and a <strong>major</strong> bump if the structure is reorganized.</p>
 <p>The current version and date are shown in the header at the top of this page. There is no separate changelog yet — for now, the <em>Updated</em> date in the header is the signal that something has changed.</p>
+<p><strong>Print / Save as PDF.</strong> The button in the help titlebar opens your browser's print dialog. Choose <em>Save as PDF</em> as the destination to capture a self-contained copy of this document — <code>@media print</code> CSS hides the chrome (toolbar, splitter, version chip) and forces a white background so the printed output is the prose only. Useful for offline reference or sharing the doc as a snapshot of what shipped at a particular version.</p>
 <!-- END:section-15.1 -->
         </section>
         <section id="help-about-docs-currency" class="help-subsection">
