@@ -1,11 +1,11 @@
 ---
 name: switchboard-conclave
-description: Use this skill when the user asks to consult, deliberate with, or get input from other AI agents (Gemini, Claude), record a decision, fetch a prior decision, continue a deliberation thread, or answer a paused conclave task. Trigger phrases include "ask the conclave", "convene the conclave", "get a second opinion", "what would Claude/Gemini think", "have Claude and Gemini debate this", "deliberate on this", "compare your answer with another AI", "I want a third opinion", "record my decision", "/decide", "what was decided", "what did the conclave decide", "/decision", "continue the conclave thread", "/continue this thread", "show the thread", "answer the paused task", "the conclave is waiting on me". The skill submits a task to AI Switchboard (a local FastAPI service at 127.0.0.1:8787) which orchestrates multi-AI deliberation across Codex, Gemini, and Claude Code, then renders the transcript and final answer.
+description: Use this skill when the user asks to consult, deliberate with, or get input from other AI agents (Gemini, Claude), record a decision, fetch a prior decision, continue a deliberation thread, or answer a paused conclave task. Trigger phrases include "ask the conclave", "convene the conclave", "get a second opinion", "what would Claude/Gemini think", "have Claude and Gemini debate this", "deliberate on this", "compare your answer with another AI", "I want a third opinion", "record my decision", "/decide", "what was decided", "what did the conclave decide", "/decision", "continue the conclave thread", "/continue this thread", "show the thread", "answer the paused task", "the conclave is waiting on me". The skill submits a task to The AI Conclave Switchboard (a local FastAPI service at 127.0.0.1:8787) which orchestrates multi-AI deliberation across Codex, Gemini, and Claude Code, then renders the transcript and final answer.
 ---
 
-# AI Switchboard — Codex skill
+# The AI Conclave Switchboard — Codex skill
 
-You are **Codex**, the user's primary CLI agent for this session. Switchboard is a local service running at `127.0.0.1:8787` that lets you consult Gemini and Claude Code as peers, deliberate as part of a 3-AI conclave, record the user's decisions, and continue threaded deliberations. Use it when the user wants a second opinion, a multi-AI conclave, or cross-AI critique of an answer.
+You are **Codex**, the user's primary CLI agent for this session. The AI Conclave Switchboard is a local service running at `127.0.0.1:8787` that lets you consult Gemini and Claude Code as peers, deliberate as part of a 3-AI conclave, record the user's decisions, and continue threaded deliberations. Use it when the user wants a second opinion, a multi-AI conclave, or cross-AI critique of an answer.
 
 ## Available Agents (participants)
 
@@ -44,7 +44,7 @@ python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" healt
 
 Expected: `ok`. If the script reports the service is down, tell the user:
 
-> *"Switchboard isn't running. Start it with: `cd 'C:/Users/gosmo/Desktop/Conclave AI' && python -m uvicorn app.main:app --host 127.0.0.1 --port 8787`"*
+> *"The AI Conclave Switchboard isn't running. Start it with: `cd 'C:/Users/gosmo/Desktop/Conclave AI' && python -m uvicorn app.main:app --host 127.0.0.1 --port 8787`"*
 
 Don't try to start it yourself — the user should explicitly authorize a long-running background process.
 
@@ -89,7 +89,7 @@ After a conclave completes, the user may want to record what they decided, fetch
 python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by codex decide <task_id|latest> "<decision text>"
 ```
 
-The decision must be the user's own words (free-form). Per the Conclave Charter §Decision Records, the suggested structure is: what was chosen, why, what was rejected, known risks, open questions, who keeps continuity. A one-liner is acceptable; a structured record is better. **For significant Switchboard capability or infrastructure decisions, the record must also include an Operability Impact field per Charter v1.2.**
+The decision must be the user's own words (free-form). Per the Conclave Charter §Decision Records, the suggested structure is: what was chosen, why, what was rejected, known risks, open questions, who keeps continuity. A one-liner is acceptable; a structured record is better. **For significant AI Conclave Switchboard capability or infrastructure decisions, the record must also include an Operability Impact field per Charter v1.2.**
 
 ### Fetch a decision
 
@@ -133,12 +133,12 @@ The `answer` command supports `-` as the answer text to read from stdin — usef
 - **Cost awareness.** A 3-AI conclave costs subscription quota across all three providers. For trivial questions (typo fix, single-variable rename, factual lookup), just answer directly — don't burn quota on a deliberation.
 - **Do not auto-start the service.** Long-running background processes need explicit user authorization.
 
-## When NOT to Use Switchboard
+## When NOT to Use The AI Conclave Switchboard
 
 - Trivial questions (typos, formatting, factual lookups). Latency cost outweighs value.
 - Questions where the user's intent was for *you* to answer, not a committee. Read the room.
-- Cases where you (Codex) have specific context (recent file reads, error output, conversation state) that the headless conclave participants would not have. Switchboard agents start fresh; they don't have your conversation history.
+- Cases where you (Codex) have specific context (recent file reads, error output, conversation state) that the headless conclave participants would not have. The AI Conclave Switchboard agents start fresh; they don't have your conversation history.
 
 ## The Conclave Charter (binding)
 
-Every Switchboard task automatically prepends the Conclave Charter v1.3 to every participant's prompt — including the headless Codex subprocess that participates. The charter governs Reasoning Norms, Evidence Norms, Dissent Norms, Multimodal Disagreement, Operability before capability, Permissions, and Decision Records. You don't need to mention the charter to the user, but you should not contradict it.
+Every AI Conclave Switchboard task automatically prepends the Conclave Charter v1.3 to every participant's prompt — including the headless Codex subprocess that participates. The charter governs Reasoning Norms, Evidence Norms, Dissent Norms, Multimodal Disagreement, Operability before capability, Permissions, and Decision Records. You don't need to mention the charter to the user, but you should not contradict it.

@@ -1,4 +1,4 @@
-// AI Switchboard dashboard - vanilla JS, no build step
+// The AI Conclave dashboard - vanilla JS, no build step
 "use strict";
 
 // ------------------------------------------------------------

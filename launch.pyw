@@ -1,4 +1,4 @@
-"""Double-clickable launcher for AI Switchboard. Cross-platform.
+"""Double-clickable launcher for The AI Conclave Switchboard. Cross-platform.
 
 Windows: run by `pythonw.exe` (via the .pyw extension) so no console window
 appears. Invoked by the desktop shortcut created by
@@ -136,7 +136,7 @@ def _show_error(message: str) -> None:
         from tkinter import messagebox
         root = tkinter.Tk()
         root.withdraw()
-        messagebox.showerror("AI Switchboard launch failed", message)
+        messagebox.showerror("The AI Conclave Switchboard launch failed", message)
         root.destroy()
     except Exception:  # noqa: BLE001
         pass
@@ -160,7 +160,7 @@ def main() -> int:
 
     _log("launcher: timed out waiting for /api/health")
     _show_error(
-        f"AI Switchboard didn't respond on {URL} within {STARTUP_TIMEOUT_SECONDS} seconds.\n\n"
+        f"The AI Conclave Switchboard didn't respond on {URL} within {STARTUP_TIMEOUT_SECONDS} seconds.\n\n"
         f"Check the log:\n{LOG_PATH}\n\n"
         "Common causes: port 8787 already in use, pidlock collision with a "
         "stale instance, or a Python environment issue."

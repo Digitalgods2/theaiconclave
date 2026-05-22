@@ -14,7 +14,7 @@ If only a task_id was provided with no decision text, ask the user briefly what 
 - The decision will auto-include as context in any /continue follow-up on this thread
 - They can fetch it later with /decision <task_id>
 
-For significant Switchboard capability or infrastructure decisions, Charter v1.2 also requires an Operability Impact section in the decision. If the topic looks Switchboard-related, suggest that addendum.
+For significant AI Conclave Switchboard capability or infrastructure decisions, Charter v1.2 also requires an Operability Impact section in the decision. If the topic looks AI Conclave Switchboard-related, suggest that addendum.
 
 !{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini decide {{args}}}
 """

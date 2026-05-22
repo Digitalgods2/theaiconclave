@@ -1,6 +1,6 @@
-# Switchboard Clients — Slash Command Parity
+# The AI Conclave Switchboard Clients — Slash Command Parity
 
-This directory is the **source of truth** for Switchboard's user-facing slash commands and skills across all three CLI integrations. Everything in `~/.claude/commands/`, `~/.codex/skills/switchboard-conclave/`, and the installed Gemini `switchboard-conclave` extension is built from these files.
+This directory is the **source of truth** for the AI Conclave Switchboard's user-facing slash commands and skills across all three CLI integrations. Everything in `~/.claude/commands/`, `~/.codex/skills/switchboard-conclave/`, and the installed Gemini `switchboard-conclave` extension is built from these files.
 
 ## Layout
 
@@ -87,6 +87,6 @@ Edit files **here, in `clients/`**, then rerun `install.py`. Do not edit the ins
 
 ## Charter constraint (v1.2)
 
-Per the *Operability before capability* principle, additions to this directory that expand capability (new modes, new agent types, new permission layers) must be assessed against operability foundations. The current shape (slash commands as thin clients over a stable Switchboard service + DB) does not degrade observability, durability, recoverability, audit trail, retention, or export — adding new slash commands here is generally an operability-neutral capability addition.
+Per the *Operability before capability* principle, additions to this directory that expand capability (new modes, new agent types, new permission layers) must be assessed against operability foundations. The current shape (slash commands as thin clients over a stable AI Conclave Switchboard service + DB) does not degrade observability, durability, recoverability, audit trail, retention, or export — adding new slash commands here is generally an operability-neutral capability addition.
 
 If a future client surface DOES affect those foundations (e.g., a client that writes locally without going through the service, or one that adds a new persistence layer), the Decision Record for the change must include an Operability Impact field per Charter v1.2 §Decision Records.

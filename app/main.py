@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
     try:
         lock_path = pidlock.acquire(data_root)
     except pidlock.PidLockBusy as e:
-        logger.error("Refusing to start — another Switchboard is running.\n%s", e)
+        logger.error("Refusing to start — another AI Conclave Switchboard is running.\n%s", e)
         raise SystemExit(2) from e
 
     # Step 5 — initialize the DB. config.database.path = None means "use
@@ -96,7 +96,7 @@ async def lifespan(app: FastAPI):
 
     worker_task = asyncio.create_task(worker_loop(config))
     retention_task = asyncio.create_task(retention_loop(config))
-    logger.info("Switchboard service started on %s:%d", config.server.host, config.server.port)
+    logger.info("AI Conclave Switchboard service started on %s:%d", config.server.host, config.server.port)
 
     try:
         yield
@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="AI Switchboard",
+    title="The AI Conclave Switchboard",
     version="0.1.0",
     lifespan=lifespan,
 )

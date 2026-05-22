@@ -37,7 +37,7 @@ import html as _html
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-_COPYRIGHT_LINE = "Generated from AI Switchboard. Copyright © 2026 digitalgods.ai. All rights reserved."
+_COPYRIGHT_LINE = "Generated from The AI Conclave. Copyright © 2026 digitalgods.ai. All rights reserved."
 
 
 def filename_stem(task: dict) -> str:
@@ -152,7 +152,7 @@ def render_pdf(task: dict, messages: list[dict], final_result: dict | None,
                             textColor=HexColor("#999999"))
 
     story: list = []
-    story.append(Paragraph("AI Conclave — Deliberation Record", H1))
+    story.append(Paragraph("The AI Conclave — Deliberation Record", H1))
     story.append(Paragraph(esc(task.get("user_request")), SUB))
     story.append(Spacer(1, 6))
     story.append(HRFlowable(width="100%", thickness=0.7, color=HexColor("#cccccc")))
@@ -239,7 +239,7 @@ def render_pdf(task: dict, messages: list[dict], final_result: dict | None,
     doc = SimpleDocTemplate(buf, pagesize=LETTER,
                             leftMargin=0.9 * inch, rightMargin=0.9 * inch,
                             topMargin=0.8 * inch, bottomMargin=0.8 * inch,
-                            title="AI Conclave Deliberation Record", author="AI Switchboard")
+                            title="The AI Conclave Deliberation Record", author="The AI Conclave")
     doc.build(story)
     return buf.getvalue()
 
@@ -258,7 +258,7 @@ def render_docx(task: dict, messages: list[dict], final_result: dict | None,
     doc = Document()
 
     # Title
-    title = doc.add_heading("AI Conclave — Deliberation Record", level=0)
+    title = doc.add_heading("The AI Conclave — Deliberation Record", level=0)
     sub = doc.add_paragraph()
     run = sub.add_run(task.get("user_request") or "")
     run.italic = True

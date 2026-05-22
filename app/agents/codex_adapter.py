@@ -2,7 +2,7 @@
 
 Wraps `codex exec --json --skip-git-repo-check --ephemeral -s read-only`.
 Reads the JSONL event stream from stdout, finds the agent_message item, and
-parses it as a Switchboard protocol message.
+parses it as an AI Conclave Switchboard Protocol message.
 
 Codex's `--output-schema <FILE>` could enforce JSON shape natively; we use
 prompt-based instruction + defensive parsing here for portability across

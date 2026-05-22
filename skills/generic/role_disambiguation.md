@@ -1,6 +1,6 @@
 # Role Disambiguation
 
-This skill teaches an AI agent how to decide *who is primary, who is consultant, and which mode applies* when the user invokes Switchboard. It is the companion to `user_invocation_triggers.md` — that file recognizes the trigger; this file decides the routing.
+This skill teaches an AI agent how to decide *who is primary, who is consultant, and which mode applies* when the user invokes the AI Conclave Switchboard. It is the companion to `user_invocation_triggers.md` — that file recognizes the trigger; this file decides the routing.
 
 ## The Three Modes
 
@@ -62,7 +62,7 @@ If the named primary needs permissions the task does not grant (e.g., user says 
 
 ### User wants to flip roles mid-task
 
-If a Switchboard task is already in flight and the user says "actually let Gemini take this" — do not interrupt the running task. Either:
+If an AI Conclave Switchboard task is already in flight and the user says "actually let Gemini take this" — do not interrupt the running task. Either:
 
 1. Wait for the current task to complete, then start a new task with the prior result as context, or
 2. Cancel the current task explicitly (POST /api/tasks/{id}/cancel) and start fresh.
@@ -71,7 +71,7 @@ Confirm which the user wants. The current primary's reasoning state is not trans
 
 ### User wants to escalate after a consultation completes
 
-"Now ask Gemini what *they* think of this" → start a new task. The prior Switchboard `final_result` becomes part of the new task's `context`. Do not extend the original task — its rounds budget and timeline are spent.
+"Now ask Gemini what *they* think of this" → start a new task. The prior AI Conclave Switchboard `final_result` becomes part of the new task's `context`. Do not extend the original task — its rounds budget and timeline are spent.
 
 ### User names an agent for a task type that agent does not support
 
@@ -93,6 +93,6 @@ Default if forced to choose: `consult`. The user can always re-issue as handoff.
 
 1. **Never silently substitute agents.** If the named agent isn't available, ask.
 2. **Never escalate permissions to fit a routing choice.** Permissions are set by the task; routing adapts to permissions, not the other way around.
-3. **Never reuse a `task_id` for a follow-up.** Each Switchboard invocation is its own task with its own rounds budget.
+3. **Never reuse a `task_id` for a follow-up.** Each AI Conclave Switchboard invocation is its own task with its own rounds budget.
 4. **Never claim a mode the user didn't ask for.** If I'm uncertain between `consult` and `handoff`, ask. Do not split the difference.
 5. **Final authority follows the mode, not the agent identity.** In `handoff`, the new primary decides — I (as consultant) do not override its final answer in my response back to the user. I surface disagreement; I do not overwrite.

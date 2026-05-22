@@ -1,6 +1,6 @@
 # Skills System
 
-A **skill** is a Markdown instruction file that tells an AI agent how to behave inside Switchboard. Skills are not code. They are *embedded* into prompts by adapters and read by agents at runtime to shape their responses.
+A **skill** is a Markdown instruction file that tells an AI agent how to behave inside the AI Conclave Switchboard. Skills are not code. They are *embedded* into prompts by adapters and read by agents at runtime to shape their responses.
 
 This document explains what skills are, where they live, how they get loaded, and how to add new ones. The protocol (`SWITCHBOARD_PROTOCOL.md`) defines what gets *transmitted*; this document defines what gets *expected* from the agent on the other end.
 
@@ -21,7 +21,7 @@ The skill is the agent's user manual for the round it is about to run.
 
 Apply to every agent regardless of which CLI it wraps. The MVP ships six:
 
-- `switchboard_connector.md` — how an outside agent calls Switchboard
+- `switchboard_connector.md` — how an outside agent calls the AI Conclave Switchboard
 - `primary_agent_behavior.md` — how to behave as primary
 - `consultant_behavior.md` — how to behave as consultant
 - `safety_behavior.md` — what every agent must not do, regardless of task
@@ -34,19 +34,19 @@ Override or supplement generic skills with tool-specific guidance:
 
 - `skills/codex/codex_switchboard_skill.md` — Codex-specific connector behavior
 - `skills/claude-code/claude_switchboard_skill.md` — Claude Code-specific connector behavior
-- `skills/<agent>/<role>_rules.md` — role overrides where the agent's defaults conflict with Switchboard's expectations
+- `skills/<agent>/<role>_rules.md` — role overrides where the agent's defaults conflict with the AI Conclave Switchboard's expectations
 
 When both layers exist, **per-agent skills take precedence on overlapping topics.**
 
 ## 3. How Skills Get Loaded
 
-### Outbound — agent calls Switchboard
+### Outbound — agent calls the AI Conclave Switchboard
 
-A user installs the per-agent skill into their agent's own config (e.g., a Claude Code skill file in `~/.claude/skills/`). When the user types a triggering phrase or a slash command, the agent reads its skill, builds a Switchboard task request, and POSTs it to `127.0.0.1:8787/api/tasks`. The skill is the *user manual the agent reads to know how to call Switchboard*.
+A user installs the per-agent skill into their agent's own config (e.g., a Claude Code skill file in `~/.claude/skills/`). When the user types a triggering phrase or a slash command, the agent reads its skill, builds an AI Conclave Switchboard task request, and POSTs it to `127.0.0.1:8787/api/tasks`. The skill is the *user manual the agent reads to know how to call the AI Conclave Switchboard*.
 
-### Inbound — Switchboard runs an agent
+### Inbound — the AI Conclave Switchboard runs an agent
 
-When Switchboard runs an agent, the adapter constructs a prompt that **embeds the relevant generic skills verbatim**:
+When the AI Conclave Switchboard runs an agent, the adapter constructs a prompt that **embeds the relevant generic skills verbatim**:
 
 | Adapter call | Skills embedded |
 |---|---|
@@ -69,7 +69,7 @@ Every skill file is plain Markdown. No frontmatter, no YAML, no executable code.
 ## 5. Adding or Modifying Skills
 
 1. Edit the markdown file in `skills/`.
-2. Restart the Switchboard service so adapters re-read the content.
+2. Restart the AI Conclave Switchboard service so adapters re-read the content.
 3. If the change introduces a new generic skill, update the relevant adapter to include it in prompt construction.
 4. Skill changes are not breaking protocol changes — no `protocol_version` bump. They do require a new test if behavior changes meaningfully.
 

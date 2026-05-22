@@ -1,6 +1,6 @@
 # Safety Model
 
-Default behavior: **deny**. Every action that touches the filesystem, runs a command, or reaches the network is blocked unless the task's permissions explicitly allow it. This file defines what each permission gates, what the dangerous-command blocklist contains, when Switchboard pauses for user approval, and how violations are handled.
+Default behavior: **deny**. Every action that touches the filesystem, runs a command, or reaches the network is blocked unless the task's permissions explicitly allow it. This file defines what each permission gates, what the dangerous-command blocklist contains, when the AI Conclave Switchboard pauses for user approval, and how violations are handled.
 
 This document is the contract that adapters and the orchestrator must enforce. The protocol (`SWITCHBOARD_PROTOCOL.md`) describes the *shape* of permissions on the wire; this document describes their *meaning*.
 
@@ -63,7 +63,7 @@ A blocked command does not produce a clarifying error to the agent; it produces 
 
 ## 4. Approval Gate
 
-Switchboard pauses tasks (status → `waiting_for_user`) when an agent's recommended action requires approval. Triggers:
+The AI Conclave Switchboard pauses tasks (status → `waiting_for_user`) when an agent's recommended action requires approval. Triggers:
 
 - Any action with `requires_approval: true` in `recommended_actions`
 - Any command on the soft list above
@@ -82,13 +82,13 @@ This pass does not execute commands, apply patches, access the network, read sec
 
 ### Draft artifacts and explicit apply
 
-Agents still do not write to the user's project in v1. When a final recommendation contains a draft file, search/replace edit, or patch, Switchboard may store it under the app-owned runtime artifact directory for review. This is a product handoff surface, not an execution grant and not a bypass of task permissions.
+Agents still do not write to the user's project in v1. When a final recommendation contains a draft file, search/replace edit, or patch, the AI Conclave Switchboard may store it under the app-owned runtime artifact directory for review. This is a product handoff surface, not an execution grant and not a bypass of task permissions.
 
 The dashboard/API can explicitly apply supported artifacts after the task completes. That apply action is user-initiated, constrained to the task's `project_path`, and rejects paths that escape the project root. Patch artifacts are review/download-only in v1; direct patch application remains governed by the patch rules below.
 
 ## 5. Patch Handling
 
-In MVP, Switchboard **never applies patches**. It surfaces them as text in `patches_requiring_approval` on the final result. Future versions may support apply-after-approval with these guards:
+In MVP, the AI Conclave Switchboard **never applies patches**. It surfaces them as text in `patches_requiring_approval` on the final result. Future versions may support apply-after-approval with these guards:
 
 - Mandatory `git stash` or branch creation before apply
 - Mandatory dry-run (`git apply --check`) before commit
@@ -97,11 +97,11 @@ In MVP, Switchboard **never applies patches**. It surfaces them as text in `patc
 
 ## 6. Network Rules
 
-When `can_access_network` is false, agents may still propose network actions in their recommendations — but Switchboard does not execute them and does not let any subprocess it spawns reach the network. The MVP enforces this by:
+When `can_access_network` is false, agents may still propose network actions in their recommendations — but the AI Conclave Switchboard does not execute them and does not let any subprocess it spawns reach the network. The MVP enforces this by:
 
 - Not spawning HTTP-using subprocesses
 - Not setting proxy env vars from the host into the subprocess env
-- Blocking adapter calls that themselves require network access (the agent's CLI may still reach its own provider — that is the agent's authority, not Switchboard's)
+- Blocking adapter calls that themselves require network access (the agent's CLI may still reach its own provider — that is the agent's authority, not the AI Conclave Switchboard's)
 
 When `can_access_network` is true, only outbound HTTP/HTTPS is allowed. Raw sockets, SMTP, and direct DB protocols are out of scope for MVP.
 

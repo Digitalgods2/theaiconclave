@@ -195,7 +195,7 @@ def test_all_required_sections_present_for_full_task():
     assert "0.0370" in md
 
     # Footer
-    assert re.search(r"_Exported on .+ by AI Switchboard\._", md)
+    assert re.search(r"_Exported on .+ by The AI Conclave\._", md)
 
 
 def test_section_order_is_header_question_decision_final_transcript_usage_footer():
@@ -213,7 +213,7 @@ def test_section_order_is_header_question_decision_final_transcript_usage_footer
         pos("## Final result"),
         pos("## Transcript"),
         pos("## Usage"),
-        pos("by AI Switchboard."),
+        pos("by The AI Conclave."),
     ]
     assert order == sorted(order), f"sections out of order: {order}"
 

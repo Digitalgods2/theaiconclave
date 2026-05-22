@@ -6,7 +6,7 @@ This doc exists so the charter is discoverable from the docs/ tree alongside the
 
 ## How the charter is enforced
 
-Every Switchboard prompt to every agent (in every mode — resolve, consult, conclave, peer, final) is assembled by `app/services/prompt_builder.py` in this order:
+Every AI Conclave Switchboard prompt to every agent (in every mode — resolve, consult, conclave, peer, final) is assembled by `app/services/prompt_builder.py` in this order:
 
 1. **Conclave Charter** (loaded from `skills/generic/conclave_charter.md`)
 2. **Role skill** (resolution / consultant / conclave / primary behavior)
@@ -21,7 +21,7 @@ The charter is the **constitutional layer**: it applies always, regardless of mo
 
 Per the charter's own evolution rule:
 
-1. Any participant or Glen proposes an amendment (via a conclave-mode task on Switchboard).
+1. Any participant or Glen proposes an amendment (via a conclave-mode task on the AI Conclave Switchboard).
 2. The amendment is debated.
 3. Glen ratifies or rejects.
 4. The keeper (`claude-code`) bumps the version number and updates `skills/generic/conclave_charter.md`.

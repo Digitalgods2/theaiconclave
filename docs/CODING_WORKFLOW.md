@@ -1,6 +1,6 @@
 # Coding Workflow
 
-This document describes the canonical workflow for using AI Switchboard during coding work — design decisions, code review, refactor debates, architecture calls, library choices, debugging hard problems. It is the user-facing companion to the *Conclave Charter*.
+This document describes the canonical workflow for using The AI Conclave Switchboard during coding work — design decisions, code review, refactor debates, architecture calls, library choices, debugging hard problems. It is the user-facing companion to the *Conclave Charter*.
 
 ## The principle
 
@@ -127,7 +127,7 @@ The mode picker is in the dashboard's New Task form, or via the helper script's 
 
 ## What this workflow does require
 
-- **The Switchboard service running** at `127.0.0.1:8787`. Start it with: `cd 'C:/Users/gosmo/Desktop/Conclave AI' && python -m uvicorn app.main:app --host 127.0.0.1 --port 8787`
+- **The AI Conclave Switchboard service running** at `127.0.0.1:8787`. Start it with: `cd 'C:/Users/gosmo/Desktop/Conclave AI' && python -m uvicorn app.main:app --host 127.0.0.1 --port 8787`
 - **Codex, Gemini, and Claude Code CLIs installed and authenticated.** Each draws from your provider subscription quota, not API tokens (assuming default OAuth login).
 - **Recording decisions.** A conclave without a recorded decision is half a workflow. The decision panel exists to close the loop.
 
@@ -137,7 +137,7 @@ You're working on the `Conclave AI` codebase and considering whether to add a Se
 
 1. **Frame and submit**:
    ```
-   /conclave Should AI Switchboard add Sentry for production error tracking?
+   /conclave Should The AI Conclave add Sentry for production error tracking?
    Currently using stdlib logging. Single-user local-only service. ~5 deps in requirements.txt.
    Risks of adding: deps, complexity, potential PII in error reports. Benefits: structured
    error surface, alerting if I ever deploy multi-user.

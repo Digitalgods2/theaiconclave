@@ -1,10 +1,10 @@
 # MVP Plan
 
-The first useful version of AI Switchboard. The goal is to prove the core loop: an AI agent can request review from another AI agent, the Switchboard mediates the exchange, and the user reads the result in a dashboard.
+The first useful version of The AI Conclave. The goal is to prove the core loop: an AI agent can request review from another AI agent, the AI Conclave Switchboard mediates the exchange, and the user reads the result in a dashboard.
 
 ## 1. The Demo Scenario
 
-A user opens the Switchboard dashboard, submits a Python traceback, and selects:
+A user opens the AI Conclave Switchboard dashboard, submits a Python traceback, and selects:
 
 - **Mode**: `consult`
 - **Primary**: Codex

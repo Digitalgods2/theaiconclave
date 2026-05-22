@@ -1,8 +1,8 @@
 """
-Switchboard Protocol v1.0 schema validators.
+AI Conclave Switchboard Protocol v1.0 schema validators.
 
 Pydantic models defining the wire format for every message that flows through
-Switchboard. FastAPI uses these for request validation; the orchestrator uses
+the AI Conclave Switchboard. FastAPI uses these for request validation; the orchestrator uses
 them to validate agent responses before persistence.
 
 Source of truth for field semantics: docs/SWITCHBOARD_PROTOCOL.md.

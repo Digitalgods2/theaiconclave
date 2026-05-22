@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-> AI Switchboard helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory. A personal AI decision board for builders, writers, researchers, and technical creators who need more than an answer; they need the reasoning trail.
+> The AI Conclave helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory. A personal AI decision board for builders, writers, researchers, and technical creators who need more than an answer; they need the reasoning trail.
 
-**AI Switchboard** (a.k.a. the AI Conclave) — a local FastAPI service at `127.0.0.1:8787` that orchestrates structured deliberation between AI coding agents (Codex, Gemini, Claude Code, plus pluggable OpenRouter seats). Single-user, local-only, SQLite-backed.
+**The AI Conclave** — a local FastAPI service at `127.0.0.1:8787` (the AI Conclave Switchboard) that orchestrates structured deliberation between AI coding agents (Codex, Gemini, Claude Code, plus pluggable OpenRouter seats). Single-user, local-only, SQLite-backed.
 
 It is in part **used to design itself** — most architectural decisions came out of conclave deliberations recorded in `docs/decisions/`. Read those before proposing structural changes.
 

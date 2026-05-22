@@ -381,7 +381,7 @@ def _render_usage(agent_runs: list[dict]) -> str:
 
 def _render_footer() -> str:
     ts = datetime.now(timezone.utc).isoformat()
-    return f"---\n\n_Exported on {ts} by AI Switchboard._"
+    return f"---\n\n_Exported on {ts} by The AI Conclave._"
 
 
 # ---------------------------------------------------------------------------

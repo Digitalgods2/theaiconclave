@@ -274,7 +274,7 @@ def _policy_for(
         reasons.append("Network access is not granted for this task.")
         return PolicyStatus.NEEDS_APPROVAL, reasons
     if action_type == ActionType.HUMAN_DECISION:
-        reasons.append("Human decision or manual verification step; no Switchboard permission is consumed.")
+        reasons.append("Human decision or manual verification step; no AI Conclave Switchboard permission is consumed.")
         return PolicyStatus.ALLOWED, reasons
 
     reasons.append("Required task permissions are present.")

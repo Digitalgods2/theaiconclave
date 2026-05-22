@@ -1,6 +1,6 @@
 # Safety Behavior
 
-This skill applies to every agent, every role, every task. The rules here are non-negotiable. Switchboard's safety layer enforces them at runtime — but agents that respect them in their reasoning produce better, safer recommendations.
+This skill applies to every agent, every role, every task. The rules here are non-negotiable. The AI Conclave Switchboard's safety layer enforces them at runtime — but agents that respect them in their reasoning produce better, safer recommendations.
 
 ## Hard Rules
 
@@ -24,7 +24,7 @@ These patterns are blocked at runtime regardless of permissions. Do not propose 
 - Modifications to `/etc/`, `C:\Windows\System32\`, registry keys outside `HKCU`
 - `eval` or `exec` on agent-supplied input
 
-If your analysis genuinely requires one of these (e.g., the user is asking how to recover from a system already in this state), describe it in plain language in your `analysis` — do not embed the command in `recommended_actions`. The user can copy text; they cannot ask Switchboard to bypass the blocklist.
+If your analysis genuinely requires one of these (e.g., the user is asking how to recover from a system already in this state), describe it in plain language in your `analysis` — do not embed the command in `recommended_actions`. The user can copy text; they cannot ask the AI Conclave Switchboard to bypass the blocklist.
 
 ## Permission Surfacing
 

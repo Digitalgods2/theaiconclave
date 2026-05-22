@@ -1,4 +1,4 @@
-r"""Platform-aware path resolvers for AI Switchboard runtime state.
+r"""Platform-aware path resolvers for the AI Conclave Switchboard runtime state.
 
 All writable runtime state (SQLite DB, sandboxes, uploads, exports, logs,
 pidlock, and — when not running from a repo — the user's config.yaml)
@@ -39,8 +39,8 @@ def _find_dev_anchor(start: Optional[Path] = None) -> Optional[Path]:
     directory if found, else None.
 
     Both files have to be present — `pyproject.toml` alone matches any Python
-    project, but `config.example.yaml` is Switchboard-specific, so the pair
-    is a tight signal that we're running from a Switchboard checkout.
+    project, but `config.example.yaml` is AI Conclave Switchboard-specific, so the pair
+    is a tight signal that we're running from an AI Conclave Switchboard checkout.
     """
     here = (start or Path.cwd()).resolve()
     for candidate in (here, *here.parents):

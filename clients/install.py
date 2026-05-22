@@ -1,4 +1,4 @@
-"""Install Switchboard slash-command parity across Claude Code, Codex, and Gemini.
+"""Install The AI Conclave Switchboard slash-command parity across Claude Code, Codex, and Gemini.
 
 This script is the deploy step for the source-of-truth files under
 clients/. It copies / links them into each tool's home directory so the

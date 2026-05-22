@@ -1,6 +1,6 @@
-# Switchboard Protocol
+# The AI Conclave Switchboard Protocol
 
-The wire format for messages flowing through AI Switchboard. Every task request, agent message, and final result conforms to the schemas below. Storage layout lives in `DATABASE_SCHEMA.md`; HTTP routes live in `API_REFERENCE.md`. This file defines only the *shape* of the data on the wire.
+The wire format for messages flowing through The AI Conclave Switchboard. Every task request, agent message, and final result conforms to the schemas below. Storage layout lives in `DATABASE_SCHEMA.md`; HTTP routes live in `API_REFERENCE.md`. This file defines only the *shape* of the data on the wire.
 
 ## 1. Design Principles
 
@@ -15,7 +15,7 @@ The wire format for messages flowing through AI Switchboard. Every task request,
 Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Current version: `1.1`.
 
 - **MINOR bump** — additive only (new optional fields). Older clients ignore unknown fields.
-- **MAJOR bump** — breaking. Switchboard rejects mismatched majors with error `protocol_version_mismatch`.
+- **MAJOR bump** — breaking. The AI Conclave Switchboard rejects mismatched majors with error `protocol_version_mismatch`.
 
 ## 3. Common Enums
 
@@ -258,7 +258,7 @@ Built by the result builder and returned to the caller.
 
 ## 9. Draft Artifacts
 
-When final `recommended_actions` include draftable file operations, Switchboard may preserve them as task-scoped artifacts under the runtime data root. These are operational handoff material, not agent writes to the user's project.
+When final `recommended_actions` include draftable file operations, The AI Conclave Switchboard may preserve them as task-scoped artifacts under the runtime data root. These are operational handoff material, not agent writes to the user's project.
 
 Supported v1 captures:
 

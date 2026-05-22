@@ -1,4 +1,4 @@
-"""PID lockfile — single-instance enforcement for the Switchboard service.
+"""PID lockfile — single-instance enforcement for the AI Conclave Switchboard service.
 
 Why: every running process spins up its own worker_loop that polls the same
 SQLite for pending tasks. If two processes are alive at once (e.g. you forgot
@@ -164,7 +164,7 @@ def _my_create_time() -> Optional[float]:
 
 
 class PidLockBusy(RuntimeError):
-    """Raised when the lockfile is held by a *live* Switchboard process."""
+    """Raised when the lockfile is held by a *live* AI Conclave Switchboard process."""
 
 
 def acquire(data_dir: Path) -> Path:
@@ -192,11 +192,11 @@ def acquire(data_dir: Path) -> Path:
         if alive and recorded_ct is not None and actual_ct is not None:
             # PID reuse defense: only refuse to start if BOTH the PID is alive
             # AND the creation time matches what we recorded. A mismatch means
-            # the OS handed this PID to a different process after Switchboard
-            # exited — the lockfile is stale.
+            # the OS handed this PID to a different process after the AI Conclave
+            # Switchboard exited — the lockfile is stale.
             if abs(actual_ct - recorded_ct) < 2.0:  # 2-second tolerance
                 raise PidLockBusy(
-                    f"Switchboard is already running as PID {stale_pid} "
+                    f"The AI Conclave Switchboard is already running as PID {stale_pid} "
                     f"(started at {datetime.fromtimestamp(actual_ct).isoformat()}).\n"
                     f"Stop it first (Ctrl+C in its terminal), or if you're sure "
                     f"it's a zombie, delete {lock_path} and try again."
@@ -209,7 +209,7 @@ def acquire(data_dir: Path) -> Path:
         elif alive and recorded_ct is None:
             # Old lockfile format without creation time. Be conservative.
             raise PidLockBusy(
-                f"Switchboard appears to be running as PID {stale_pid} (lockfile lacks "
+                f"The AI Conclave Switchboard appears to be running as PID {stale_pid} (lockfile lacks "
                 f"creation timestamp — can't verify). Stop it or delete {lock_path} to proceed."
             )
         else:

@@ -81,7 +81,7 @@ _THINK_BLOCK_RE = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _API_KEY_ENV = "OPENROUTER_API_KEY"
 _DB_KEY = "openrouter_api_key"
 _DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
-_APP_TITLE = "AI Switchboard Conclave"
+_APP_TITLE = "The AI Conclave"
 
 # Per-process cache of each model's true input-char ceiling, learned from a 400
 # "maximum context length" response. Subsequent calls use the learned (lower)

@@ -96,7 +96,7 @@ def maybe_migrate() -> Optional[dict]:
     summary = _do_migration(src_root, dst_root, has_db=has_db, subdirs=has_subdirs)
 
     msg = (
-        f"\nSwitchboard migrated runtime state from {src_root} to {dst_root}.\n"
+        f"\nThe AI Conclave Switchboard migrated runtime state from {src_root} to {dst_root}.\n"
         f"The originals at {src_root} are intact and can be deleted manually if no longer needed.\n"
     )
     print(msg, file=sys.stderr)
@@ -105,7 +105,7 @@ def maybe_migrate() -> Optional[dict]:
 
 def _check_no_live_old_instance(src_root: Path) -> None:
     """Refuse migration if `<src_root>/switchboard.pid` points to a live
-    Switchboard process. Closes the cross-root race per DR0016.
+    AI Conclave Switchboard process. Closes the cross-root race per DR0016.
     """
     old_pid_path = src_root / _OLD_PID_NAME
     if not old_pid_path.exists():
@@ -134,7 +134,7 @@ def _check_no_live_old_instance(src_root: Path) -> None:
     # PID-reuse defense: same logic pidlock.acquire uses.
     if recorded_ct is not None and actual_ct is not None and abs(actual_ct - recorded_ct) < 2.0:
         raise MigrationBlocked(
-            f"A Switchboard instance appears to be running against {src_root} "
+            f"An AI Conclave Switchboard instance appears to be running against {src_root} "
             f"(PID {old_pid}). Stop it before launching this build, "
             f"or delete {old_pid_path} if you're sure the process is gone."
         )

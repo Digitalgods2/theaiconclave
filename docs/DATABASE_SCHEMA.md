@@ -16,7 +16,7 @@ The protocol (`SWITCHBOARD_PROTOCOL.md`) defines the *wire* format. This documen
 
 ### `tasks`
 
-The top-level row for every task submitted to Switchboard.
+The top-level row for every task submitted to the AI Conclave Switchboard.
 
 ```sql
 CREATE TABLE tasks (

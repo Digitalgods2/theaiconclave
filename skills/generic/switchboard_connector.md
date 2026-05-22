@@ -1,17 +1,17 @@
-# Switchboard Connector
+# The AI Conclave Switchboard Connector
 
-Use AI Switchboard when a task would benefit from another AI agent's review, critique, or alternate reasoning. This skill tells you how to call it.
+Use The AI Conclave Switchboard when a task would benefit from another AI agent's review, critique, or alternate reasoning. This skill tells you how to call it.
 
 ## When to Use
 
-Invoke Switchboard when:
+Invoke the AI Conclave Switchboard when:
 
 - The user explicitly asks to consult another AI ("ask Codex", "second opinion", "what would Gemini say").
 - The problem is complex, high-stakes, or affects code, files, deployment, security, or data.
 - You are uncertain and a second opinion would reduce risk.
 - You have just produced an answer that the user pushed back on, and re-thinking alone has not resolved it.
 
-Do **not** invoke Switchboard for trivial tasks (typo fixes, formatting, single-variable renames). The latency cost outweighs the value.
+Do **not** invoke the AI Conclave Switchboard for trivial tasks (typo fixes, formatting, single-variable renames). The latency cost outweighs the value.
 
 For trigger phrases and disambiguation rules, see `user_invocation_triggers.md` and `role_disambiguation.md`.
 
@@ -23,7 +23,7 @@ Default local endpoint:
 POST http://127.0.0.1:8787/api/tasks
 ```
 
-No authentication is required in MVP — Switchboard binds to localhost only.
+No authentication is required in MVP — the AI Conclave Switchboard binds to localhost only.
 
 ## Request Format
 
@@ -40,7 +40,7 @@ Send a JSON body conforming to the `TaskRequest` schema in `docs/SWITCHBOARD_PRO
 - `permissions` — all eight booleans, explicit. **Inherit from the current session; do not escalate.**
 - `limits` — at minimum `max_rounds` and `timeout_seconds`
 
-Pass the user's `project_path` if the task is grounded in a specific codebase. Switchboard's context manager will collect file content; you do not need to send raw file bodies.
+Pass the user's `project_path` if the task is grounded in a specific codebase. The AI Conclave Switchboard's context manager will collect file content; you do not need to send raw file bodies.
 
 ## Response Format
 
@@ -65,4 +65,4 @@ If `status` is `waiting_for_user`, surface the pending approvals (their IDs are 
 
 ## Authority
 
-The calling agent or the user-selected primary agent has final authority on the answer. Switchboard mediates; it does not arbitrate. Consultants critique; primaries decide. The user overrides either at any time.
+The calling agent or the user-selected primary agent has final authority on the answer. The AI Conclave Switchboard mediates; it does not arbitrate. Consultants critique; primaries decide. The user overrides either at any time.

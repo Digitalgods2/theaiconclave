@@ -77,7 +77,7 @@ The proposal: extend the per-task permission flags through to the adapter CLIs, 
 
 - **Output-discipline regression.** With elevated tool access, models drift away from strict JSON output toward tool-use exploration. Already observed once with `--permission-mode plan` on Claude.
 
-- **Redundancy with the interactive CLI.** The Claude Code session driving Switchboard is itself an execution-capable agent. Adding two more parallel writers (headless Codex + Gemini) gives a coordination problem, not 3× capability.
+- **Redundancy with the interactive CLI.** The Claude Code session driving the AI Conclave Switchboard is itself an execution-capable agent. Adding two more parallel writers (headless Codex + Gemini) gives a coordination problem, not 3× capability.
 
 - **Audit trail divergence.** Decisions today are traceable: deliberate → decide → act. With in-conclave execution, agents act during deliberation in arbitrary order; reconstructing "what did the conclave do to the filesystem and when" is hard.
 

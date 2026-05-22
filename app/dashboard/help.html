@@ -26,7 +26,7 @@
   <div class="help-doc-layout">
     <nav class="help-doc-toc" aria-label="Help table of contents">
       <ol class="help-toc-list">
-        <li><a href="#help-about">1. About AI Switchboard</a>
+        <li><a href="#help-about">1. About The AI Conclave</a>
           <ol>
             <li><a href="#help-about-what">1.1 What it is, what it isn't</a></li>
             <li><a href="#help-about-local">1.2 Single-user, local-only</a></li>
@@ -162,17 +162,17 @@
     <article class="help-doc-content" id="help-doc-content">
 
       <section id="help-about" class="help-section">
-        <h3>1. About AI Switchboard</h3>
+        <h3>1. About The AI Conclave</h3>
 
         <section id="help-about-what" class="help-subsection">
           <h4>1.1 What it is, what it isn't</h4>
           <!-- BEGIN:section-1.1 -->
 <blockquote class="help-tagline">
-  <p><strong>AI Switchboard helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory.</strong></p>
+  <p><strong>The AI Conclave helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory.</strong></p>
   <p>A personal AI decision board for builders, writers, researchers, and technical creators who need more than an answer. They need the reasoning trail.</p>
 </blockquote>
 
-<p><strong>AI Switchboard</strong> (a.k.a. the AI Conclave) is a local background service that lets AI coding agents — Codex, Gemini, and Claude Code — consult one another through structured deliberation instead of free-form chat. You ask a question; the conclave deliberates; you get a structured verdict with disagreements surfaced verbatim, not flattened.</p>
+<p><strong>The AI Conclave</strong> is a local background service that lets AI coding agents — Codex, Gemini, and Claude Code — consult one another through structured deliberation instead of free-form chat. You ask a question; the conclave deliberates; you get a structured verdict with disagreements surfaced verbatim, not flattened.</p>
 
 <p>It offers three deliberation modes:</p>
 <ul>
@@ -181,17 +181,17 @@
   <li><code>consult</code> — fixed second-opinion exchange for a quick review, with a one-time numbered clarification pause if the agents need answers before final synthesis.</li>
 </ul>
 
-<p>What it deliberately is <em>not</em>: it is not an autonomous code-execution system. The conclave is the <strong>deliberation layer</strong>. The interactive CLI you're already driving — Claude Code, Codex, or Gemini — is the <strong>execution layer</strong>. Switchboard talks, records, surfaces disagreement, and keeps the audit trail. Your CLI session does the actual editing, running, and iterating. Trying to merge those two roles was considered and explicitly declined; see <code>docs/ROADMAP.md</code>.</p>
+<p>What it deliberately is <em>not</em>: it is not an autonomous code-execution system. The conclave is the <strong>deliberation layer</strong>. The interactive CLI you're already driving — Claude Code, Codex, or Gemini — is the <strong>execution layer</strong>. The AI Conclave Switchboard talks, records, surfaces disagreement, and keeps the audit trail. Your CLI session does the actual editing, running, and iterating. Trying to merge those two roles was considered and explicitly declined; see <code>docs/ROADMAP.md</code>.</p>
 <!-- END:section-1.1 -->
         </section>
         <section id="help-about-local" class="help-subsection">
           <h4>1.2 Single-user, local-only</h4>
           <!-- BEGIN:section-1.2 -->
-<p>Switchboard runs as a FastAPI service bound to <code>127.0.0.1:8787</code>. It is single-user and local-only. There is no authentication layer because there is no remote surface — the service does not bind to a public interface, and nothing in the design assumes more than one user.</p>
+<p>The AI Conclave Switchboard runs as a FastAPI service bound to <code>127.0.0.1:8787</code>. It is single-user and local-only. There is no authentication layer because there is no remote surface — the service does not bind to a public interface, and nothing in the design assumes more than one user.</p>
 
 <p>State lives in a SQLite database called <code>switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, exports, draft artifacts, and logs share the same runtime-state root. Running from a repo checkout, that root is <code>&lt;repo&gt;/data/</code>; a packaged install resolves to the platform-conventional user-data directory (e.g. <code>%LOCALAPPDATA%\AI Switchboard\</code> on Windows). See <em>14.4 Where state lives</em> for the full table. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
 
-<p><strong>What this does and doesn't mean for privacy.</strong> The orchestration plane — the service, the dashboard, transcripts, decision records, and API keys — never leaves your machine. The deliberation content itself does: every prompt sent to a CLI seat traverses that CLI's provider (OpenAI for Codex, Anthropic for Claude Code, Google for Gemini), and every prompt to an open-weight seat traverses OpenRouter (and then whichever provider hosts the model). Switchboard does not <em>add</em> a third party — it uses the providers you already have a relationship with — but it does not <em>remove</em> one either. The meaningful claim here is <strong>control of the audit trail and orchestration state</strong>, not privacy of the prompt content.</p>
+<p><strong>What this does and doesn't mean for privacy.</strong> The orchestration plane — the service, the dashboard, transcripts, decision records, and API keys — never leaves your machine. The deliberation content itself does: every prompt sent to a CLI seat traverses that CLI's provider (OpenAI for Codex, Anthropic for Claude Code, Google for Gemini), and every prompt to an open-weight seat traverses OpenRouter (and then whichever provider hosts the model). The AI Conclave Switchboard does not <em>add</em> a third party — it uses the providers you already have a relationship with — but it does not <em>remove</em> one either. The meaningful claim here is <strong>control of the audit trail and orchestration state</strong>, not privacy of the prompt content.</p>
 
 <p>One bounded privacy lever does exist: OpenRouter requests go out with <code>provider.data_collection: "deny"</code> by default in <code>config.example.yaml</code>, which keeps prompts off the OpenRouter providers that retain or train on them. This applies only to the open-weight seats; the CLI seats are governed by whatever terms you have with OpenAI / Anthropic / Google.</p>
 <!-- END:section-1.2 -->
@@ -291,7 +291,7 @@
         <section id="help-modes-consult" class="help-subsection">
           <h4>3.3 consult</h4>
           <!-- BEGIN:section-3.3 -->
-<p><code>consult</code> mode is a bounded exchange: the <strong>primary proposes</strong>, the <strong>consultant(s) critique</strong>, the <strong>primary finalizes</strong>. If the primary or consultants ask clarifying questions, Switchboard pauses once at <code>awaiting_user_input</code>, presents a numbered questionnaire, then resumes final synthesis after you answer.</p>
+<p><code>consult</code> mode is a bounded exchange: the <strong>primary proposes</strong>, the <strong>consultant(s) critique</strong>, the <strong>primary finalizes</strong>. If the primary or consultants ask clarifying questions, the AI Conclave Switchboard pauses once at <code>awaiting_user_input</code>, presents a numbered questionnaire, then resumes final synthesis after you answer.</p>
 
 <p>Unlike <code>resolve</code>, the primary's <code>resolution_status</code> does not drive an open-ended loop. Unlike <code>conclave</code>, the consultants do not get equal standing; they critique once and the primary owns the final answer. The clarification gate is not a debate round — it is a short pause to collect missing user information before the final.</p>
 
@@ -339,7 +339,7 @@
 </ul>
 <p>All three are <strong>read-only by default</strong>. The adapter never grants write or execute permissions during a deliberation — that's a Charter-level decision, not a configuration toggle (see the ROADMAP's "Layer 2" section for why in-conclave execution was intentionally not built). The CLIs read files when the task has a sandbox, but they cannot patch them.</p>
 <p>All three are also <strong>JSON-output-disciplined</strong>: every adapter asks the CLI for structured JSON and refuses to fabricate structure if it gets prose back. If a CLI returns something unparseable, the orchestrator records an <code>agent_error</code> rather than guessing.</p>
-<p>Because these are CLIs and not API calls, each seat defaults to your <strong>existing subscription</strong> on that tool — your ChatGPT Plus / Pro plan for Codex, your Gemini Advanced plan for Gemini, your Claude Pro / Max plan for Claude Code. Switchboard doesn't bill anything; the CLI you already pay for handles auth and quota. The adapter just speaks to the binary on <code>$PATH</code>.</p>
+<p>Because these are CLIs and not API calls, each seat defaults to your <strong>existing subscription</strong> on that tool — your ChatGPT Plus / Pro plan for Codex, your Gemini Advanced plan for Gemini, your Claude Pro / Max plan for Claude Code. The AI Conclave Switchboard doesn't bill anything; the CLI you already pay for handles auth and quota. The adapter just speaks to the binary on <code>$PATH</code>.</p>
 <!-- END:section-4.1 -->
         </section>
         <section id="help-council-api" class="help-subsection">
@@ -413,7 +413,7 @@
   <li><strong>API key.</strong> You log in via API key inside the CLI's auth flow, or set the corresponding env var. The CLI then bills per token at the provider's published rates. Significantly more expensive than subscription on heavy use, but useful if you don't have a subscription or want explicit per-token visibility.</li>
 </ul>
 <p>You can switch between the two at any time from inside the CLI's own auth menu (it tends to be something like <code>/login</code>, <code>/auth</code>, or <code>logout</code> + re-login with the alternative method). The Pricing view detects which mode each CLI is currently in and labels its row accordingly — see <em>4.8 How model &amp; auth detection works</em> for the technical detail of how this is detected.</p>
-<p><strong>Important:</strong> CLI changes require a Switchboard service restart to be reflected in the Pricing view. The auth-state files are re-read on every request, but the Python process holds its own image of the code path; the restart isn't for the auth detection itself, it's a general fact of how uvicorn runs without <code>--reload</code>.</p>
+<p><strong>Important:</strong> CLI changes require an AI Conclave Switchboard service restart to be reflected in the Pricing view. The auth-state files are re-read on every request, but the Python process holds its own image of the code path; the restart isn't for the auth detection itself, it's a general fact of how uvicorn runs without <code>--reload</code>.</p>
         </section>
 
         <section id="help-council-pricing-view" class="help-subsection">
@@ -478,7 +478,7 @@
 <ul>
   <li>CLI auth file formats can change between CLI versions; if a detection stops working, check the file's current shape and update <code>_detect_cli_auth_from_files</code> in <code>app/api/agents.py</code> accordingly.</li>
   <li>The env-var fallback only applies if the file gives no clear signal — it does <em>not</em> override an explicit file-based selection.</li>
-  <li>Switchboard's CLI adapters do not pass <code>--bare</code> or equivalent flags that would force a specific auth mode; the adapter trusts the CLI's own current selection.</li>
+  <li>The AI Conclave Switchboard's CLI adapters do not pass <code>--bare</code> or equivalent flags that would force a specific auth mode; the adapter trusts the CLI's own current selection.</li>
 </ul>
         </section>
       </section>
@@ -492,7 +492,7 @@
 
 <p>A <em>material tension</em> exists when a proposed capability would degrade those foundations, conflict architecturally with them, raise state/permission/coordination complexity beyond what they can support, or crowd out a named operability gap. In material tension, unresolved conflict resolves in favor of operability unless you (Glen) explicitly approve a bounded exception.</p>
 
-<p>This isn't only a deliberation rule — it has a paper trail requirement. Every significant Switchboard capability or infrastructure decision record must include an <strong>Operability Impact</strong> field covering effects on those foundations, accepted risks, mitigations, any approved exceptions, and follow-up review points. See <code>docs/CONCLAVE_CHARTER.md</code> for the binding text.</p>
+<p>This isn't only a deliberation rule — it has a paper trail requirement. Every significant AI Conclave Switchboard capability or infrastructure decision record must include an <strong>Operability Impact</strong> field covering effects on those foundations, accepted risks, mitigations, any approved exceptions, and follow-up review points. See <code>docs/CONCLAVE_CHARTER.md</code> for the binding text.</p>
 <!-- END:section-5.1 -->
         </section>
         <section id="help-charter-multimodal" class="help-subsection">
@@ -517,7 +517,7 @@
           <!-- BEGIN:section-5.3 -->
 <p>Charter v1.3 adds <strong>Evidence Norms</strong>. For load-bearing factual claims — facts that materially affect a recommendation, risk assessment, rejection, convergence signal, or decision record — participants must cite or identify the basis for the claim.</p>
 
-<p>Valid evidence is limited to material already available to the task: your explicit statements, uploaded attachments, sandbox files, command results, prior transcript messages, prior decision records, protocol/context metadata, URL snapshots, and Switchboard-managed artifacts. This does <em>not</em> grant new permissions or allow agents to read files, browse the network, run commands, write files, or change external systems.</p>
+<p>Valid evidence is limited to material already available to the task: your explicit statements, uploaded attachments, sandbox files, command results, prior transcript messages, prior decision records, protocol/context metadata, URL snapshots, and AI Conclave Switchboard-managed artifacts. This does <em>not</em> grant new permissions or allow agents to read files, browse the network, run commands, write files, or change external systems.</p>
 
 <p>When a useful claim lacks direct evidence, the agent should label it as an assumption, interpretation, taste judgment, speculation, or recommendation. Final synthesis and decision records should preserve material evidence gaps instead of smoothing them into unsupported certainty.</p>
 <!-- END:section-5.3 -->
@@ -547,7 +547,7 @@
 <p>The process:</p>
 <ol>
   <li>Any participant, or you, proposes an amendment.</li>
-  <li>The amendment is debated in a <code>conclave</code>-mode task on Switchboard. The three AIs deliberate on the proposed wording.</li>
+  <li>The amendment is debated in a <code>conclave</code>-mode task on the AI Conclave Switchboard. The three AIs deliberate on the proposed wording.</li>
   <li>You ratify or reject the outcome via <code>/decide</code>.</li>
   <li>On ratification, the keeper bumps the version number and updates the canonical file at <code>skills/generic/conclave_charter.md</code> (with the human-readable mirror at <code>docs/CONCLAVE_CHARTER.md</code>).</li>
   <li>A numbered decision record is filed at <code>docs/decisions/&lt;NNNN&gt;_&lt;slug&gt;.md</code>.</li>
@@ -602,7 +602,7 @@
   <li><strong>Thread breadcrumb</strong> — appears only if the task is part of a thread; shows the ancestry chain so you can jump back to any prior node.</li>
   <li><strong>Live activity</strong> — visible while the task is running. Shows the currently-active agent and elapsed time on the current call, so you always know whether the conclave is making progress or stuck.</li>
   <li><strong>User request</strong> — the question exactly as submitted.</li>
-  <li><strong>Answer prompt</strong> — appears only when the task pauses with <code>status: awaiting_user_input</code>. Shows the council's question, optional context for why they are asking, and a reply form. If multiple agents asked questions in consult mode, Switchboard presents them as numbered prompts with one answer box per question.</li>
+  <li><strong>Answer prompt</strong> — appears only when the task pauses with <code>status: awaiting_user_input</code>. Shows the council's question, optional context for why they are asking, and a reply form. If multiple agents asked questions in consult mode, the AI Conclave Switchboard presents them as numbered prompts with one answer box per question.</li>
   <li><strong>Transcript</strong> — every message in the deliberation, including each agent's position and convergence signal per round.</li>
   <li><strong>Final result</strong> — the structured outcome once the task terminates, including the final answer, agreement level, disagreements, confidence data, and the Structured Action Plan when recommended actions are present.</li>
   <li><strong>Draft artifacts</strong> — appears when final recommendations produced reviewable file, edit, or patch drafts. You can preview and download them; supported file and search/replace edit artifacts can be explicitly applied to the task's <code>project_path</code>.</li>
@@ -661,7 +661,7 @@
         <section id="help-slash-conclave" class="help-subsection">
           <h4>7.1 /conclave, /consult, /secondopinion</h4>
           <!-- BEGIN:section-7.1 -->
-<p>You can submit tasks to Switchboard without leaving the CLI session you are already coding in. From your Claude Code, Codex, or Gemini session, the same three commands cover the most common cases.</p>
+<p>You can submit tasks to the AI Conclave Switchboard without leaving the CLI session you are already coding in. From your Claude Code, Codex, or Gemini session, the same three commands cover the most common cases.</p>
 <ul>
   <li><code>/conclave &lt;question&gt;</code> — runs a 3-AI conclave deliberation with <code>codex</code>, <code>gemini</code>, and <code>claude-code</code>. This is the full deliberation: every agent posts one position per round, signals convergence, and the loop terminates when participants agree (or a synthesis round plus judge pass resolves a weak convergence). Use it for design questions, architectural calls, and anything where you want disagreements surfaced verbatim instead of flattened.</li>
   <li><code>/consult &lt;agent&gt; &lt;question&gt;</code> — a quick second opinion from one named agent. The CLI you ran the command from acts as the primary (drafts the answer); the named agent acts as the consultant (critiques it); the primary finalizes. If either side asks clarification questions, the task pauses once for your numbered answers before the final. Use it for review, sanity checks, and "is this refactor safe" questions.</li>
@@ -696,7 +696,7 @@
         <section id="help-slash-provenance" class="help-subsection">
           <h4>7.4 The --invoked-by flag</h4>
           <!-- BEGIN:section-7.4 -->
-<p>Every slash command and every skill invocation passes a <code>--invoked-by &lt;tool&gt;</code> flag to the Switchboard task submission. The orchestrator records the value on the task as <code>source_agent</code> — one of <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>.</p>
+<p>Every slash command and every skill invocation passes a <code>--invoked-by &lt;tool&gt;</code> flag to the AI Conclave Switchboard task submission. The orchestrator records the value on the task as <code>source_agent</code> — one of <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>.</p>
 <p>You do not type this flag yourself. The Claude Code commands, Codex skill, and Gemini extension all set it automatically based on which surface you launched from. The flag exists so provenance is recorded by the surface, not <em>guessed</em> by the orchestrator after the fact.</p>
 <p>The recorded provenance shows up in the Inbox table, on the task detail header, and in every export. It is also queryable via the API — useful if you later want to ask "what did I submit from inside Claude Code last week?" without having to guess.</p>
 <!-- END:section-7.4 -->
@@ -708,7 +708,7 @@
         <section id="help-loop-four" class="help-subsection">
           <h4>8.1 Deliberate → Decide → Execute → Record</h4>
           <!-- BEGIN:section-8.1 -->
-<p>Switchboard's intended workflow for using the conclave during real coding work is a four-step loop, documented canonically in <code>docs/CODING_WORKFLOW.md</code>. The principle: <strong>the conclave deliberates, the interactive CLI executes, you decide</strong>.</p>
+<p>The AI Conclave Switchboard's intended workflow for using the conclave during real coding work is a four-step loop, documented canonically in <code>docs/CODING_WORKFLOW.md</code>. The principle: <strong>the conclave deliberates, the interactive CLI executes, you decide</strong>.</p>
 
 <ol>
   <li><strong>Deliberate</strong> — submit the question with <code>/conclave</code> (full deliberation) or <code>/consult</code> (quick second opinion). Attach relevant files or enable the project sandbox so agents can browse your code read-only.</li>
@@ -729,7 +729,7 @@
   <li><strong>Deliberation needs a stable situation.</strong> The conclave's value depends on three agents reasoning about the same fixed state. If any participant mutates the filesystem mid-loop, the others become reactors to fait accompli rather than independent analysts. The deliberation softens.</li>
   <li><strong>Race conditions.</strong> Conclave participants run in parallel via <code>asyncio.gather</code>. Two agents editing the same file produces last-write-wins corruption with no audit trail of intent.</li>
   <li><strong>Output-discipline regression.</strong> With elevated tool access, models drift away from strict JSON output toward tool-use exploration. Already observed once with Claude's <code>--permission-mode plan</code>.</li>
-  <li><strong>Redundancy with the interactive CLI.</strong> The Claude Code (or Codex, or Gemini) session driving Switchboard is already an execution-capable agent. Adding two more parallel writers gives you a coordination problem, not 3× capability.</li>
+  <li><strong>Redundancy with the interactive CLI.</strong> The Claude Code (or Codex, or Gemini) session driving the AI Conclave Switchboard is already an execution-capable agent. Adding two more parallel writers gives you a coordination problem, not 3× capability.</li>
   <li><strong>Audit trail divergence.</strong> Today the trail is clean: deliberate → decide → act. In-conclave execution scrambles that into arbitrary parallel writes during deliberation, which is hard to reconstruct after the fact.</li>
 </ul>
 
@@ -750,9 +750,9 @@
   <li><strong>Who is keeping continuity.</strong> The named participant responsible for tracking follow-up.</li>
 </ul>
 
-<p>For <strong>significant Switchboard capability or infrastructure decisions</strong>, Charter v1.3 additionally requires an <strong>Operability Impact</strong> field covering effects on observability, durability, recoverability, audit trail, retention, and export; complexity added; accepted risks; mitigations; any <em>Operability before capability</em> exception you approved; and follow-up review points.</p>
+<p>For <strong>significant AI Conclave Switchboard capability or infrastructure decisions</strong>, Charter v1.3 additionally requires an <strong>Operability Impact</strong> field covering effects on observability, durability, recoverability, audit trail, retention, and export; complexity added; accepted risks; mitigations; any <em>Operability before capability</em> exception you approved; and follow-up review points.</p>
 
-<p>Decision records are reusable context. They get cited in future conclave prompts (when threaded via <code>/continue</code>) and read by future humans (you, mostly) before proposing changes in the same area. Together with the SQLite transcript, they are the long-term memory of Switchboard's own design.</p>
+<p>Decision records are reusable context. They get cited in future conclave prompts (when threaded via <code>/continue</code>) and read by future humans (you, mostly) before proposing changes in the same area. Together with the SQLite transcript, they are the long-term memory of the AI Conclave Switchboard's own design.</p>
 <!-- END:section-8.3 -->
         </section>
       </section>
@@ -800,7 +800,7 @@
   <li><code>.git</code>, <code>.hg</code>, <code>.svn</code></li>
   <li><code>node_modules</code>, <code>__pycache__</code>, <code>.venv</code>, <code>venv</code></li>
   <li><code>dist</code>, <code>build</code>, <code>target</code>, <code>out</code></li>
-  <li><code>data</code> (so you can't accidentally re-upload Switchboard's own runtime dir)</li>
+  <li><code>data</code> (so you can't accidentally re-upload the AI Conclave Switchboard's own runtime dir)</li>
   <li>Common binary extensions: <code>.exe</code>, <code>.dll</code>, <code>.so</code>, <code>.zip</code>, <code>.mp4</code>, <code>.pyc</code>, etc.</li>
 </ul>
 <p>Each remaining file uploads one after the other rather than in a single multipart blast — the dashboard shows progress as the queue drains. The same 20 MiB per-file ceiling still applies; oversized files are skipped with a notice rather than failing the whole drop.</p>
@@ -1002,7 +1002,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
 <p>A healthy agent returns <code>{"available": true, "version": "...", ...}</code>. <code>{"available": false, ...}</code> means the adapter could not invoke the underlying CLI.</p>
 <p>First thing to check: is the CLI actually on <code>PATH</code>? On Windows: <code>where.exe codex</code>, <code>where.exe gemini</code>, <code>where.exe claude</code>. On Unix: <code>which codex</code>, <code>which gemini</code>, <code>which claude</code>.</p>
 <p>If <code>where.exe</code> / <code>which</code> finds nothing, install the CLI (see Prerequisites in <code>INSTALL.md</code>) or set <code>agents.&lt;name&gt;.command_path</code> in <code>config.yaml</code> to the absolute path of the binary. Strict precedence applies — if <code>command_path</code> is set but the file doesn't exist, the seat reports <code>configured_path_missing</code> rather than silently falling back to PATH. (This is the usual fix when the CLI works in your terminal but not under a GUI launch — Windows and macOS GUI processes don't inherit shell PATH.)</p>
-<p>If the CLI is on <code>PATH</code> but the adapter still reports unavailable, the most common cause is authentication. Run the CLI directly with <code>--version</code>. Confirm it does not prompt for login. If it does, re-authenticate: <code>codex login</code>, <code>gemini /auth</code>, or <code>claude /login</code>. The Switchboard adapters use your OAuth session by default; they do not pass <code>--bare</code> or require <code>ANTHROPIC_API_KEY</code>.</p>
+<p>If the CLI is on <code>PATH</code> but the adapter still reports unavailable, the most common cause is authentication. Run the CLI directly with <code>--version</code>. Confirm it does not prompt for login. If it does, re-authenticate: <code>codex login</code>, <code>gemini /auth</code>, or <code>claude /login</code>. The AI Conclave Switchboard adapters use your OAuth session by default; they do not pass <code>--bare</code> or require <code>ANTHROPIC_API_KEY</code>.</p>
 <p>If <code>GET /api/agents</code> returns <code>{"agents": []}</code>, none of your real CLIs are reachable — install at least one or use the <code>fake</code> adapter via the API directly.</p>
 <!-- END:section-13.1 -->
         </section>
@@ -1091,7 +1091,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
         <section id="help-reference-files" class="help-subsection">
           <h4>14.3 File locations</h4>
           <!-- BEGIN:section-14.3 -->
-<p>Runtime-state paths below are relative to the resolved <em>runtime state root</em> — see <em>14.4 Where state lives</em> for how the root is chosen. The "repo" paths assume you're running from a Switchboard checkout.</p>
+<p>Runtime-state paths below are relative to the resolved <em>runtime state root</em> — see <em>14.4 Where state lives</em> for how the root is chosen. The "repo" paths assume you're running from an AI Conclave Switchboard checkout.</p>
 <table>
   <thead><tr><th>Path</th><th>What it holds</th></tr></thead>
   <tbody>

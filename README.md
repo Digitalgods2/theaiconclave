@@ -1,18 +1,18 @@
-# The AI Conclave (AI Switchboard)
+# The AI Conclave
 
-> **AI Switchboard helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory.**
+> **The AI Conclave helps a human make better decisions by turning multiple AI models into a governed deliberation council — with preserved dissent, human authority, and auditable decision memory.**
 >
 > A personal AI decision board for builders, writers, researchers, and technical creators who need more than an answer. They need the reasoning trail.
 
 A local background service that lets AI coding agents — **Codex, Gemini, and Claude Code** — consult one another through structured deliberation instead of free-form chat. You ask a question; the conclave deliberates; you get a verdict with the disagreements surfaced verbatim, not flattened.
 
-It's a tool that is, in part, **used to design itself** — most of its governing decisions came out of the three AIs deliberating about Switchboard's own architecture (see [`docs/decisions/`](docs/decisions/INDEX.md)).
+It's a tool that is, in part, **used to design itself** — most of its governing decisions came out of the three AIs deliberating about The AI Conclave's own architecture (see [`docs/decisions/`](docs/decisions/INDEX.md)).
 
 ---
 
 ## What it does
 
-Three AIs sit "in the house" and talk to each other through a mediator. The mediator (Switchboard) controls cost with time/round backstops, records every exchange to SQLite, surfaces a live view of the deliberation, and produces a structured final result. Above every prompt sits the **Conclave Charter** — a constitutional layer (currently v1.3) that governs reasoning norms, evidence norms, dissent norms, multimodal-disagreement handling, the "operability before capability" principle, permissions, and decision records.
+Three AIs sit "in the house" and talk to each other through a mediator. The mediator (the AI Conclave Switchboard) controls cost with time/round backstops, records every exchange to SQLite, surfaces a live view of the deliberation, and produces a structured final result. Above every prompt sits the **Conclave Charter** — a constitutional layer (currently v1.3) that governs reasoning norms, evidence norms, dissent norms, multimodal-disagreement handling, the "operability before capability" principle, permissions, and decision records.
 
 You drive it from inside whichever CLI you're already working in — Claude Code, Codex, or Gemini — via slash commands, or from the web dashboard, or directly over HTTP.
 
@@ -22,7 +22,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 |---|---|---|---|
 | **`conclave`** | N **equal** participants, full-mesh visibility, no primary. Every round, every participant posts one position + a convergence signal. | When ≥ `convergence_threshold` (default 1.0 = unanimous) of participants signal `i_am_done`. Weak convergence triggers a synthesis round + a judge pass. | Genuine multi-AI deliberation. "Ask the conclave." |
 | **`resolve`** | Open-ended, primary-driven loop. Each turn the primary signals `resolved` / `needs_more_rounds` / `needs_user_input` / `cannot_resolve`. | When the primary signals done (and consultants concur), or a cost/time/repetition backstop fires. Goal-based, not turn-capped. | "Let Codex handle this." Drilling to a real answer. |
-| **`consult`** | Bounded second-opinion exchange: primary proposes → consultant(s) critique → primary finalizes. If agents ask clarifying questions, Switchboard pauses once with a numbered questionnaire before final synthesis. | After the primary's final message, or after a one-time clarification pause/resume. | Quick review, not a full deliberation. "Get a second opinion." |
+| **`consult`** | Bounded second-opinion exchange: primary proposes → consultant(s) critique → primary finalizes. If agents ask clarifying questions, the AI Conclave Switchboard pauses once with a numbered questionnaire before final synthesis. | After the primary's final message, or after a one-time clarification pause/resume. | Quick review, not a full deliberation. "Get a second opinion." |
 
 ### Highlights
 
@@ -137,11 +137,11 @@ Every CLI invocation passes `--invoked-by <tool>` so the task's provenance is re
 
 ## The four-step coding loop
 
-Switchboard's intended workflow for using the conclave during real coding work (see [`docs/CODING_WORKFLOW.md`](docs/CODING_WORKFLOW.md)):
+The AI Conclave Switchboard's intended workflow for using the conclave during real coding work (see [`docs/CODING_WORKFLOW.md`](docs/CODING_WORKFLOW.md)):
 
 1. **Deliberate** — `/conclave <design question>` (optionally with a project sandbox or git diff attached).
 2. **Decide** — `/decide latest <your call, in your own words>`. This becomes the task's permanent record.
-3. **Execute** — act on the decision in your interactive CLI session, or review/apply a Switchboard draft artifact from the dashboard. The CLI remains the main execution layer; the conclave is the deliberation layer.
+3. **Execute** — act on the decision in your interactive CLI session, or review/apply an AI Conclave Switchboard draft artifact from the dashboard. The CLI remains the main execution layer; the conclave is the deliberation layer.
 4. **Record** — significant work closes with a decision record in `docs/decisions/`.
 
 In-conclave execution was deliberately not built — the conclave's value depends on three agents reasoning about *the same stable situation*; letting any participant mutate the filesystem mid-loop softens the deliberation. See the ROADMAP's "Considered and Intentionally Not Built" section.
@@ -181,7 +181,7 @@ Each frontier CLI can authenticate via OAuth/subscription (default — your Clau
 
 Env vars (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_API_KEY`) are a **fallback signal** of API intent only when the file gives no clear answer — the file's explicit selection wins.
 
-Switching auth modes on the CLI side (e.g., `codex logout` + log back in with API) requires a Switchboard service restart to be reflected in the dashboard. The auth files are re-read on every request, but uvicorn doesn't auto-reload Python source unless launched with `--reload`.
+Switching auth modes on the CLI side (e.g., `codex logout` + log back in with API) requires an AI Conclave Switchboard service restart to be reflected in the dashboard. The auth files are re-read on every request, but uvicorn doesn't auto-reload Python source unless launched with `--reload`.
 
 See [`docs/help` section 4.5–4.8](app/dashboard/help.html) for the full operational reference, including caveats on each CLI's file format and how to extend detection when a CLI version ships a new schema.
 

@@ -1,4 +1,4 @@
-"""SQLite connection and schema init for Switchboard.
+"""SQLite connection and schema init for the AI Conclave Switchboard.
 
 For MVP the schema lives inline (SCHEMA_SQL below) rather than in migration
 files. Migration framework is deferred until the schema needs to evolve.

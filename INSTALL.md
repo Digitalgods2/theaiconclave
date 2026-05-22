@@ -1,6 +1,6 @@
 # Install & First-Run Guide
 
-This is the consolidated setup path for AI Switchboard. If you've never run it before, follow this top-to-bottom. If something breaks, the "Troubleshooting" section at the bottom covers the common failure modes.
+This is the consolidated setup path for The AI Conclave. If you've never run it before, follow this top-to-bottom. If something breaks, the "Troubleshooting" section at the bottom covers the common failure modes.
 
 ## Prerequisites
 
@@ -13,7 +13,7 @@ This is the consolidated setup path for AI Switchboard. If you've never run it b
 
 All three CLIs default to your provider subscription (ChatGPT Plus/Pro, Gemini Advanced, Claude Pro/Max). API-key auth also works but isn't required.
 
-You can run AI Switchboard with **zero** real CLIs installed — the `fake` adapter exists for testing the orchestrator without burning subscription quota.
+You can run the AI Conclave Switchboard with **zero** real CLIs installed — the `fake` adapter exists for testing the orchestrator without burning subscription quota.
 
 ## Setup (one time)
 
@@ -37,13 +37,13 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
 
 Expected startup log lines:
 ```
-Switchboard service started on 127.0.0.1:8787
+AI Conclave Switchboard service started on 127.0.0.1:8787
 Worker started; polling every 2 seconds.
 Retention worker started. Budget: 2048 MB / 1000 tasks.
 Uvicorn running on http://127.0.0.1:8787
 ```
 
-Open **http://127.0.0.1:8787/** in your browser. You should see the AI Switchboard dashboard with a "New Task" form.
+Open **http://127.0.0.1:8787/** in your browser. You should see the AI Conclave dashboard with a "New Task" form.
 
 ## First task (smoke test — no real CLI required)
 
@@ -61,7 +61,7 @@ You'll get back `{"task_id": "tsk_...", ...}`. Within 2 seconds, the worker clai
 
 ### Option B — From Claude Code
 
-If you have Claude Code installed and configured with the Switchboard skill:
+If you have Claude Code installed and configured with the AI Conclave Switchboard skill:
 
 ```
 /conclave Should v1 ship with feature flags or skip them?
@@ -148,7 +148,7 @@ Both installers are idempotent. The repo path is baked into the resulting shortc
 
 To stop the service: kill the python process (Task Manager on Windows, `pkill -f 'uvicorn app.main'` on macOS/Linux), or delete `<repo>/data/switchboard.pid`. Launcher events plus uvicorn's stdout/stderr land in `<repo>/data/launcher.log`.
 
-## Where Switchboard stores its state
+## Where the AI Conclave Switchboard stores its state
 
 Per [DR0016](docs/decisions/0016_user_data_root_and_lazy_config.md), all writable runtime state — the SQLite database, sandboxes, uploads, exports, logs, and pidlock — resolves through a single `user_data_root()` primitive:
 
@@ -160,7 +160,7 @@ Per [DR0016](docs/decisions/0016_user_data_root_and_lazy_config.md), all writabl
 | **Packaged build on Linux** | `$XDG_DATA_HOME/ai-switchboard/` (or `~/.local/share/ai-switchboard/`) |
 | **Explicit override** | Whatever you set in `SWITCHBOARD_DATA_DIR` (test/CI/packager hook; wins over everything else) |
 
-When the packaged app launches for the first time and finds a populated `./data/` directory next to it, a one-time non-destructive migration runs: the SQLite DB is transferred via `VACUUM INTO` (handles the WAL/SHM coherence trap), and `sandboxes/`, `exports/`, `uploads/` are copied verbatim. The originals at `./data/` are preserved — you can delete them manually once you've confirmed everything moved cleanly. If an old Switchboard instance is still running against `./data/` when the new build launches, migration refuses to start and prints a clear error; stop the old instance and retry.
+When the packaged app launches for the first time and finds a populated `./data/` directory next to it, a one-time non-destructive migration runs: the SQLite DB is transferred via `VACUUM INTO` (handles the WAL/SHM coherence trap), and `sandboxes/`, `exports/`, `uploads/` are copied verbatim. The originals at `./data/` are preserved — you can delete them manually once you've confirmed everything moved cleanly. If an old AI Conclave Switchboard instance is still running against `./data/` when the new build launches, migration refuses to start and prints a clear error; stop the old instance and retry.
 
 Two env vars control this behavior:
 
@@ -187,7 +187,7 @@ Two env vars control this behavior:
 - Less commonly: the prompt is so long the model gave up — try with a smaller `project_path` scope or shorter question
 
 **Claude Code says "Not logged in" when invoked via the adapter**
-- The Switchboard adapter uses your OAuth session by default. If you're seeing this error, confirm `claude /login` is current
+- The AI Conclave Switchboard adapter uses your OAuth session by default. If you're seeing this error, confirm `claude /login` is current
 - The adapter does NOT use `--bare` (which would require `ANTHROPIC_API_KEY`); it relies on OAuth
 
 **Dashboard loads but shows no agents**

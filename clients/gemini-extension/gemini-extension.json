@@ -1,5 +1,5 @@
 {
   "name": "switchboard-conclave",
   "version": "1.0.0",
-  "description": "Slash commands for AI Switchboard: /conclave, /decide, /decision, /continue, /answer, /thread, /consult, /secondopinion. All commands hit the local Switchboard service at 127.0.0.1:8787 and pass --invoked-by gemini for provenance."
+  "description": "Slash commands for The AI Conclave: /conclave, /decide, /decision, /continue, /answer, /thread, /consult, /secondopinion. All commands hit the local AI Conclave Switchboard service at 127.0.0.1:8787 and pass --invoked-by gemini for provenance."
 }

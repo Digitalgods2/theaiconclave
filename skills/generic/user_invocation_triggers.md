@@ -2,11 +2,11 @@
 
 ## Purpose
 
-This skill teaches an AI agent how to recognize when the user wants to invoke AI Switchboard for cross-agent consultation. The agent (Claude Code, Codex, Gemini CLI, OpenClaw, etc.) is the "primary" by default — this file tells it when to *stop* answering directly and *start* a Switchboard task instead.
+This skill teaches an AI agent how to recognize when the user wants to invoke The AI Conclave Switchboard for cross-agent consultation. The agent (Claude Code, Codex, Gemini CLI, OpenClaw, etc.) is the "primary" by default — this file tells it when to *stop* answering directly and *start* an AI Conclave Switchboard task instead.
 
 ## Endpoint
 
-Default local Switchboard endpoint:
+Default local AI Conclave Switchboard endpoint:
 
 ```
 POST http://127.0.0.1:8787/api/tasks
@@ -67,14 +67,14 @@ When the trigger does not name an agent, default to **consult** mode using the c
 
 ## When NOT to Auto-Invoke
 
-Do **not** start a Switchboard task for:
+Do **not** start an AI Conclave Switchboard task for:
 
 - Trivial tasks (fix a typo, rename a variable, format a file). The latency tax outweighs the value.
 - Tasks the user has already approved an answer for. Re-consulting is noise.
 - Tasks where I have high confidence and no ambiguity. Save consultation for genuine uncertainty.
-- Loops — if the user just received a Switchboard result and pushes back, do **not** immediately re-consult. Re-think first; consult only on a second push or an explicit request.
+- Loops — if the user just received an AI Conclave Switchboard result and pushes back, do **not** immediately re-consult. Re-think first; consult only on a second push or an explicit request.
 
-If uncertain whether a trigger applies, ask in one sentence: *"Want me to run this through Switchboard, or handle it directly?"*
+If uncertain whether a trigger applies, ask in one sentence: *"Want me to run this through the AI Conclave Switchboard, or handle it directly?"*
 
 ## Task Submission
 
@@ -92,7 +92,7 @@ Surface the returned task ID to the user so they can follow along in the dashboa
 
 ## Returning Results
 
-When the Switchboard returns a final result:
+When the AI Conclave Switchboard returns a final result:
 
 - Lead with the final answer, not the process.
 - Surface disagreements verbatim. Do not flatten "consultant disagreed about X" into "we agreed."

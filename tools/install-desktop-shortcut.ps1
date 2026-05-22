@@ -1,4 +1,4 @@
-# Create a desktop shortcut for launching AI Switchboard.
+# Create a desktop shortcut for launching The AI Conclave Switchboard.
 #
 # Usage (from a normal PowerShell, no admin needed):
 #   powershell -ExecutionPolicy Bypass -File .\tools\install-desktop-shortcut.ps1
@@ -51,7 +51,7 @@ $shortcut.TargetPath       = $pythonw
 $shortcut.Arguments        = "`"$launchPath`""
 $shortcut.WorkingDirectory = "$repoRoot"
 $shortcut.IconLocation     = "$iconPath,0"
-$shortcut.Description      = "Launch the AI Switchboard service and open the dashboard."
+$shortcut.Description      = "Launch the AI Conclave Switchboard service and open the dashboard."
 $shortcut.WindowStyle      = 7      # 7 = Minimized; pythonw has no window anyway, this is a safety belt.
 $shortcut.Save()
 
