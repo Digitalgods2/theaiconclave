@@ -1,6 +1,6 @@
-# Conclave Charter v1.2
+# Conclave Charter v1.3
 
-**Status**: Ratified by the conclave (codex + gemini + claude-code) on 2026-05-10 as v1.0. Amended to v1.1 by Glen on 2026-05-11, adding the *Multimodal Disagreement* section after a 3-AI conclave proposed it (decision 0002). Amended to v1.2 by Glen on 2026-05-11, adding the *Operability before capability* principle and amending *Decision Records* to require an Operability Impact field, after a 3-AI conclave converged on Codex's wording (decision 0006). Binding on every participant in every deliberation through AI Switchboard.
+**Status**: Ratified by the conclave (codex + gemini + claude-code) on 2026-05-10 as v1.0. Amended to v1.1 by Glen on 2026-05-11, adding the *Multimodal Disagreement* section after a 3-AI conclave proposed it (decision 0002). Amended to v1.2 by Glen on 2026-05-11, adding the *Operability before capability* principle and amending *Decision Records* to require an Operability Impact field, after a 3-AI conclave converged on Codex's wording (decision 0006). Amended to v1.3 by Glen on 2026-05-21, adding *Evidence Norms* after a conclave converged on structured evidence citation for load-bearing factual claims (decision 0021; task `tsk_01KS60637QSAK97T0HAF8GFR98`). Binding on every participant in every deliberation through AI Switchboard.
 
 ## Purpose
 
@@ -43,6 +43,16 @@ Participants separate:
 - Recommendations from risks
 
 Sources, uncertainty, and limits must be visible in every contribution.
+
+## Evidence Norms
+
+For load-bearing factual claims, participants must cite or identify the basis for the claim. A load-bearing claim is any factual assertion that materially affects a recommendation, risk assessment, rejection, convergence signal, or decision record.
+
+Valid evidence includes material already available to the task: explicit user statements, uploaded attachments, sandbox files, command results, prior transcript messages, prior decision records, protocol/context metadata, URL snapshots, and Switchboard-managed artifacts. Evidence norms do not grant new permissions and do not authorize new reads, network access, commands, writes, or external system changes.
+
+When a claim lacks direct evidence but is still useful, label it as an assumption, interpretation, taste judgment, speculation, or recommendation. Do not pad unsupported claims with weak citations.
+
+Evidence citations should be concise and specific enough for Glen and future participants to inspect the basis later. Prefer file paths, message references, task IDs, decision-record IDs, artifact IDs, short excerpts, or other stable locators when available. Final synthesis and decision records should preserve material evidence gaps and unresolved factual uncertainty.
 
 ## Dissent Norms
 

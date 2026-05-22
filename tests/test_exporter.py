@@ -101,6 +101,19 @@ def _full_final_result() -> dict:
                 "severity": "medium",
             }
         ],
+        "action_plan": [
+            {
+                "step_number": 1,
+                "action_type": "run_command",
+                "summary": "Run the dependency installer",
+                "target": "python -m pip install -r requirements.txt",
+                "source_action_kind": "run_command",
+                "required_permissions": ["can_run_commands"],
+                "policy_status": "needs_approval",
+                "policy_reasons": ["Missing permission(s): can_run_commands."],
+                "payload": {"command": "python -m pip install -r requirements.txt"},
+            }
+        ],
         "recommended_actions": ["Pilot project Q3", "Hire two Rust seniors"],
         "risks": ["Hiring funnel"],
         "commands_requiring_approval": [],
@@ -159,6 +172,9 @@ def test_all_required_sections_present_for_full_task():
     assert "**Agreement level:**" in md and "high" in md
     assert "### Disagreements" in md
     assert "Hiring impact" in md
+    assert "### Structured action plan" in md
+    assert "Run the dependency installer" in md
+    assert "policy: needs_approval" in md
     assert "Pilot project Q3" in md  # recommended action
 
     # Transcript - conclave mode groups by round

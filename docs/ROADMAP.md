@@ -6,7 +6,7 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 
 | Capability | Notes |
 |---|---|
-| Charter v1.0 + v1.1 (Multimodal Disagreement) + v1.2 (Operability before capability) | `skills/generic/conclave_charter.md`. v1.2 also added the *Operability Impact* field to Decision Records. |
+| Charter v1.0 + v1.1 (Multimodal Disagreement) + v1.2 (Operability before capability) + v1.3 (Evidence Norms) | `skills/generic/conclave_charter.md`. v1.2 also added the *Operability Impact* field to Decision Records; v1.3 requires participants to identify the basis for load-bearing factual claims. |
 | Protocol v1.0 + v1.1 (Multimodal Disagreement) | `docs/SWITCHBOARD_PROTOCOL.md`, `skills/generic/conclave_charter.md` |
 | Three deliberation modes | `resolve`, `consult`, `conclave` — see `docs/SWITCHBOARD_PROTOCOL.md` and `docs/CODING_WORKFLOW.md` |
 | Three real-AI adapters | Codex, Gemini, Claude Code — all read-only, JSON-output-disciplined |

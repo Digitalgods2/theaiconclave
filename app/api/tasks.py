@@ -11,6 +11,12 @@ from fastapi.responses import Response
 
 from app.database import connect, now_iso
 from app.protocol.validators import MessageType, TaskRequest
+from app.services.artifacts import (
+    apply_artifact_to_project,
+    get_artifact,
+    list_artifacts,
+    read_artifact_bytes,
+)
 from app.services.exporter import export_to_markdown
 from app.services import doc_export
 from app.utils.ids import message_id, task_id as new_task_id
@@ -298,12 +304,14 @@ def _enriched_prior_art(task_row) -> list[dict[str, Any]]:
 
 def _row_to_final_result(row) -> dict[str, Any]:
     agg_raw = _column_or_none(row, "confidence_aggregate_json")
+    action_plan_raw = _column_or_none(row, "action_plan_json")
     return {
         "task_id": row["task_id"],
         "final_answer": row["final_answer"],
         "agreement_level": row["agreement_level"],
         "resolution_status": row["resolution_status"],
         "disagreements": json.loads(row["disagreements_json"]),
+        "action_plan": _safe_parse_json(action_plan_raw, default=[]),
         "recommended_actions": json.loads(row["recommended_actions_json"]),
         "risks": json.loads(row["risks_json"]),
         "commands_requiring_approval": json.loads(row["commands_requiring_approval_json"]),
@@ -407,6 +415,7 @@ async def get_task(task_id: str) -> dict[str, Any]:
                 "role": m["role"],
                 "message_type": m["message_type"],
                 "direction": m["direction"],
+                "content": m["content"],
                 "structured": json.loads(m["structured_json"]) if m["structured_json"] else None,
                 "created_at": m["created_at"],
             }
@@ -447,7 +456,45 @@ async def get_task(task_id: str) -> dict[str, Any]:
             }
             for r in runs
         ],
+        "artifacts": list_artifacts(task_id, include_content=True),
     }
+
+
+@router.get("/{task_id}/artifacts")
+async def get_task_artifacts(task_id: str) -> dict[str, Any]:
+    with connect() as conn:
+        row = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    return {"task_id": task_id, "artifacts": list_artifacts(task_id, include_content=True)}
+
+
+@router.get("/{task_id}/artifacts/{artifact_id}/download")
+async def download_artifact(task_id: str, artifact_id: str) -> Response:
+    try:
+        artifact = get_artifact(task_id, artifact_id)
+        data = read_artifact_bytes(task_id, artifact_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="artifact not found")
+    return Response(
+        content=data,
+        media_type=artifact["mime_type"] or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{artifact["filename"]}"',
+        },
+    )
+
+
+@router.post("/{task_id}/artifacts/{artifact_id}/apply")
+async def apply_artifact(task_id: str, artifact_id: str) -> dict[str, Any]:
+    try:
+        return apply_artifact_to_project(task_id, artifact_id)
+    except FileNotFoundError as e:
+        detail = str(e) or "artifact not found"
+        status = 404 if "artifact" in detail or "task" in detail else 400
+        raise HTTPException(status_code=status, detail=detail)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{task_id}/thread")
@@ -666,7 +713,10 @@ async def export_task(task_id: str) -> dict[str, Any]:
         for r in runs
     ]
 
-    markdown = export_to_markdown(task_dict, messages_list, final_result_dict, agent_runs_list)
+    artifacts_list = list_artifacts(task_id, include_content=True)
+    markdown = export_to_markdown(
+        task_dict, messages_list, final_result_dict, agent_runs_list, artifacts_list
+    )
 
     export_path = (exports_root() / f"{task_id}.md").resolve()
     bytes_written = export_path.write_text(markdown, encoding="utf-8")
@@ -752,7 +802,7 @@ async def export_batch(body: dict = Body(default={})) -> dict[str, Any]:
     }
 
 
-def _load_task_bundle(task_id: str) -> tuple[dict, list[dict], dict | None, list[dict]]:
+def _load_task_bundle(task_id: str) -> tuple[dict, list[dict], dict | None, list[dict], list[dict]]:
     """Load the full task envelope (task dict, messages, final_result, agent_runs)
     in the shape the exporters expect. Raises HTTPException(404) if not found.
 
@@ -830,7 +880,7 @@ def _load_task_bundle(task_id: str) -> tuple[dict, list[dict], dict | None, list
         }
         for r in runs
     ]
-    return task_dict, messages_list, final_result_dict, agent_runs_list
+    return task_dict, messages_list, final_result_dict, agent_runs_list, list_artifacts(task_id, include_content=True)
 
 
 _DOWNLOAD_FORMATS = {
@@ -859,14 +909,16 @@ async def download_task_detail(task_id: str, format: str = "pdf") -> Response:
             detail=f"unsupported format '{format}'; choose one of: {', '.join(sorted(_DOWNLOAD_FORMATS))}",
         )
 
-    task_dict, messages_list, final_result_dict, agent_runs_list = _load_task_bundle(task_id)
+    task_dict, messages_list, final_result_dict, agent_runs_list, artifacts_list = _load_task_bundle(task_id)
 
     if fmt == "pdf":
         data = doc_export.render_pdf(task_dict, messages_list, final_result_dict, agent_runs_list)
     elif fmt == "docx":
         data = doc_export.render_docx(task_dict, messages_list, final_result_dict, agent_runs_list)
     else:  # md or txt
-        text = export_to_markdown(task_dict, messages_list, final_result_dict, agent_runs_list)
+        text = export_to_markdown(
+            task_dict, messages_list, final_result_dict, agent_runs_list, artifacts_list
+        )
         data = text.encode("utf-8")
 
     media_type, ext = _DOWNLOAD_FORMATS[fmt]

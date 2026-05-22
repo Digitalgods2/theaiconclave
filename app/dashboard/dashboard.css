@@ -950,6 +950,164 @@ body.theme-dark .seat-indicator.seat-unknown { color: #6b7280; }
 .disagreement-item:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
 .disagreement-topic { font-weight: 600; margin-bottom: 4px; }
 
+.action-plan {
+  border: 1px solid #d6dae3;
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.action-plan-title {
+  font-weight: 700;
+  color: #2a3045;
+  margin-bottom: 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.action-plan-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.action-plan-step {
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-left: 4px solid #9ca3af;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.action-plan-step.action-plan-allowed { border-left-color: #1d6b35; }
+.action-plan-step.action-plan-needs_approval { border-left-color: #c9941b; }
+.action-plan-step.action-plan-blocked { border-left-color: #b3261e; }
+.action-plan-step-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.action-plan-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #eef0f5;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.action-plan-summary {
+  flex: 1 1 220px;
+  font-weight: 600;
+  color: #1f2330;
+}
+.action-plan-status {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: lowercase;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.action-plan-status-allowed { background: #dcf3e2; color: #1d6b35; }
+.action-plan-status-needs_approval { background: #fdecc8; color: #8a5a00; }
+.action-plan-status-blocked { background: #fbd5d0; color: #8a1f17; }
+.action-plan-status-unknown { background: #e3e6ed; color: #4a5066; }
+.action-plan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 8px;
+  color: #4a5066;
+  font-size: 12px;
+}
+.action-plan-target {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  overflow-wrap: anywhere;
+}
+.action-plan-reasons {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: #4a5066;
+  font-size: 12.5px;
+}
+.raw-recommendations {
+  border: 1px dashed #d6dae3;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.raw-recommendations > summary {
+  cursor: pointer;
+  color: #4a5066;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+
+/* ===== Draft artifacts ===== */
+.artifact-panel {
+  border: 1px solid #d4dbe8;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+}
+.artifact-list {
+  display: grid;
+  gap: 12px;
+}
+.artifact-card {
+  border: 1px solid #e3e8f2;
+  border-left: 4px solid #3b82f6;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fafcff;
+}
+.artifact-kind-edit { border-left-color: #c9941b; }
+.artifact-kind-patch { border-left-color: #805ad5; }
+.artifact-head {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+.artifact-title {
+  font-weight: 700;
+  color: #172033;
+}
+.artifact-kind {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #4b5870;
+  background: #eaf0fb;
+  border-radius: 999px;
+  padding: 3px 8px;
+}
+.artifact-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: #5f6b80;
+}
+.artifact-preview {
+  margin-top: 10px;
+}
+.artifact-preview pre {
+  max-height: 320px;
+  overflow: auto;
+}
+.artifact-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.artifact-applied {
+  color: #1d6b35;
+  font-size: 12.5px;
+}
+
 /* ===== Answer prompt ===== */
 .answer-prompt {
   border-left: 4px solid #c9941b !important;
@@ -957,6 +1115,40 @@ body.theme-dark .seat-indicator.seat-unknown { color: #6b7280; }
 }
 .answer-prompt h3 { color: #8a5a00; margin-bottom: 8px; }
 .answer-prompt textarea { background: #fff; }
+.answer-questionnaire {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+.answer-questionnaire-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.answer-questionnaire-number {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #f0d28a;
+  color: #5f4300;
+  font-weight: 700;
+}
+.answer-questionnaire-body {
+  display: grid;
+  gap: 6px;
+}
+.answer-questionnaire-question {
+  font-size: 13px;
+  color: #51421d;
+}
+.answer-questionnaire-input {
+  width: 100%;
+  resize: vertical;
+}
 .answer-asked-by {
   margin: 0 0 6px;
   font-size: 12px;
@@ -3486,6 +3678,61 @@ body.theme-dark .role-tag.role-consultant { background: rgba(251,191,36,0.20); c
 
 /* Agreement label inside Final result header */
 body.theme-dark .agreement-label, body.theme-dark .resolution-label { color: #94a3b8; }
+
+body.theme-dark .action-plan {
+  background: #161b26;
+  border-color: #2d3548;
+}
+body.theme-dark .action-plan-title,
+body.theme-dark .action-plan-summary { color: #e5e7eb; }
+body.theme-dark .action-plan-step {
+  background: #1a2035;
+  border-color: #2d3548;
+}
+body.theme-dark .action-plan-number {
+  background: #232a3d;
+  color: #cbd5e1;
+}
+body.theme-dark .action-plan-meta,
+body.theme-dark .action-plan-reasons,
+body.theme-dark .raw-recommendations > summary { color: #cbd5e1; }
+body.theme-dark .raw-recommendations { border-color: #3a4258; }
+body.theme-dark .artifact-panel {
+  background: #161b26;
+  border-color: #2d3548;
+}
+body.theme-dark .artifact-card {
+  background: #1a2035;
+  border-color: #2d3548;
+}
+body.theme-dark .artifact-title { color: #e5e7eb; }
+body.theme-dark .artifact-kind {
+  background: #232a3d;
+  color: #cbd5e1;
+}
+body.theme-dark .artifact-meta { color: #cbd5e1; }
+body.theme-dark .artifact-applied { color: #86efac; }
+body.theme-dark .answer-questionnaire-question { color: #f8e7bd; }
+body.theme-dark .answer-questionnaire-number {
+  background: #5c430f;
+  color: #fde68a;
+}
+body.theme-dark .action-plan-status-allowed {
+  background: rgba(16,185,129,0.20);
+  color: #6ee7b7;
+}
+body.theme-dark .action-plan-status-needs_approval {
+  background: rgba(245,158,11,0.20);
+  color: #fde68a;
+}
+body.theme-dark .action-plan-status-blocked {
+  background: rgba(239,68,68,0.20);
+  color: #fca5a5;
+}
+body.theme-dark .action-plan-status-unknown {
+  background: #232a3d;
+  color: #cbd5e1;
+}
 
 /* =================================================================
    Health dot on the Settings rail button

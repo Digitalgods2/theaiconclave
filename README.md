@@ -12,7 +12,7 @@ It's a tool that is, in part, **used to design itself** — most of its governin
 
 ## What it does
 
-Three AIs sit "in the house" and talk to each other through a mediator. The mediator (Switchboard) controls cost with time/round backstops, records every exchange to SQLite, surfaces a live view of the deliberation, and produces a structured final result. Above every prompt sits the **Conclave Charter** — a constitutional layer (currently v1.2) that governs reasoning norms, dissent norms, multimodal-disagreement handling, the "operability before capability" principle, permissions, and decision records.
+Three AIs sit "in the house" and talk to each other through a mediator. The mediator (Switchboard) controls cost with time/round backstops, records every exchange to SQLite, surfaces a live view of the deliberation, and produces a structured final result. Above every prompt sits the **Conclave Charter** — a constitutional layer (currently v1.3) that governs reasoning norms, evidence norms, dissent norms, multimodal-disagreement handling, the "operability before capability" principle, permissions, and decision records.
 
 You drive it from inside whichever CLI you're already working in — Claude Code, Codex, or Gemini — via slash commands, or from the web dashboard, or directly over HTTP.
 
@@ -22,16 +22,18 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 |---|---|---|---|
 | **`conclave`** | N **equal** participants, full-mesh visibility, no primary. Every round, every participant posts one position + a convergence signal. | When ≥ `convergence_threshold` (default 1.0 = unanimous) of participants signal `i_am_done`. Weak convergence triggers a synthesis round + a judge pass. | Genuine multi-AI deliberation. "Ask the conclave." |
 | **`resolve`** | Open-ended, primary-driven loop. Each turn the primary signals `resolved` / `needs_more_rounds` / `needs_user_input` / `cannot_resolve`. | When the primary signals done (and consultants concur), or a cost/time/repetition backstop fires. Goal-based, not turn-capped. | "Let Codex handle this." Drilling to a real answer. |
-| **`consult`** | Bounded second-opinion exchange: primary proposes → consultant(s) critique → primary finalizes. Fixed three-step. | After the primary's final message. | Quick review, not a full deliberation. "Get a second opinion." |
+| **`consult`** | Bounded second-opinion exchange: primary proposes → consultant(s) critique → primary finalizes. If agents ask clarifying questions, Switchboard pauses once with a numbered questionnaire before final synthesis. | After the primary's final message, or after a one-time clarification pause/resume. | Quick review, not a full deliberation. "Get a second opinion." |
 
 ### Highlights
 
 - **Three real AI adapters** — Codex (`codex exec --json`), Gemini (`gemini -p -o json`), Claude Code (`claude -p --output-format json`). All read-only by default, all JSON-output-disciplined.
 - **Pluggable open-weight council seats** — `deepseek` / `glm` / `qwen` / `kimi` (and anything else you list in config) appear in the same checkbox list as the CLI agents. Backing is **OpenRouter** — pay-per-token, no subscription, ~$0.001–$0.02 per conclave turn — via a single config-driven adapter. Brings a genuinely outside-the-OpenAI/Google/Anthropic-axis voice to a deliberation. Opt-in **tool-loop** mode (`tool_loop: true` per seat) lets each model call `read_file` / `list_dir` / `glob` to pull files on demand instead of getting the whole sandbox pre-inlined — bounded by per-turn iteration / byte / bad-call caps with full audit-trail visibility.
 - **Settings panel** — a narrow left rail with a gear icon → Settings → API Keys: store/reveal the OpenRouter key (password field + eyeball toggle), kept in the local DB. Rule: the env var (`OPENROUTER_API_KEY`) wins, else the DB value.
-- **Charter v1.2**, embedded in every participant prompt. Amendments go through a conclave-mode deliberation, get ratified by the user, and land as a numbered decision record.
+- **Charter v1.3**, embedded in every participant prompt. It now requires participants to cite or identify the basis for load-bearing factual claims, while amendments still go through a conclave-mode deliberation, user ratification, and a numbered decision record.
 - **Multimodal attachments** — text / Markdown / PDF inlined; images passed natively to each adapter (no lossy text conversion). The charter's *Multimodal Disagreement* section forbids synthesizing visual-perception disputes — they get escalated to the user instead.
 - **Project sandbox** — a per-task read-only copy of your code project so agents can browse source during a deliberation without write/execute risk. (In-conclave write/execute — "Layer 2" — was [considered and intentionally not built](docs/ROADMAP.md).)
+- **Structured Action Plan** — final recommendations are compiled into typed, ordered, permission-aware steps so the operational handoff is legible before you act.
+- **Draft artifacts** — file/edit/patch recommendations can be preserved under app-owned `data/artifacts/` as reviewable drafts. File and search/replace artifacts can be explicitly applied to the task's `project_path`; patch artifacts are review/download-only in v1.
 - **Threading** — `parent_task_id`, ancestry walks, prior-thread context auto-injected into follow-ups (`/continue`).
 - **Decision records** — significant work closes with a structured record (what was chosen, why, what was rejected, known risks, open questions, who keeps continuity, and — for capability/infrastructure changes — an Operability Impact field). See [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
 - **Decision Memory** — every new task auto-retrieves the most relevant past decision records (TF-IDF over `docs/decisions/`) and surfaces them as a *Prior Art* section both in agent prompts and on the dashboard, so settled questions don't get re-litigated.
@@ -44,7 +46,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
 - **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **Test suite** (337 tests) covering protocol, modes, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, the OpenRouter tool-loop, the user-data-root resolver, config discovery, the first-run migration, per-seat readiness, the health endpoint shape, centralized prompt-budget enforcement, and the CLI-seat sandbox-manifest toggle.
+- **Test suite** (364 tests) covering protocol, modes, clarification pause/resume, draft artifacts, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, the OpenRouter tool-loop, the user-data-root resolver, config discovery, the first-run migration, per-seat readiness, the health endpoint shape, centralized prompt-budget enforcement, and the CLI-seat sandbox-manifest toggle.
 
 ---
 
@@ -85,7 +87,7 @@ Either returns `{"task_id":"tsk_...","status":"pending"}`. Poll for the result:
 curl http://127.0.0.1:8787/api/tasks/tsk_<id>
 ```
 
-If a task pauses asking you a question (`status: awaiting_user_input`):
+If a task pauses asking you a question (`status: awaiting_user_input`), answer it from the dashboard or API. Consult-mode pauses may include a numbered questionnaire assembled from all agents' clarification questions:
 
 ```bash
 curl -X POST http://127.0.0.1:8787/api/tasks/tsk_<id>/answer \
@@ -94,6 +96,16 @@ curl -X POST http://127.0.0.1:8787/api/tasks/tsk_<id>/answer \
 ```
 
 It moves back to `pending`, the worker re-claims it, and the loop continues.
+
+Task details also include any draft artifacts generated from final recommendations:
+
+```bash
+curl http://127.0.0.1:8787/api/tasks/tsk_<id>/artifacts
+curl -OJ http://127.0.0.1:8787/api/tasks/tsk_<id>/artifacts/art_<id>/download
+curl -X POST http://127.0.0.1:8787/api/tasks/tsk_<id>/artifacts/art_<id>/apply
+```
+
+Apply is an explicit user action and is constrained to the task's `project_path`.
 
 ---
 
@@ -129,7 +141,7 @@ Switchboard's intended workflow for using the conclave during real coding work (
 
 1. **Deliberate** — `/conclave <design question>` (optionally with a project sandbox or git diff attached).
 2. **Decide** — `/decide latest <your call, in your own words>`. This becomes the task's permanent record.
-3. **Execute** — act on the decision in your interactive CLI session. The CLI *is* the execution layer; the conclave is the deliberation layer.
+3. **Execute** — act on the decision in your interactive CLI session, or review/apply a Switchboard draft artifact from the dashboard. The CLI remains the main execution layer; the conclave is the deliberation layer.
 4. **Record** — significant work closes with a decision record in `docs/decisions/`.
 
 In-conclave execution was deliberately not built — the conclave's value depends on three agents reasoning about *the same stable situation*; letting any participant mutate the filesystem mid-loop softens the deliberation. See the ROADMAP's "Considered and Intentionally Not Built" section.
@@ -181,13 +193,14 @@ See [`docs/help` section 4.5–4.8](app/dashboard/help.html) for the full operat
 pytest
 ```
 
-187 tests. Key files:
+364 tests. Key files:
 
 | File | Covers |
 |---|---|
 | `tests/test_protocol.py` | schema validation, round-trip, mode/permission invariants, versioning |
 | `tests/test_fake_adapter.py` | end-to-end consult flow, primary timeout, consultant consensus |
 | `tests/test_resolve_flow.py` | resolve termination paths (immediate, multi-round, user-input pause/resume, cannot-resolve, repetition guard) |
+| `tests/test_clarification_artifacts.py` | consult clarification gate, draft artifact capture, explicit apply |
 | `tests/test_conclave_flow.py` | conclave convergence, synthesis round, majority thresholds |
 | `tests/test_judge.py` | convergence judge upgrading agreement level after synthesis |
 | `tests/test_thread_flow.py` | threading, ancestry walks, cycle guard |
@@ -216,7 +229,7 @@ pytest
 | `docs/` | Design documents and decision records |
 | `examples/` | Protocol example JSON |
 | `tests/` | pytest suite |
-| `data/` | Runtime: SQLite DB, per-task sandboxes, uploads, exports (gitignored) |
+| `data/` | Runtime: SQLite DB, per-task sandboxes, uploads, exports, draft artifacts (gitignored) |
 
 ---
 
@@ -225,11 +238,11 @@ pytest
 0. [`INSTALL.md`](INSTALL.md) — first-run setup, smoke test, troubleshooting
 1. [`docs/CODING_WORKFLOW.md`](docs/CODING_WORKFLOW.md) — the canonical four-step loop
 2. [`docs/SWITCHBOARD_PROTOCOL.md`](docs/SWITCHBOARD_PROTOCOL.md) — wire format, mode definitions, message schemas
-3. [`docs/CONCLAVE_CHARTER.md`](docs/CONCLAVE_CHARTER.md) + [`skills/generic/conclave_charter.md`](skills/generic/conclave_charter.md) — the binding agreement embedded in every prompt (v1.2)
+3. [`docs/CONCLAVE_CHARTER.md`](docs/CONCLAVE_CHARTER.md) + [`skills/generic/conclave_charter.md`](skills/generic/conclave_charter.md) — the binding agreement embedded in every prompt (v1.3)
 4. [`docs/ROADMAP.md`](docs/ROADMAP.md) — shipped, next, and *intentionally not built* (read before proposing new features)
 5. [`docs/SAFETY_MODEL.md`](docs/SAFETY_MODEL.md) — permission model and approval rules
 6. [`docs/AGENT_ADAPTERS.md`](docs/AGENT_ADAPTERS.md) — interface every adapter must satisfy
-7. [`docs/TASK_LIFECYCLE.md`](docs/TASK_LIFECYCLE.md) — the state machine, including the resolve-mode user-input pause
+7. [`docs/TASK_LIFECYCLE.md`](docs/TASK_LIFECYCLE.md) — the state machine, including user-input pauses
 8. [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md) — every ratified decision record with one-line summaries
 9. [`clients/README.md`](clients/README.md) — how the slash-command parity is structured across the three CLIs
 
@@ -237,15 +250,15 @@ pytest
 
 ## Status
 
-Beyond proof-of-concept. All three real adapters run end-to-end. Conclave, resolve, and consult modes are live, including the user-input pause/resume cycle, threading, multimodal attachments, the project sandbox, the convergence judge, retention (with opt-in Tier 2 trim after export), export tracking, the orphan-task reaper, confidence-weighted convergence, Decision Memory retrieval, the dashboard, and cross-CLI slash commands.
+Beyond proof-of-concept. All three real adapters run end-to-end. Conclave, resolve, and consult modes are live, including the clarification pause/resume cycle, Structured Action Plans, draft artifacts with explicit apply, threading, multimodal attachments, the project sandbox, the convergence judge, retention (with opt-in Tier 2 trim after export), export tracking, the orphan-task reaper, confidence-weighted convergence, Decision Memory retrieval, the dashboard, and cross-CLI slash commands.
 
-Current "Next" items (see [`docs/ROADMAP.md`](docs/ROADMAP.md)): re-draft of DR0013 (pre-fetched URL attachments v2), `dashboard.js` modularization, inbox tagging. New capability proposals are evaluated against the Charter v1.2 *Operability before capability* principle.
+Current "Next" items (see [`docs/ROADMAP.md`](docs/ROADMAP.md)): re-draft of DR0013 (pre-fetched URL attachments v2), `dashboard.js` modularization, inbox tagging. New capability proposals are evaluated against the Charter v1.3 *Operability before capability* principle, and load-bearing factual claims should identify their evidence basis.
 
 ---
 
 ## Note on this repo
 
-This is a single-user, local-only project. The runtime database (`data/switchboard.db`) — which contains the full text of every deliberation, including any source code copied into per-task sandboxes — is **not** committed. Neither are `data/sandboxes/`, `data/uploads/`, or a local `config.yaml`. See `.gitignore`.
+This is a single-user, local-only project. The runtime database (`data/switchboard.db`) — which contains the full text of every deliberation, including any source code copied into per-task sandboxes — is **not** committed. Neither are `data/sandboxes/`, `data/uploads/`, `data/artifacts/`, or a local `config.yaml`. See `.gitignore`.
 
 ---
 

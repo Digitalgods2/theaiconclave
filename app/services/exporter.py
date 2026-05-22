@@ -26,6 +26,7 @@ def export_to_markdown(
     messages: list[dict],
     final_result: dict | None,
     agent_runs: list[dict],
+    artifacts: list[dict] | None = None,
 ) -> str:
     """Render a single task as a markdown decision record.
 
@@ -43,6 +44,7 @@ def export_to_markdown(
     parts.append(_render_question(task))
     parts.append(_render_decision(task))
     parts.append(_render_final_result(final_result))
+    parts.append(_render_artifacts(artifacts or []))
     parts.append(_render_transcript(task, messages))
     parts.append(_render_usage(agent_runs))
     parts.append(_render_footer())
@@ -80,6 +82,32 @@ def _render_header(task: dict) -> str:
     return "\n".join(lines)
 
 
+def _render_artifacts(artifacts: list[dict]) -> str:
+    lines: list[str] = ["## Draft artifacts", ""]
+    if not artifacts:
+        lines.append("_(none)_")
+        return "\n".join(lines)
+    for i, artifact in enumerate(artifacts, 1):
+        metadata = artifact.get("metadata") or {}
+        lines.append(f"### {i}. {artifact.get('title') or artifact.get('filename') or artifact.get('id')}")
+        lines.append("")
+        lines.append(f"- **ID:** {artifact.get('id')}")
+        lines.append(f"- **Kind:** {artifact.get('kind')}")
+        lines.append(f"- **Filename:** {artifact.get('filename')}")
+        if metadata.get("target_path"):
+            lines.append(f"- **Target path:** {metadata['target_path']}")
+        if metadata.get("apply_mode"):
+            lines.append(f"- **Apply mode:** {metadata['apply_mode']}")
+        if metadata.get("applied_at"):
+            lines.append(f"- **Applied at:** {metadata['applied_at']}")
+        content = artifact.get("content")
+        if isinstance(content, str) and content:
+            lines.append("")
+            lines.append(_fenced(content, lang="text"))
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
 def _render_question(task: dict) -> str:
     text = task.get("user_request") or ""
     return "## Question\n\n" + _fenced(text, lang="text")
@@ -115,6 +143,35 @@ def _render_final_result(final_result: dict | None) -> str:
         lines.append(f"- **Agreement level:** {final_result['agreement_level']}")
     if final_result.get("resolution_status"):
         lines.append(f"- **Resolution status:** {final_result['resolution_status']}")
+
+    action_plan = final_result.get("action_plan") or []
+    if action_plan:
+        lines.append("")
+        lines.append("### Structured action plan")
+        lines.append("")
+        for step in action_plan:
+            if isinstance(step, dict):
+                number = step.get("step_number", "?")
+                summary = step.get("summary") or "(no summary)"
+                lines.append(f"**{number}. {summary}**")
+                lines.append("")
+                details: list[str] = []
+                if step.get("action_type"):
+                    details.append(f"action type: {step['action_type']}")
+                if step.get("target"):
+                    details.append(f"target: {step['target']}")
+                if step.get("policy_status"):
+                    details.append(f"policy: {step['policy_status']}")
+                if step.get("required_permissions"):
+                    details.append("required permissions: " + ", ".join(map(str, step["required_permissions"])))
+                for detail in details:
+                    lines.append(f"- {detail}")
+                reasons = step.get("policy_reasons") or []
+                for reason in reasons:
+                    lines.append(f"- reason: {reason}")
+                lines.append("")
+            else:
+                lines.append("- " + _value_as_inline(step))
 
     disagreements = final_result.get("disagreements") or []
     if disagreements:

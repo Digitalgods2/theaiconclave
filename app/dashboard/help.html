@@ -64,8 +64,9 @@
           <ol>
             <li><a href="#help-charter-operability">5.1 Operability before capability</a></li>
             <li><a href="#help-charter-multimodal">5.2 Multimodal disagreement</a></li>
-            <li><a href="#help-charter-keeper">5.3 The keeper role</a></li>
-            <li><a href="#help-charter-amend">5.4 Amendment process</a></li>
+            <li><a href="#help-charter-evidence">5.3 Evidence norms</a></li>
+            <li><a href="#help-charter-keeper">5.4 The keeper role</a></li>
+            <li><a href="#help-charter-amend">5.5 Amendment process</a></li>
           </ol>
         </li>
         <li><a href="#help-dashboard">6. Using the Dashboard</a>
@@ -177,7 +178,7 @@
 <ul>
   <li><code>conclave</code> — N equal participants, full-mesh visibility, no primary. Use for genuine multi-AI deliberation.</li>
   <li><code>resolve</code> — open-ended, primary-driven loop that terminates when the primary signals it's done. Use to drill to an answer.</li>
-  <li><code>consult</code> — fixed three-step exchange for a quick second opinion.</li>
+  <li><code>consult</code> — fixed second-opinion exchange for a quick review, with a one-time numbered clarification pause if the agents need answers before final synthesis.</li>
 </ul>
 
 <p>What it deliberately is <em>not</em>: it is not an autonomous code-execution system. The conclave is the <strong>deliberation layer</strong>. The interactive CLI you're already driving — Claude Code, Codex, or Gemini — is the <strong>execution layer</strong>. Switchboard talks, records, surfaces disagreement, and keeps the audit trail. Your CLI session does the actual editing, running, and iterating. Trying to merge those two roles was considered and explicitly declined; see <code>docs/ROADMAP.md</code>.</p>
@@ -188,7 +189,7 @@
           <!-- BEGIN:section-1.2 -->
 <p>Switchboard runs as a FastAPI service bound to <code>127.0.0.1:8787</code>. It is single-user and local-only. There is no authentication layer because there is no remote surface — the service does not bind to a public interface, and nothing in the design assumes more than one user.</p>
 
-<p>State lives in a SQLite database called <code>switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, exports, and logs share the same runtime-state root. Running from a repo checkout, that root is <code>&lt;repo&gt;/data/</code>; a packaged install resolves to the platform-conventional user-data directory (e.g. <code>%LOCALAPPDATA%\AI Switchboard\</code> on Windows). See <em>14.4 Where state lives</em> for the full table. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
+<p>State lives in a SQLite database called <code>switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, exports, draft artifacts, and logs share the same runtime-state root. Running from a repo checkout, that root is <code>&lt;repo&gt;/data/</code>; a packaged install resolves to the platform-conventional user-data directory (e.g. <code>%LOCALAPPDATA%\AI Switchboard\</code> on Windows). See <em>14.4 Where state lives</em> for the full table. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
 
 <p><strong>What this does and doesn't mean for privacy.</strong> The orchestration plane — the service, the dashboard, transcripts, decision records, and API keys — never leaves your machine. The deliberation content itself does: every prompt sent to a CLI seat traverses that CLI's provider (OpenAI for Codex, Anthropic for Claude Code, Google for Gemini), and every prompt to an open-weight seat traverses OpenRouter (and then whichever provider hosts the model). Switchboard does not <em>add</em> a third party — it uses the providers you already have a relationship with — but it does not <em>remove</em> one either. The meaningful claim here is <strong>control of the audit trail and orchestration state</strong>, not privacy of the prompt content.</p>
 
@@ -290,9 +291,9 @@
         <section id="help-modes-consult" class="help-subsection">
           <h4>3.3 consult</h4>
           <!-- BEGIN:section-3.3 -->
-<p><code>consult</code> mode is a bounded three-step exchange: the <strong>primary proposes</strong>, the <strong>consultant(s) critique</strong>, the <strong>primary finalizes</strong>. That's it. After the primary's <code>primary_final</code> message, the task terminates.</p>
+<p><code>consult</code> mode is a bounded exchange: the <strong>primary proposes</strong>, the <strong>consultant(s) critique</strong>, the <strong>primary finalizes</strong>. If the primary or consultants ask clarifying questions, Switchboard pauses once at <code>awaiting_user_input</code>, presents a numbered questionnaire, then resumes final synthesis after you answer.</p>
 
-<p>Unlike <code>resolve</code>, the primary's <code>resolution_status</code> is ignored — the shape is fixed at three steps regardless of how confident anyone is. Unlike <code>conclave</code>, the consultants do not get equal standing; they critique once and the primary owns the final answer.</p>
+<p>Unlike <code>resolve</code>, the primary's <code>resolution_status</code> does not drive an open-ended loop. Unlike <code>conclave</code>, the consultants do not get equal standing; they critique once and the primary owns the final answer. The clarification gate is not a debate round — it is a short pause to collect missing user information before the final.</p>
 
 <p>Use <code>consult</code> when you want a <em>quick</em> second (or third) opinion rather than a full deliberation. Code review of a small change, a sanity check on a design sketch, a "did I miss anything obvious" pass — anything where one or two critique rounds is enough and you don't want to spend the time or quota on a full convergence loop.</p>
 
@@ -487,7 +488,7 @@
         <section id="help-charter-operability" class="help-subsection">
           <h4>5.1 Operability before capability</h4>
           <!-- BEGIN:section-5.1 -->
-<p>Charter v1.2 codifies a principle the conclave converged on after deliberating its own evolution: <strong>operability before capability</strong>. When the conclave evaluates a proposal to add a new feature, mode, agent type, permission layer, or piece of heavy infrastructure, it must first weigh the impact on the trust foundations of the existing system — <em>observability, durability, recoverability, audit trail, retention,</em> and <em>export</em>.</p>
+<p>Charter v1.2 codified a principle the conclave converged on after deliberating its own evolution: <strong>operability before capability</strong>. When the conclave evaluates a proposal to add a new feature, mode, agent type, permission layer, or piece of heavy infrastructure, it must first weigh the impact on the trust foundations of the existing system — <em>observability, durability, recoverability, audit trail, retention,</em> and <em>export</em>.</p>
 
 <p>A <em>material tension</em> exists when a proposed capability would degrade those foundations, conflict architecturally with them, raise state/permission/coordination complexity beyond what they can support, or crowd out a named operability gap. In material tension, unresolved conflict resolves in favor of operability unless you (Glen) explicitly approve a bounded exception.</p>
 
@@ -511,9 +512,19 @@
 <p>Your answer becomes the authoritative resolution for that image. A participant whose perception was wrong does not have its non-perceptual contributions discarded — the final agreement level reflects that the disagreement was perceptual, not analytical. Visual perception disputes are first-class.</p>
 <!-- END:section-5.2 -->
         </section>
-        <section id="help-charter-keeper" class="help-subsection">
-          <h4>5.3 The keeper role</h4>
+        <section id="help-charter-evidence" class="help-subsection">
+          <h4>5.3 Evidence norms</h4>
           <!-- BEGIN:section-5.3 -->
+<p>Charter v1.3 adds <strong>Evidence Norms</strong>. For load-bearing factual claims — facts that materially affect a recommendation, risk assessment, rejection, convergence signal, or decision record — participants must cite or identify the basis for the claim.</p>
+
+<p>Valid evidence is limited to material already available to the task: your explicit statements, uploaded attachments, sandbox files, command results, prior transcript messages, prior decision records, protocol/context metadata, URL snapshots, and Switchboard-managed artifacts. This does <em>not</em> grant new permissions or allow agents to read files, browse the network, run commands, write files, or change external systems.</p>
+
+<p>When a useful claim lacks direct evidence, the agent should label it as an assumption, interpretation, taste judgment, speculation, or recommendation. Final synthesis and decision records should preserve material evidence gaps instead of smoothing them into unsupported certainty.</p>
+<!-- END:section-5.3 -->
+        </section>
+        <section id="help-charter-keeper" class="help-subsection">
+          <h4>5.4 The keeper role</h4>
+          <!-- BEGIN:section-5.4 -->
 <p>You are <strong>the keeper</strong>. The Conclave Charter (<code>docs/CONCLAVE_CHARTER.md</code>) names you as the final authority: you provide intent, context, judgment, validation, and approval. The conclave provides alternatives, critique, synthesis, and reusable decision records.</p>
 
 <p>The keeper's primary act on a completed task is <code>/decide</code>. You record one of three outcomes:</p>
@@ -526,11 +537,11 @@
 <p>The keeper <strong>does not edit conclave output</strong>. Once the conclave has converged, the transcript and final answer are immutable artifacts. Your decision is a separate, authoritative record placed alongside them — not a rewrite of what the agents said. This separation is what keeps the audit trail clean: the conclave's reasoning is preserved verbatim, and your binding call is preserved verbatim, and the two are distinguishable forever.</p>
 
 <p>Note: within the charter itself, the <code>claude-code</code> adapter is the keeper of the <em>charter document</em> — meaning it maintains the canonical file, tracks amendments, and restates working rules when participants drift. That is a continuity role, not authority. Authority is yours.</p>
-<!-- END:section-5.3 -->
+<!-- END:section-5.4 -->
         </section>
         <section id="help-charter-amend" class="help-subsection">
-          <h4>5.4 Amendment process</h4>
-          <!-- BEGIN:section-5.4 -->
+          <h4>5.5 Amendment process</h4>
+          <!-- BEGIN:section-5.5 -->
 <p>The Conclave Charter is binding and embedded in every prompt to every participant in every mode. Changes are not edited in place by anyone acting alone — they go through a formal amendment process defined in the charter itself.</p>
 
 <p>The process:</p>
@@ -542,8 +553,8 @@
   <li>A numbered decision record is filed at <code>docs/decisions/&lt;NNNN&gt;_&lt;slug&gt;.md</code>.</li>
 </ol>
 
-<p>This is how the charter actually got from v1.0 to v1.2: the Multimodal Disagreement section (v1.1) and the Operability-before-capability principle (v1.2) were each proposed in conclave deliberations, ratified, versioned, and recorded as decisions 0002 and 0006. The charter is a living document; conflicts between it and updated practice should be raised and resolved through amendment, not by quietly editing files.</p>
-<!-- END:section-5.4 -->
+<p>This is how the charter got from v1.0 to v1.3: the Multimodal Disagreement section (v1.1), the Operability-before-capability principle (v1.2), and Evidence Norms (v1.3) were each proposed in conclave deliberations, ratified, versioned, and recorded as decisions 0002, 0006, and 0021. The charter is a living document; conflicts between it and updated practice should be raised and resolved through amendment, not by quietly editing files.</p>
+<!-- END:section-5.5 -->
         </section>
       </section>
 
@@ -591,9 +602,10 @@
   <li><strong>Thread breadcrumb</strong> — appears only if the task is part of a thread; shows the ancestry chain so you can jump back to any prior node.</li>
   <li><strong>Live activity</strong> — visible while the task is running. Shows the currently-active agent and elapsed time on the current call, so you always know whether the conclave is making progress or stuck.</li>
   <li><strong>User request</strong> — the question exactly as submitted.</li>
-  <li><strong>Answer prompt</strong> — appears only when the task pauses with <code>status: awaiting_user_input</code>. Shows the council's question, optional context for why they are asking, and a textarea to send your reply.</li>
+  <li><strong>Answer prompt</strong> — appears only when the task pauses with <code>status: awaiting_user_input</code>. Shows the council's question, optional context for why they are asking, and a reply form. If multiple agents asked questions in consult mode, Switchboard presents them as numbered prompts with one answer box per question.</li>
   <li><strong>Transcript</strong> — every message in the deliberation, including each agent's position and convergence signal per round.</li>
-  <li><strong>Final result</strong> — the structured outcome once the task terminates.</li>
+  <li><strong>Final result</strong> — the structured outcome once the task terminates, including the final answer, agreement level, disagreements, confidence data, and the Structured Action Plan when recommended actions are present.</li>
+  <li><strong>Draft artifacts</strong> — appears when final recommendations produced reviewable file, edit, or patch drafts. You can preview and download them; supported file and search/replace edit artifacts can be explicitly applied to the task's <code>project_path</code>.</li>
   <li><strong>Decision panel</strong> — your authoritative decision in your own words; save and edit at any time.</li>
   <li><strong>Post-task action bar</strong> — <code>Start New Task</code>, <code>Continue this thread</code>, <code>Export to decision record</code> (writes markdown to the exports directory under the runtime state root), and <code>Download…</code> for the full detail as PDF, DOCX, MD, or TXT.</li>
 </ul>
@@ -652,7 +664,7 @@
 <p>You can submit tasks to Switchboard without leaving the CLI session you are already coding in. From your Claude Code, Codex, or Gemini session, the same three commands cover the most common cases.</p>
 <ul>
   <li><code>/conclave &lt;question&gt;</code> — runs a 3-AI conclave deliberation with <code>codex</code>, <code>gemini</code>, and <code>claude-code</code>. This is the full deliberation: every agent posts one position per round, signals convergence, and the loop terminates when participants agree (or a synthesis round plus judge pass resolves a weak convergence). Use it for design questions, architectural calls, and anything where you want disagreements surfaced verbatim instead of flattened.</li>
-  <li><code>/consult &lt;agent&gt; &lt;question&gt;</code> — a quick second opinion from one named agent. The CLI you ran the command from acts as the primary (drafts the answer); the named agent acts as the consultant (critiques it); the primary finalizes. Three-step exchange, no convergence loop. Use it for review, sanity checks, and "is this refactor safe" questions.</li>
+  <li><code>/consult &lt;agent&gt; &lt;question&gt;</code> — a quick second opinion from one named agent. The CLI you ran the command from acts as the primary (drafts the answer); the named agent acts as the consultant (critiques it); the primary finalizes. If either side asks clarification questions, the task pauses once for your numbered answers before the final. Use it for review, sanity checks, and "is this refactor safe" questions.</li>
   <li><code>/secondopinion [topic]</code> — runs a second opinion on the current conversation context. If you omit <code>[topic]</code>, the command uses the last substantive question or proposal in your session as the topic. Defaults to <code>claude-code</code> as primary (which has your full conversation context) and <code>codex</code> as consultant, but you can name a different consultant in your phrasing.</li>
 </ul>
 <p>Codex does not have literal <code>/</code> slash commands — it activates the equivalent skill via trigger phrases ("ask the conclave", "get a second opinion"). Claude Code and Gemini get literal slash commands.</p>
@@ -677,7 +689,7 @@
 <ul>
   <li><code>/continue &lt;parent|latest&gt; &lt;question&gt;</code> — creates a threaded follow-up task. The new task is linked to the parent via <code>parent_task_id</code> and inherits the parent's mode and agents (a 3-AI conclave begets another 3-AI conclave). The orchestrator auto-loads the ancestry — every prior task's question, final answer, and your recorded decision — into each participant's prompt as a "Prior Thread Context" section, so the follow-up picks up where the prior thread left off. Use it when the first resolution was ambiguous, when you want to drill into implementation after a design decision, or when a new question depends on prior context.</li>
   <li><code>/thread &lt;task|latest&gt;</code> — shows the ancestry chain for a task, oldest-first, with the current task marked. Each ancestor's question, final answer, and recorded decision is summarized. Useful for recalling what was already settled in a long-running thread before posting a new question.</li>
-  <li><code>/answer &lt;task|latest&gt; &lt;text&gt;</code> — resolves a task paused with <code>status: awaiting_user_input</code> (the conclave asked you a question and stopped). The text after the task ID is sent as your reply. The Claude Code variant also supports a "run-and-send" mode: if the text after the task ID looks like a shell command (<code>pytest</code>, <code>git</code>, <code>npm</code>, etc.), the CLI runs it, captures combined stdout and stderr, and submits the output. Once submitted, the task flips back to <code>pending</code> and the worker re-claims it.</li>
+  <li><code>/answer &lt;task|latest&gt; &lt;text&gt;</code> — resolves a task paused with <code>status: awaiting_user_input</code> (the council asked for clarification and stopped). The text after the task ID is sent as your reply; for numbered questionnaires, include the numbers in your answer. The Claude Code variant also supports a "run-and-send" mode: if the text after the task ID looks like a shell command (<code>pytest</code>, <code>git</code>, <code>npm</code>, etc.), the CLI runs it, captures combined stdout and stderr, and submits the output. Once submitted, the task flips back to <code>pending</code> and the worker re-claims it.</li>
 </ul>
 <!-- END:section-7.3 -->
         </section>
@@ -702,7 +714,7 @@
   <li><strong>Deliberate</strong> — submit the question with <code>/conclave</code> (full deliberation) or <code>/consult</code> (quick second opinion). Attach relevant files or enable the project sandbox so agents can browse your code read-only.</li>
   <li><strong>Decide</strong> — read the transcript and the final answer, then record your authoritative call with <code>/decide latest "&lt;your decision in your own words&gt;"</code>. This becomes the task's permanent record and auto-injects into any threaded follow-up.</li>
   <li><strong>Execute</strong> — switch back to the interactive CLI session you're already running. Ask it to act on the decision (you can paste it in or use <code>/decision &lt;task&gt;</code> to load the full context inline). The CLI's native tools (Read, Edit, Bash, etc.) do the actual work, under your supervision.</li>
-  <li><strong>Record</strong> — for significant work, close with a decision record markdown file in <code>docs/decisions/</code>. Capability or infrastructure changes additionally need an Operability Impact field per Charter v1.2.</li>
+  <li><strong>Record</strong> — for significant work, close with a decision record markdown file in <code>docs/decisions/</code>. Capability or infrastructure changes additionally need an Operability Impact field per Charter v1.3.</li>
 </ol>
 
 <p>When execution surfaces something the deliberation didn't anticipate — a test failure, a missed constraint — use <code>/continue latest &lt;new question&gt;</code> to thread a follow-up that inherits the parent's mode, agents, and context.</p>
@@ -738,7 +750,7 @@
   <li><strong>Who is keeping continuity.</strong> The named participant responsible for tracking follow-up.</li>
 </ul>
 
-<p>For <strong>significant Switchboard capability or infrastructure decisions</strong>, Charter v1.2 additionally requires an <strong>Operability Impact</strong> field covering effects on observability, durability, recoverability, audit trail, retention, and export; complexity added; accepted risks; mitigations; any <em>Operability before capability</em> exception you approved; and follow-up review points.</p>
+<p>For <strong>significant Switchboard capability or infrastructure decisions</strong>, Charter v1.3 additionally requires an <strong>Operability Impact</strong> field covering effects on observability, durability, recoverability, audit trail, retention, and export; complexity added; accepted risks; mitigations; any <em>Operability before capability</em> exception you approved; and follow-up review points.</p>
 
 <p>Decision records are reusable context. They get cited in future conclave prompts (when threaded via <code>/continue</code>) and read by future humans (you, mostly) before proposing changes in the same area. Together with the SQLite transcript, they are the long-term memory of Switchboard's own design.</p>
 <!-- END:section-8.3 -->
@@ -812,7 +824,7 @@
         <section id="help-attachments-mmdisagree" class="help-subsection">
           <h4>9.5 When agents disagree on what they see</h4>
           <!-- BEGIN:section-9.5 -->
-<p>The Conclave Charter v1.2 contains a <strong>Multimodal Disagreement</strong> clause that governs what happens when agents look at the same image and report different things. The clause forbids the system from <em>synthesising</em> a visual-perception dispute into a smoothed-over consensus.</p>
+<p>The Conclave Charter v1.3 contains a <strong>Multimodal Disagreement</strong> clause that governs what happens when agents look at the same image and report different things. The clause forbids the system from <em>synthesising</em> a visual-perception dispute into a smoothed-over consensus.</p>
 <p>The reasoning: vision models have different perceptual stacks, and when they disagree on what an image shows, that disagreement is information. Averaging "Codex sees a red button" and "Gemini sees a green button" into "the button is somewhere on the orange spectrum" is worse than admitting the two readings conflict. The user, who has the actual eyes on the actual image, is the right adjudicator.</p>
 <p>So instead of forcing convergence, the orchestrator <strong>surfaces the disagreement</strong> to you:</p>
 <ul>
@@ -953,7 +965,7 @@
           <h4>12.1 Per-task detail export (PDF / DOCX / MD / TXT)</h4>
           <!-- BEGIN:section-12.1 -->
 <p>Per-task detail export lets you save a single deliberation in your format of choice: <code>PDF</code>, <code>DOCX</code>, <code>MD</code>, or <code>TXT</code>. The control lives in the Detail view's post-task bar — an "Export detail as…" selector next to a Download button. Pick the format, click Download, and your browser's Save dialog (or <code>showSaveFilePicker</code> on browsers that support it) decides where the file lands.</p>
-<p>Under the hood, the dashboard hits <code>GET /api/tasks/{id}/download?format=...</code> and streams the bytes back. Each format renders the same section order so the four outputs are recognizable as the same document: header (task id, mode, status, participants, source agent, timestamps), the original question, the recorded decision (if any), the final result (including agreement level and any disagreements), and the full transcript verbatim — every agent turn, every structured field, no truncation of prose. The PDF and DOCX paths live in <code>app/services/doc_export.py</code> (ReportLab and <code>python-docx</code> respectively); the markdown path lives in <code>app/services/exporter.py</code>; the plain-text path is a straightforward strip of the markdown output.</p>
+<p>Under the hood, the dashboard hits <code>GET /api/tasks/{id}/download?format=...</code> and streams the bytes back. Each format renders the same section order so the four outputs are recognizable as the same document: header (task id, mode, status, participants, source agent, timestamps), the original question, the recorded decision (if any), the final result (including agreement level, Structured Action Plan, and any disagreements), draft artifacts when present, and the full transcript verbatim — every agent turn, every structured field, no truncation of prose. The PDF and DOCX paths live in <code>app/services/doc_export.py</code> (ReportLab and <code>python-docx</code> respectively); the markdown path lives in <code>app/services/exporter.py</code>; the plain-text path is a straightforward strip of the markdown output.</p>
 <p>This is a snapshot operation — it does not touch the database or mark the task as exported. It is the right path when you want a portable, shareable copy of the deliberation; it is not the path for the Tier 2 "I want this preserved" semantics. For that, use the decision record export described next.</p>
 <!-- END:section-12.1 -->
         </section>
@@ -961,7 +973,7 @@
           <h4>12.2 Decision record export</h4>
           <!-- BEGIN:section-12.2 -->
 <p>Decision record export is the canonical "I want to keep this" action for a terminal task. The "Export to decision record" button on the Detail view (or <code>POST /api/tasks/{id}/export</code> from the API) writes a markdown snapshot to <code>&lt;runtime-state-root&gt;/exports/&lt;task_id&gt;.md</code> and stamps the task's <code>exported_at</code> and <code>export_path</code> columns so the system knows you have preserved it.</p>
-<p>The contents mirror the markdown export pipeline in <code>app/services/exporter.py</code>: a header with task id, mode, task type, agents, timestamps, and any parent task; the original question fenced verbatim; the recorded decision (with the timestamp you recorded it at); the final result, including <code>agreement_level</code>, <code>resolution_status</code>, any disagreements with primary and consultant positions, recommended actions, risks, and commands or patches that would require approval; the full transcript grouped by round for conclave mode (flat for the others) with every agent's structured fields preserved; and a usage table showing per-run tokens and USD cost plus the task totals.</p>
+<p>The contents mirror the markdown export pipeline in <code>app/services/exporter.py</code>: a header with task id, mode, task type, agents, timestamps, and any parent task; the original question fenced verbatim; the recorded decision (with the timestamp you recorded it at); the final result, including <code>agreement_level</code>, <code>resolution_status</code>, Structured Action Plan, any disagreements with primary and consultant positions, recommended actions, risks, and commands or patches that would require approval; draft artifacts with metadata and previews when present; the full transcript grouped by round for conclave mode (flat for the others) with every agent's structured fields preserved; and a usage table showing per-run tokens and USD cost plus the task totals.</p>
 <p>Two things to note. It overwrites in place — re-exporting the same task replaces the prior file at <code>&lt;runtime-state-root&gt;/exports/&lt;task_id&gt;.md</code> and the dashboard label flips to "Re-export". And it is the action the retention system watches: when <code>retention.trim_tier2_after_export</code> is on (opt-in), a task with <code>exported_at</code> set becomes eligible to drop its <code>final_results</code> row during a later retention pass.</p>
 <!-- END:section-12.2 -->
         </section>
@@ -1047,13 +1059,13 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
     <tr><td><code>Consultant</code></td><td>In <code>consult</code> mode, an agent providing critique on the primary's proposal.</td></tr>
     <tr><td><code>Judge</code></td><td>After weak conclave convergence and a synthesis round, one participant arbitrates semantic equivalence so <code>agreement_level</code> can be upgraded.</td></tr>
     <tr><td><code>Keeper</code></td><td>You. Records <code>/decide</code> (ratify / reject / return-to-conclave); does not edit conclave output.</td></tr>
-    <tr><td><code>Charter</code></td><td>The binding agreement (currently v1.2) embedded into every agent prompt by the prompt builder.</td></tr>
+    <tr><td><code>Charter</code></td><td>The binding agreement (currently v1.3) embedded into every agent prompt by the prompt builder.</td></tr>
     <tr><td><code>Decision record</code></td><td>Numbered Markdown file in <code>docs/decisions/</code> capturing what was chosen, why, what was rejected, known risks, and open questions.</td></tr>
     <tr><td><code>Sandbox</code></td><td>Per-task read-only copy of <code>project_path</code> that agents can browse during a deliberation.</td></tr>
     <tr><td><code>Tier (1/2/3)</code></td><td>Retention tiers. Tier 1 = never trimmed (decisions, charter amendments, unresolved dissent); Tier 2 = retain until exported; Tier 3 = agent messages, trimmed first.</td></tr>
     <tr><td><code>Convergence</code></td><td>In <code>conclave</code> mode, the threshold (default <code>1.0</code> = unanimous) of participants who must signal <code>i_am_done</code> for the deliberation to terminate.</td></tr>
     <tr><td><code>Source agent / provenance</code></td><td>The <code>source_agent</code> column recording which surface submitted the task: <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>.</td></tr>
-    <tr><td><code>Operability</code></td><td>From Charter v1.2: every capability must preserve observability, durability, recoverability, audit trail, retention, and export.</td></tr>
+    <tr><td><code>Operability</code></td><td>From Charter v1.2 and carried forward in v1.3: every capability must preserve observability, durability, recoverability, audit trail, retention, and export.</td></tr>
     <tr><td><code>Thread</code></td><td>Chain of related tasks linked via <code>parent_task_id</code>; surfaced through <code>/continue</code> and <code>/thread</code>.</td></tr>
     <tr><td><code>Mode</code></td><td>Shape of the deliberation: <code>conclave</code>, <code>resolve</code>, <code>consult</code>, <code>handoff</code>, or <code>poll</code>.</td></tr>
     <tr><td><code>Agreement level</code></td><td>Final-result classification of how aligned the agents ended up: <code>consensus</code>, <code>minor_disagreement</code>, <code>major_disagreement</code>, or <code>unresolved</code>.</td></tr>
@@ -1087,6 +1099,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
     <tr><td><code>&lt;state-root&gt;/sandboxes/&lt;task_id&gt;/</code></td><td>Per-task read-only sandbox — the copy of <code>project_path</code> that agents may browse during the deliberation.</td></tr>
     <tr><td><code>&lt;state-root&gt;/uploads/</code></td><td>Task attachments uploaded from the dashboard or the API.</td></tr>
     <tr><td><code>&lt;state-root&gt;/exports/</code></td><td>Exported decision records and per-task downloads (PDF / DOCX / Markdown / text).</td></tr>
+    <tr><td><code>&lt;state-root&gt;/artifacts/</code></td><td>Task-scoped draft artifacts captured from final recommendations. These are reviewable handoff files, not agent writes to your project.</td></tr>
     <tr><td><code>&lt;state-root&gt;/logs/</code></td><td>Reserved for durable file logging. Today's runtime logs are stderr-only; the directory exists so a future record can adopt it without further plumbing.</td></tr>
     <tr><td><code>&lt;state-root&gt;/switchboard.pid</code></td><td>Single-instance pidlock. Delete only if you're certain no service is running.</td></tr>
     <tr><td><code>&lt;repo&gt;/config.yaml</code></td><td>Operator configuration. Copy from <code>config.example.yaml</code> and edit ports, adapter paths, <code>command_path</code> overrides, and the open-weight seat list. In a packaged install, the resolver also checks <code>&lt;state-root&gt;/config.yaml</code> first.</td></tr>
@@ -1105,7 +1118,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
         <section id="help-reference-stateroot" class="help-subsection">
           <h4>14.4 Where state lives</h4>
           <!-- BEGIN:section-14.4 -->
-<p>Per DR0016, all writable runtime state — the SQLite database, sandboxes, uploads, exports, logs, and pidlock — resolves through a single <code>user_data_root()</code> primitive in <code>app/utils/paths.py</code>. The root is picked at startup using this precedence (first match wins):</p>
+<p>Per DR0016, all writable runtime state — the SQLite database, sandboxes, uploads, exports, draft artifacts, logs, and pidlock — resolves through a single <code>user_data_root()</code> primitive in <code>app/utils/paths.py</code>. The root is picked at startup using this precedence (first match wins):</p>
 <ol>
   <li><strong><code>SWITCHBOARD_DATA_DIR</code> environment variable.</strong> Wins over everything else. Tests, CI runs, and packaged installers use this hook.</li>
   <li><strong>Dev-mode anchor.</strong> If the current working directory (or any ancestor) contains both <code>pyproject.toml</code> and <code>config.example.yaml</code>, the root resolves to <code>&lt;that-dir&gt;/data/</code>. This preserves the in-repo developer experience exactly — running <code>python -m uvicorn …</code> from a checkout still writes to <code>./data/</code>.</li>
@@ -1129,7 +1142,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
           <h4>14.5 Links to deep docs</h4>
           <!-- BEGIN:section-14.5 -->
 <ul>
-  <li><code>docs/CONCLAVE_CHARTER.md</code> — The binding charter (v1.2), embedded in every agent prompt.</li>
+  <li><code>docs/CONCLAVE_CHARTER.md</code> — The binding charter (v1.3), embedded in every agent prompt.</li>
   <li><code>docs/SWITCHBOARD_PROTOCOL.md</code> — Wire format, mode definitions, and message schemas.</li>
   <li><code>docs/AGENT_ADAPTERS.md</code> — The interface every adapter must satisfy.</li>
   <li><code>docs/TASK_LIFECYCLE.md</code> — The task state machine, including the pause / resume paths.</li>

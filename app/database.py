@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS final_results (
     resolution_status                 TEXT,
     disagreements_json                TEXT NOT NULL DEFAULT '[]',
     recommended_actions_json          TEXT NOT NULL DEFAULT '[]',
+    action_plan_json                  TEXT NOT NULL DEFAULT '[]',
     risks_json                        TEXT NOT NULL DEFAULT '[]',
     commands_requiring_approval_json  TEXT NOT NULL DEFAULT '[]',
     patches_requiring_approval_json   TEXT NOT NULL DEFAULT '[]',
@@ -102,6 +103,23 @@ CREATE TABLE IF NOT EXISTS approvals (
 
 CREATE INDEX IF NOT EXISTS idx_approvals_status ON approvals(status, created_at);
 CREATE INDEX IF NOT EXISTS idx_approvals_task   ON approvals(task_id);
+
+CREATE TABLE IF NOT EXISTS task_artifacts (
+    id             TEXT PRIMARY KEY,
+    task_id        TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL,
+    kind           TEXT NOT NULL,
+    title          TEXT,
+    filename       TEXT NOT NULL,
+    mime_type      TEXT NOT NULL,
+    size_bytes     INTEGER NOT NULL,
+    storage_path   TEXT NOT NULL,
+    metadata_json  TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_artifacts_task ON task_artifacts(task_id, created_at);
 
 CREATE TABLE IF NOT EXISTS settings (
     key        TEXT PRIMARY KEY,
@@ -154,6 +172,7 @@ def init_database(path: str | Path) -> None:
         # NULL for tasks that finalized before Phase 2 of the post-DR plan on
         # tsk_01KRSW6AS3M66B4RRJE3JFAPRV. New tasks: populated by the orchestrator.
         _add_column_if_missing(conn, "final_results", "confidence_aggregate_json", "TEXT")
+        _add_column_if_missing(conn, "final_results", "action_plan_json", "TEXT")
         # Prior Art — TF-IDF-matched past decision records, computed at task
         # creation and frozen so the user sees exactly what the agents saw.
         # NULL for tasks created before Phase 2.5 of the post-DR plan. Shape:

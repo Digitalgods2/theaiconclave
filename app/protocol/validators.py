@@ -16,7 +16,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
-PROTOCOL_VERSION = "1.0"
+PROTOCOL_VERSION = "1.1"
 
 
 # ---------------------------------------------------------------------------
@@ -137,6 +137,26 @@ class ApprovalStatus(str, Enum):
     REJECTED = "rejected"
 
 
+class ActionType(str, Enum):
+    READ_FILE = "read_file"
+    WRITE_FILE = "write_file"
+    RUN_COMMAND = "run_command"
+    INSTALL_PACKAGE = "install_package"
+    APPLY_PATCH = "apply_patch"
+    NETWORK_ACCESS = "network_access"
+    DEPLOYMENT_CHANGE = "deployment_change"
+    SECRET_ACCESS = "secret_access"
+    HUMAN_DECISION = "human_decision"
+    UNKNOWN = "unknown"
+
+
+class PolicyStatus(str, Enum):
+    ALLOWED = "allowed"
+    NEEDS_APPROVAL = "needs_approval"
+    BLOCKED = "blocked"
+    UNKNOWN = "unknown"
+
+
 # ---------------------------------------------------------------------------
 # Composable types
 # ---------------------------------------------------------------------------
@@ -169,6 +189,18 @@ class RecommendedAction(BaseModel):
     kind: str
     description: str
     requires_approval: bool
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ActionPlanStep(BaseModel):
+    step_number: int = Field(ge=1)
+    action_type: ActionType
+    summary: str
+    target: Optional[str] = None
+    source_action_kind: Optional[str] = None
+    required_permissions: list[str] = Field(default_factory=list)
+    policy_status: PolicyStatus
+    policy_reasons: list[str] = Field(default_factory=list)
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -343,6 +375,7 @@ class FinalResult(BaseModel):
     agreement_level: AgreementLevel
     resolution_status: Optional[ResolutionStatus] = None  # populated in resolve mode
     disagreements: list[Disagreement] = Field(default_factory=list)
+    action_plan: list[ActionPlanStep] = Field(default_factory=list)
     recommended_actions: list[RecommendedAction] = Field(default_factory=list)
     commands_requiring_approval: list[str] = Field(default_factory=list)
     patches_requiring_approval: list[str] = Field(default_factory=list)
@@ -381,10 +414,13 @@ __all__ = [
     "RiskSeverity",
     "ErrorCode",
     "ApprovalStatus",
+    "ActionType",
+    "PolicyStatus",
     "Permissions",
     "Limits",
     "Risk",
     "RecommendedAction",
+    "ActionPlanStep",
     "TaskContext",
     "ProtocolError",
     "Disagreement",

@@ -106,12 +106,14 @@ def test_derived_helpers_under_root(tmp_path, monkeypatch):
     assert paths.sandboxes_root() == root / "sandboxes"
     assert paths.uploads_root() == root / "uploads"
     assert paths.exports_root() == root / "exports"
+    assert paths.artifacts_root() == root / "artifacts"
     assert paths.logs_root() == root / "logs"
 
     # Subdir resolvers are lazy-create.
     assert paths.sandboxes_root().is_dir()
     assert paths.uploads_root().is_dir()
     assert paths.exports_root().is_dir()
+    assert paths.artifacts_root().is_dir()
     assert paths.logs_root().is_dir()
 
 

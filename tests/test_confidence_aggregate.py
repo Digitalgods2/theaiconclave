@@ -123,6 +123,7 @@ def test_row_to_final_result_extracts_confidence_aggregate(temp_db):
     out = _row_to_final_result(row)
     assert out["confidence_aggregate"]["mean"] == 0.75
     assert out["confidence_aggregate"]["count"] == 3
+    assert out["action_plan"] == []
 
 
 def test_row_to_final_result_handles_null_aggregate(temp_db):

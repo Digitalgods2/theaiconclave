@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from app.agents.fake_adapter import FakeAdapter
 from app.database import connect, init_database, now_iso
 from app.protocol.validators import Limits, Permissions
 from app.services import agent_registry
@@ -78,6 +79,54 @@ def _primary_round_count(tid: str) -> int:
             (tid,),
         ).fetchone()
     return row["n"]
+
+
+class _CancelAfterPrimaryFake(FakeAdapter):
+    name = "cancel-after-resolve-primary"
+
+    async def run_primary(self, ctx):
+        resp = await super().run_primary(ctx)
+        with connect() as conn:
+            conn.execute(
+                "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE id = ?",
+                (now_iso(), ctx.task_id),
+            )
+        return resp
+
+
+def _create_resolve_cancel_task() -> str:
+    tid = new_task_id()
+    now = now_iso()
+    permissions = Permissions(
+        can_read_files=True, can_write_files=False, can_run_commands=False,
+        can_access_network=False, can_install_packages=False,
+        can_apply_patches=False, can_read_env_files=False, can_read_secrets=False,
+    )
+    limits = Limits(max_rounds=20, timeout_seconds=30, max_seconds=60)
+    context = {
+        "files": [],
+        "error": None,
+        "git_diff": None,
+        "extra": {"fake_behavior": "resolve_after_one_round"},
+    }
+
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO tasks
+            (id, created_at, updated_at, status, source, source_agent, mode, task_type,
+             user_request, primary_agent, consultants, project_path,
+             context_json, permissions_json, limits_json)
+            VALUES (?, ?, ?, 'pending', 'api', NULL, 'resolve', 'general_consultation',
+                    'Test resolve cancellation request', 'cancel-after-resolve-primary',
+                    '["fake"]', NULL, ?, ?, ?)""",
+            (
+                tid, now, now,
+                json.dumps(context, sort_keys=True),
+                json.dumps(permissions.model_dump(), sort_keys=True),
+                json.dumps(limits.model_dump(), sort_keys=True),
+            ),
+        )
+    return tid
 
 
 # ---------------------------------------------------------------------------
@@ -198,3 +247,23 @@ async def test_consultant_drives_continuation(temp_db):
     assert _task_status(tid) == "completed"
     # Two primary rounds: first one had wants_continuation=True, second was accepted.
     assert _primary_round_count(tid) == 2
+
+
+async def test_cancelled_resolve_stops_after_current_primary_call(temp_db):
+    agent_registry.register(_CancelAfterPrimaryFake())
+    tid = _create_resolve_cancel_task()
+
+    await run_task(tid)
+
+    with connect() as conn:
+        result = conn.execute(
+            "SELECT * FROM final_results WHERE task_id = ?", (tid,)
+        ).fetchone()
+        runs = conn.execute(
+            "SELECT role FROM agent_runs WHERE task_id = ? ORDER BY started_at",
+            (tid,),
+        ).fetchall()
+
+    assert _task_status(tid) == "cancelled"
+    assert result is None
+    assert [r["role"] for r in runs] == ["primary"]

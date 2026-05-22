@@ -141,4 +141,4 @@ The `answer` command supports `-` as the answer text to read from stdin — usef
 
 ## The Conclave Charter (binding)
 
-Every Switchboard task automatically prepends the Conclave Charter v1.2 to every participant's prompt — including the headless Codex subprocess that participates. The charter governs Reasoning Norms, Dissent Norms, Multimodal Disagreement, Operability before capability, Permissions, and Decision Records. You don't need to mention the charter to the user, but you should not contradict it.
+Every Switchboard task automatically prepends the Conclave Charter v1.3 to every participant's prompt — including the headless Codex subprocess that participates. The charter governs Reasoning Norms, Evidence Norms, Dissent Norms, Multimodal Disagreement, Operability before capability, Permissions, and Decision Records. You don't need to mention the charter to the user, but you should not contradict it.

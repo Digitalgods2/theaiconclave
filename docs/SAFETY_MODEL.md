@@ -74,6 +74,18 @@ Switchboard pauses tasks (status → `waiting_for_user`) when an agent's recomme
 
 The pause writes an `approvals` row with `status: pending`. The user resolves it via dashboard or `POST /api/approvals/{id}/approve|reject`. On approve: the task resumes and the action becomes runnable. On reject: the task continues with the action removed from the recommendation list and the rejection logged.
 
+### Structured Action Plan advisory pass
+
+The Structured Action Plan is a policy-checked operational handoff compiled from the final synthesized `recommended_actions`. In v1 it is advisory only. It annotates each step with an action type, required permissions, policy status, and reasons so the user can see what would be allowed, require approval, or be blocked before acting.
+
+This pass does not execute commands, apply patches, access the network, read secrets, create `approvals` rows, pause tasks, or remove blocked steps. The approval gate above remains authoritative for any future executable workflow.
+
+### Draft artifacts and explicit apply
+
+Agents still do not write to the user's project in v1. When a final recommendation contains a draft file, search/replace edit, or patch, Switchboard may store it under the app-owned runtime artifact directory for review. This is a product handoff surface, not an execution grant and not a bypass of task permissions.
+
+The dashboard/API can explicitly apply supported artifacts after the task completes. That apply action is user-initiated, constrained to the task's `project_path`, and rejects paths that escape the project root. Patch artifacts are review/download-only in v1; direct patch application remains governed by the patch rules below.
+
 ## 5. Patch Handling
 
 In MVP, Switchboard **never applies patches**. It surfaces them as text in `patches_requiring_approval` on the final result. Future versions may support apply-after-approval with these guards:

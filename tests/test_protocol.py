@@ -173,3 +173,29 @@ def test_final_result_in_example_has_at_least_one_disagreement() -> None:
     raw = _load("final_result.json")
     instance = FinalResult.model_validate(raw)
     assert len(instance.disagreements) >= 1
+
+
+def test_final_result_accepts_action_plan() -> None:
+    raw = _load("final_result.json")
+    raw["action_plan"] = [
+        {
+            "step_number": 1,
+            "action_type": "run_command",
+            "summary": "Run tests",
+            "target": "pytest",
+            "source_action_kind": "run_command",
+            "required_permissions": ["can_run_commands"],
+            "policy_status": "needs_approval",
+            "policy_reasons": ["Missing permission(s): can_run_commands."],
+            "payload": {"command": "pytest"},
+        }
+    ]
+    instance = FinalResult.model_validate(raw)
+    assert instance.action_plan[0].summary == "Run tests"
+
+
+def test_final_result_action_plan_defaults_empty() -> None:
+    raw = _load("final_result.json")
+    raw.pop("action_plan", None)
+    instance = FinalResult.model_validate(raw)
+    assert instance.action_plan == []

@@ -157,6 +157,11 @@ def exports_root() -> Path:
     return _subdir("exports")
 
 
+def artifacts_root() -> Path:
+    """Per-task draft artifacts produced from agent recommendations live here."""
+    return _subdir("artifacts")
+
+
 def logs_root() -> Path:
     """Reserved for future durable file logging. Created so a later record
     can adopt it without further plumbing. Today's logging is stderr-only.

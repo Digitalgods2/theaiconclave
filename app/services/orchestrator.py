@@ -28,6 +28,7 @@ from app.protocol.validators import (
     ErrorCode,
     FinalResult,
     MessageType,
+    PROTOCOL_VERSION,
     PrimaryResponse,
     ProtocolError,
     ResolutionStatus,
@@ -36,6 +37,8 @@ from app.protocol.validators import (
     TaskStatus,
 )
 from app.services import agent_registry
+from app.services.action_plan import compile_action_plan
+from app.services.artifacts import capture_from_final_result, list_artifacts
 from app.services.judge import judge_convergence
 from app.services.sandbox import cleanup_sandbox, prepare_sandbox
 from app.utils.ids import message_id, result_id, run_id
@@ -44,6 +47,23 @@ from app.utils.ids import message_id, result_id, run_id
 # ---------------------------------------------------------------------------
 # Persistence helpers
 # ---------------------------------------------------------------------------
+
+class TaskCancelled(Exception):
+    """Internal control flow for cooperative task cancellation."""
+
+
+def _is_task_cancelled(task_id: str) -> bool:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT status FROM tasks WHERE id = ?", (task_id,)
+        ).fetchone()
+    return bool(row and row["status"] == TaskStatus.CANCELLED.value)
+
+
+def _raise_if_cancelled(task_id: str) -> None:
+    if _is_task_cancelled(task_id):
+        raise TaskCancelled(task_id)
+
 
 def _record_message(
     task_id: str,
@@ -128,10 +148,10 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
             """
             INSERT INTO final_results
             (id, task_id, final_answer, agreement_level, resolution_status,
-             disagreements_json, recommended_actions_json, risks_json,
+             disagreements_json, recommended_actions_json, action_plan_json, risks_json,
              commands_requiring_approval_json, patches_requiring_approval_json,
              errors_json, confidence_aggregate_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result_id(),
@@ -141,6 +161,7 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
                 result.resolution_status.value if result.resolution_status else None,
                 json.dumps([d.model_dump() for d in result.disagreements], sort_keys=True),
                 json.dumps([a.model_dump() for a in result.recommended_actions], sort_keys=True),
+                json.dumps([s.model_dump(mode="json") for s in result.action_plan], sort_keys=True),
                 json.dumps([r.model_dump() for r in result.risks], sort_keys=True),
                 json.dumps(result.commands_requiring_approval),
                 json.dumps(result.patches_requiring_approval),
@@ -201,6 +222,92 @@ def _record_user_input_request(task_id: str, primary_agent: str, question: str) 
         content=question,
         structured=None,
     )
+
+
+def _has_user_input_response(prior_messages: list[dict]) -> bool:
+    return any(
+        m.get("message_type") == MessageType.USER_INPUT_RESPONSE.value
+        for m in prior_messages
+    )
+
+
+def _dedupe_questions(questions: list[str]) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for question in questions:
+        q = " ".join(str(question or "").split())
+        if not q:
+            continue
+        key = q.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(q)
+    return out
+
+
+def _collect_clarification_questions(
+    proposal: Optional[PrimaryResponse],
+    critiques: list[ConsultantCritique],
+) -> list[str]:
+    questions: list[str] = []
+    if proposal and proposal.user_input_question:
+        questions.append(proposal.user_input_question)
+    for critique in critiques:
+        for question in critique.suggested_questions:
+            questions.append(question)
+    return _dedupe_questions(questions)
+
+
+def _format_clarification_questions(questions: list[str]) -> str:
+    if not questions:
+        return ""
+    lines = [
+        "The agents need clarification before producing the final answer.",
+        "Please answer the numbered questions below:",
+        "",
+    ]
+    lines.extend(f"{i}. {question}" for i, question in enumerate(questions, 1))
+    return "\n".join(lines)
+
+
+def _collect_conclave_questions(turns: list[ConclaveTurn]) -> list[str]:
+    questions: list[str] = []
+    for turn in turns:
+        if turn.user_input_question:
+            questions.append(turn.user_input_question)
+        elif turn.convergence == ConclaveConvergence.NEED_USER_INPUT:
+            questions.append(f"{turn.agent} needs more information but did not provide a question.")
+    return _dedupe_questions(questions)
+
+
+def _latest_structured_message(prior_messages: list[dict], message_type: MessageType) -> Optional[dict]:
+    for m in reversed(prior_messages):
+        if m.get("message_type") == message_type.value:
+            return m
+    return None
+
+
+def _load_consult_resume_state(
+    prior_messages: list[dict],
+) -> tuple[Optional[PrimaryResponse], list[ConsultantCritique]]:
+    proposal_raw = _latest_structured_message(prior_messages, MessageType.PRIMARY_PROPOSAL)
+    proposal: Optional[PrimaryResponse] = None
+    if proposal_raw:
+        try:
+            proposal = PrimaryResponse.model_validate(proposal_raw)
+        except Exception:  # noqa: BLE001
+            proposal = None
+
+    critiques: list[ConsultantCritique] = []
+    for m in prior_messages:
+        if m.get("message_type") != MessageType.CONSULTANT_CRITIQUE.value:
+            continue
+        try:
+            critiques.append(ConsultantCritique.model_validate(m))
+        except Exception:  # noqa: BLE001
+            continue
+    return proposal, critiques
 
 
 _SYNTHESIS_INSTRUCTION = (
@@ -395,15 +502,39 @@ def _too_similar(a: str, b: str, threshold: float = 0.85) -> bool:
 # Consult flow (bounded second opinion)
 # ---------------------------------------------------------------------------
 
-async def run_consult(task: TaskRequest, task_id: str) -> FinalResult:
+async def run_consult(
+    task: TaskRequest,
+    task_id: str,
+    prior_messages: Optional[list[dict]] = None,
+) -> Optional[FinalResult]:
     errors: list[ProtocolError] = []
     primary = agent_registry.get(task.primary_agent or "")
+    prior_messages = list(prior_messages or [])
 
+    resume_proposal, resume_critiques = _load_consult_resume_state(prior_messages)
+    if resume_proposal and resume_critiques and _has_user_input_response(prior_messages):
+        _raise_if_cancelled(task_id)
+        primary_final, err = await _call_adapter_method(
+            primary, "run_final",
+            _make_context(task, task_id, prior_messages),
+            task_id, AgentRole.PRIMARY, 3,
+        )
+        _raise_if_cancelled(task_id)
+        if err:
+            errors.append(err)
+        return _assemble_final(
+            task=task, task_id=task_id,
+            primary_resp=primary_final or resume_proposal, critiques=resume_critiques,
+            errors=errors, resolution_status=None,
+        )
+
+    _raise_if_cancelled(task_id)
     proposal, err = await _call_adapter_method(
         primary, "run_primary",
         _make_context(task, task_id, []),
         task_id, AgentRole.PRIMARY, 1,
     )
+    _raise_if_cancelled(task_id)
     if err:
         errors.append(err)
 
@@ -411,6 +542,7 @@ async def run_consult(task: TaskRequest, task_id: str) -> FinalResult:
     if proposal:
         prior = _serialize_messages(proposal)
         for consultant_name in task.consultants:
+            _raise_if_cancelled(task_id)
             try:
                 consultant = agent_registry.get(consultant_name)
             except KeyError:
@@ -425,19 +557,32 @@ async def run_consult(task: TaskRequest, task_id: str) -> FinalResult:
                 _make_context(task, task_id, prior),
                 task_id, AgentRole.CONSULTANT, 2,
             )
+            _raise_if_cancelled(task_id)
             if err:
                 errors.append(err)
             if critique:
                 critiques.append(critique)
 
+    questions = _collect_clarification_questions(proposal, critiques)
+    if questions and not _has_user_input_response(prior_messages):
+        _record_user_input_request(
+            task_id=task_id,
+            primary_agent=primary.name,
+            question=_format_clarification_questions(questions),
+        )
+        _set_task_status(task_id, TaskStatus.AWAITING_USER_INPUT)
+        return None
+
     primary_final: Optional[PrimaryResponse] = None
     if proposal and critiques:
+        _raise_if_cancelled(task_id)
         prior = _serialize_messages(proposal, *critiques)
         primary_final, err = await _call_adapter_method(
             primary, "run_final",
             _make_context(task, task_id, prior),
             task_id, AgentRole.PRIMARY, 3,
         )
+        _raise_if_cancelled(task_id)
         if err:
             errors.append(err)
     elif proposal:
@@ -481,6 +626,7 @@ async def run_resolve(
 
     while True:
         round_num += 1
+        _raise_if_cancelled(task_id)
 
         if (time.time() - start_time) > max_seconds:
             errors.append(ProtocolError(
@@ -511,6 +657,7 @@ async def run_resolve(
             _make_context(task, task_id, prior),
             task_id, AgentRole.PRIMARY, round_num,
         )
+        _raise_if_cancelled(task_id)
         if err:
             errors.append(err)
             return _assemble_final(
@@ -570,6 +717,7 @@ async def run_resolve(
         # RESOLVED or NEEDS_MORE_ROUNDS — give consultants a turn (if any)
         critiques: list[ConsultantCritique] = []
         for consultant_name in task.consultants:
+            _raise_if_cancelled(task_id)
             try:
                 consultant = agent_registry.get(consultant_name)
             except KeyError:
@@ -583,6 +731,7 @@ async def run_resolve(
                 _make_context(task, task_id, prior),
                 task_id, AgentRole.CONSULTANT, round_num,
             )
+            _raise_if_cancelled(task_id)
             if err:
                 errors.append(err)
             if critique:
@@ -666,6 +815,7 @@ async def run_conclave(
 
     while True:
         round_num += 1
+        _raise_if_cancelled(task_id)
 
         if (time.time() - start_time) > max_seconds:
             errors.append(ProtocolError(
@@ -690,6 +840,7 @@ async def run_conclave(
             )
 
         results = await asyncio.gather(*(call_one(p) for p in participants))
+        _raise_if_cancelled(task_id)
         round_turns: list[ConclaveTurn] = []
         for turn, err in results:
             if err:
@@ -707,16 +858,23 @@ async def run_conclave(
 
         last_turns = round_turns
 
-        # Check user-input pause: if any participant asked, pause for the user.
-        for turn in round_turns:
-            if turn.convergence == ConclaveConvergence.NEED_USER_INPUT:
-                _record_user_input_request(
-                    task_id=task_id,
-                    primary_agent=turn.agent,
-                    question=turn.user_input_question or "(question not provided)",
-                )
-                _set_task_status(task_id, TaskStatus.AWAITING_USER_INPUT)
-                return None
+        # Check user-input pause: aggregate every participant question from
+        # this round into one numbered prompt. Do this before convergence so a
+        # mixed round cannot skip user answers and proceed to final decision.
+        round_questions = _collect_conclave_questions(round_turns)
+        if round_questions:
+            asked_by = ", ".join(
+                turn.agent for turn in round_turns
+                if turn.user_input_question
+                or turn.convergence == ConclaveConvergence.NEED_USER_INPUT
+            ) or "conclave"
+            _record_user_input_request(
+                task_id=task_id,
+                primary_agent=asked_by,
+                question=_format_clarification_questions(round_questions),
+            )
+            _set_task_status(task_id, TaskStatus.AWAITING_USER_INPUT)
+            return None
 
         # Repetition check: if this round's positions are identical to the prior round, stop.
         round_sig = "|".join(sorted(f"{t.agent}:{t.position}" for t in round_turns))
@@ -820,7 +978,7 @@ async def _assemble_conclave_final(
 
     # Conclave produces no commands/patches in MVP (participants don't have recommended_actions).
     return FinalResult(
-        protocol_version="1.0",
+        protocol_version=PROTOCOL_VERSION,
         task_id=task_id,
         status=status,
         mode=task.mode,
@@ -930,7 +1088,7 @@ def _assemble_final(
             patches.append(action.payload["patch"])
 
     return FinalResult(
-        protocol_version="1.0",
+        protocol_version=PROTOCOL_VERSION,
         task_id=task_id,
         status=status,
         mode=task.mode,
@@ -940,6 +1098,7 @@ def _assemble_final(
         agreement_level=agreement_level,
         resolution_status=resolution_status,
         disagreements=_build_disagreements(critiques, primary_resp),
+        action_plan=compile_action_plan(actions, task.permissions),
         recommended_actions=actions,
         commands_requiring_approval=commands,
         patches_requiring_approval=patches,
@@ -1052,6 +1211,8 @@ async def run_task(task_id: str) -> None:
     task = _load_task(task_id)
     if task is None:
         return
+    if _is_task_cancelled(task_id):
+        return
 
     # If this task is part of a thread, attach the ancestry to context.extra so
     # the prompt builder can surface it. The orchestrator does the DB walk so
@@ -1079,6 +1240,20 @@ async def run_task(task_id: str) -> None:
             except (ValueError, TypeError):
                 pass
 
+    prior_artifacts = list_artifacts(task_id)
+    if prior_artifacts:
+        task.context.extra["prior_artifacts"] = [
+            {
+                "id": a["id"],
+                "kind": a["kind"],
+                "title": a.get("title"),
+                "filename": a["filename"],
+                "target_path": (a.get("metadata") or {}).get("target_path"),
+                "apply_mode": (a.get("metadata") or {}).get("apply_mode"),
+            }
+            for a in prior_artifacts
+        ]
+
     # If the task requested a project sandbox, prepare it (or reuse an existing
     # one for a resumed task). Path is stashed on context.extra so adapters can
     # find it and so the prompt builder can render the manifest.
@@ -1089,8 +1264,13 @@ async def run_task(task_id: str) -> None:
         if sandbox is not None:
             task.context.extra["sandbox_path"] = str(sandbox.resolve())
 
+    if _is_task_cancelled(task_id):
+        if task.context.extra.get("sandbox_path"):
+            cleanup_sandbox(task_id)
+        return
     _set_task_status(task_id, TaskStatus.RUNNING)
     try:
+        _raise_if_cancelled(task_id)
         if task.mode == TaskMode.RESOLVE:
             prior = _load_prior_messages(task_id)
             result = await run_resolve(task, task_id, prior_messages=prior)
@@ -1103,11 +1283,14 @@ async def run_task(task_id: str) -> None:
             if result is None:
                 return  # paused for user input
         elif task.mode == TaskMode.CONSULT:
-            result = await run_consult(task, task_id)
+            prior = _load_prior_messages(task_id)
+            result = await run_consult(task, task_id, prior_messages=prior)
+            if result is None:
+                return  # paused for user input
         else:
             # handoff and poll deferred to v0.2 per MVP_PLAN.md
             result = FinalResult(
-                protocol_version="1.0",
+                protocol_version=PROTOCOL_VERSION,
                 task_id=task_id,
                 status=TaskStatus.FAILED,
                 mode=task.mode,
@@ -1120,12 +1303,21 @@ async def run_task(task_id: str) -> None:
                     message=f"Mode {task.mode.value} is not implemented in MVP.",
                 )],
             )
+        _raise_if_cancelled(task_id)
         _save_final_result(task_id, result)
+        capture_from_final_result(task, task_id, result)
         _set_task_status(task_id, result.status)
         # If the task carried a sandbox and reached a terminal status, clean up.
         if result.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
             if task.context.extra.get("sandbox_path"):
                 cleanup_sandbox(task_id)
+    except TaskCancelled:
+        # Cancellation is cooperative: the active adapter call may have just
+        # returned and recorded its run/message, but no further rounds or final
+        # result should be written. Leave the task row as cancelled.
+        if task.context.extra.get("sandbox_path"):
+            cleanup_sandbox(task_id)
+        return
     except Exception as e:  # noqa: BLE001
         _set_task_status(task_id, TaskStatus.FAILED, error_message=str(e))
         # Best-effort cleanup on unexpected failure

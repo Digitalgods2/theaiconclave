@@ -6,7 +6,7 @@ The protocol (`SWITCHBOARD_PROTOCOL.md`) defines the *wire* format. This documen
 
 ## 1. Conventions
 
-- **Primary keys are TEXT (ULIDs from `app/utils/ids.py`).** Format: `<prefix>_<26-char ULID>`. Prefixes: `tsk` (task), `run` (agent_run), `msg` (agent_message), `res` (final_result), `apr` (approval), `log` (log).
+- **Primary keys are TEXT (ULIDs from `app/utils/ids.py`).** Format: `<prefix>_<26-char ULID>`. Prefixes: `tsk` (task), `run` (agent_run), `msg` (agent_message), `res` (final_result), `apr` (approval), `art` (task artifact), `log` (log).
 - **All timestamps are ISO 8601 UTC strings.** SQLite has no native datetime; ISO 8601 sorts correctly as text and round-trips through Pydantic without ambiguity.
 - **Structured fields use `_json` columns.** They are validated against the protocol schema before write. Reading them returns parsed dicts; writing serializes deterministically (sorted keys, no whitespace).
 - **Foreign keys are enforced.** Every connection sets `PRAGMA foreign_keys = ON`.
@@ -101,6 +101,7 @@ CREATE TABLE final_results (
     agreement_level                   TEXT NOT NULL,         -- consensus | minor_disagreement | major_disagreement | unresolved
     disagreements_json                TEXT NOT NULL DEFAULT '[]',
     recommended_actions_json          TEXT NOT NULL DEFAULT '[]',
+    action_plan_json                  TEXT NOT NULL DEFAULT '[]',
     risks_json                        TEXT NOT NULL DEFAULT '[]',
     commands_requiring_approval_json  TEXT NOT NULL DEFAULT '[]',
     patches_requiring_approval_json   TEXT NOT NULL DEFAULT '[]',
@@ -130,6 +131,29 @@ CREATE TABLE approvals (
 
 CREATE INDEX idx_approvals_status ON approvals(status, created_at);
 CREATE INDEX idx_approvals_task   ON approvals(task_id);
+```
+
+### `task_artifacts`
+
+App-owned draft outputs captured from final recommendations. These files live under `<user_data_root>/artifacts/<task_id>/<artifact_id>/` and are reviewable/downloadable. Applying a supported artifact to `project_path` is a separate user action.
+
+```sql
+CREATE TABLE task_artifacts (
+    id             TEXT PRIMARY KEY,          -- art_<ULID>
+    task_id        TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    updated_at     TEXT NOT NULL,
+    kind           TEXT NOT NULL,             -- file | edit | patch
+    title          TEXT,
+    filename       TEXT NOT NULL,
+    mime_type      TEXT NOT NULL,
+    size_bytes     INTEGER NOT NULL,
+    storage_path   TEXT NOT NULL,
+    metadata_json  TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+
+CREATE INDEX idx_task_artifacts_task ON task_artifacts(task_id, created_at);
 ```
 
 ### `settings`
@@ -173,6 +197,7 @@ CREATE INDEX idx_logs_event_type ON logs(event_type, created_at);
 | `ConsultantCritique` | One `agent_messages` row, `direction=from_agent`. |
 | `PeerAnswer` | One `agent_messages` row per peer, `direction=from_agent`. |
 | `FinalResult` | One `final_results` row. |
+| Draft artifacts | Zero or more `task_artifacts` rows, plus files under `artifacts/`. |
 | `Approval` | One `approvals` row. |
 | `ProtocolError` | Run-scoped errors → `agent_runs.error_code` + `error_message`. Task-scoped errors → `final_results.errors_json`. |
 

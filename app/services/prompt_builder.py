@@ -269,6 +269,30 @@ def _format_prior_art(task: TaskRequest) -> str:
     return format_for_prompt(matches)
 
 
+def _format_prior_artifacts(task: TaskRequest) -> str:
+    artifacts = task.context.extra.get("prior_artifacts") or []
+    if not artifacts:
+        return ""
+    parts = [
+        "# Prior Draft Artifacts",
+        (
+            "The app has preserved these task-scoped draft artifacts from earlier "
+            "agent recommendations. They are reviewable handoff material, not proof "
+            "that anything has been applied to the user's project."
+        ),
+    ]
+    for i, artifact in enumerate(artifacts, 1):
+        if not isinstance(artifact, dict):
+            continue
+        target = artifact.get("target_path") or artifact.get("filename") or "(unknown)"
+        parts.append(
+            f"{i}. {artifact.get('kind', 'artifact')} {artifact.get('id', '')}: "
+            f"{artifact.get('title') or artifact.get('filename') or '(untitled)'} "
+            f"(target: {target}, apply mode: {artifact.get('apply_mode') or 'review'})"
+        )
+    return "\n".join(parts)
+
+
 def _format_attachments(task: TaskRequest) -> str:
     """Inline text content from attached files. Images are noted but not embedded."""
     attachments = task.context.extra.get("attachments") or []
@@ -363,6 +387,7 @@ def build_primary_prompt(
         _format_project_sandbox(task, include_manifest=include_sandbox_manifest),
         _format_attachments(task),
         _format_prior_art(task),
+        _format_prior_artifacts(task),
     ]
     _append_prior_messages(
         parts,
@@ -404,6 +429,7 @@ def build_consultant_prompt(
         _format_project_sandbox(task, include_manifest=include_sandbox_manifest),
         _format_attachments(task),
         _format_prior_art(task),
+        _format_prior_artifacts(task),
         "",
     ]
     _append_prior_messages(
@@ -483,6 +509,7 @@ def build_conclave_prompt(
         _format_project_sandbox(task, include_manifest=include_sandbox_manifest),
         _format_attachments(task),
         _format_prior_art(task),
+        _format_prior_artifacts(task),
         "",
         f"# Other Participants in This Conclave\n{', '.join(other_participants)}",
         "",

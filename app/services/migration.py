@@ -46,7 +46,7 @@ _OLD_DB_NAME = "switchboard.db"
 _OLD_PID_NAME = "switchboard.pid"
 
 # Subdirectory trees we migrate verbatim.
-_SUBDIRS = ("sandboxes", "exports", "uploads")
+_SUBDIRS = ("sandboxes", "exports", "uploads", "artifacts")
 
 
 class MigrationBlocked(RuntimeError):

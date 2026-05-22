@@ -12,7 +12,7 @@ The wire format for messages flowing through AI Switchboard. Every task request,
 
 ## 2. Versioning
 
-Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Current version: `1.0`.
+Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Current version: `1.1`.
 
 - **MINOR bump** — additive only (new optional fields). Older clients ignore unknown fields.
 - **MAJOR bump** — breaking. Switchboard rejects mismatched majors with error `protocol_version_mismatch`.
@@ -20,11 +20,11 @@ Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Cu
 ## 3. Common Enums
 
 ### Status (task)
-`pending` · `running` · `waiting_for_user` (action approval) · `awaiting_user_input` (info needed in resolve mode) · `completed` · `failed` · `cancelled`
+`pending` · `running` · `waiting_for_user` (action approval) · `awaiting_user_input` (info needed from the user) · `completed` · `failed` · `cancelled`
 
 ### Mode (task)
 `resolve` — **default for non-trivial tasks.** Open-ended primary-driven loop until the primary signals `resolved` or `cannot_resolve`, with cost/time/repetition backstops. The primary may pause to ask the user a question (`needs_user_input`) and resume after the user answers.
-`consult` — bounded second opinion: primary proposes, consultants critique, primary finalizes. Use when you want a quick review, not full deliberation.
+`consult` — bounded second opinion: primary proposes, consultants critique, primary finalizes. If the primary or consultants surface clarification questions, the orchestrator may pause once with a numbered questionnaire and resume after the user answers. Use when you want a quick review, not full deliberation.
 `conclave` — **N equal participants, full-mesh visibility.** No primary. Each round, every participant contributes one `ConclaveTurn` with their current `position` and a `convergence` signal. Terminates when at least `convergence_threshold` fraction of participants signal `i_am_done` (default 1.0 = unanimous). The orchestrator never picks a winner; on weak convergence it surfaces every position to the user.
 `handoff` — named agent is primary; the calling agent is consultant or absent.
 `poll` — each agent answers independently. No critique loop, no primary.
@@ -49,6 +49,12 @@ A float in `[0.0, 1.0]`. Agents may also send `null` if unable to estimate.
 
 ### Agreement level (final result only)
 `consensus` · `minor_disagreement` · `major_disagreement` · `unresolved`
+
+### Action type (structured action plan)
+`read_file` - `write_file` - `run_command` - `install_package` - `apply_patch` - `network_access` - `deployment_change` - `secret_access` - `human_decision` - `unknown`
+
+### Policy status (structured action plan)
+`allowed` - `needs_approval` - `blocked` - `unknown`
 
 ## 4. Task Request
 
@@ -172,6 +178,8 @@ Returned by a consultant after seeing the primary's proposal.
 
 `wants_continuation` (resolve mode): `true` if this consultant believes another primary round would meaningfully improve the answer. When the primary returns `resolved` and any consultant sets `wants_continuation: true`, the orchestrator runs another primary round. Defaults to `false`.
 
+In **consult mode**, `suggested_questions` are also used by the clarification gate. The orchestrator deduplicates the primary's `user_input_question` and all consultant `suggested_questions`, records one numbered `user_input_request`, sets the task to `awaiting_user_input`, and resumes final synthesis after `/api/tasks/{id}/answer`.
+
 ## 7. Peer Answer (Poll Mode)
 
 Returned by each peer in poll mode. No critique, no primary, no rounds.
@@ -220,6 +228,19 @@ Built by the result builder and returned to the caller.
       "payload": {"command": "python -m pip install -r requirements.txt"}
     }
   ],
+  "action_plan": [
+    {
+      "step_number": 1,
+      "action_type": "install_package",
+      "summary": "Install dependencies into the project venv.",
+      "target": "python -m pip install -r requirements.txt",
+      "source_action_kind": "run_command",
+      "required_permissions": ["can_install_packages", "can_run_commands", "can_access_network"],
+      "policy_status": "needs_approval",
+      "policy_reasons": ["Package installation always requires approval."],
+      "payload": {"command": "python -m pip install -r requirements.txt"}
+    }
+  ],
   "commands_requiring_approval": ["python -m pip install -r requirements.txt"],
   "patches_requiring_approval": [],
   "risks": [
@@ -231,7 +252,29 @@ Built by the result builder and returned to the caller.
 
 `disagreements` MUST contain every disagreement raised by any consultant that the primary did not explicitly accept. Do not summarize. Do not omit "minor" disagreements. The user reads this list to decide whether the consensus is real.
 
-## 9. Errors
+`action_plan` is the Structured Action Plan. It is compiled from the final synthesized response's `recommended_actions` in `consult` and `resolve` modes. In v1 it is advisory only: it makes the operational handoff legible and permission-aware, but it does not execute actions, create approvals, pause tasks, or remove blocked steps. `conclave` mode returns an empty action plan until a future protocol revision gives the final synthesized answer structured recommended actions.
+
+`recommended_actions`, `commands_requiring_approval`, and `patches_requiring_approval` remain in the final result for backward compatibility. New clients should present `action_plan` as the primary user-facing action artifact when it is non-empty.
+
+## 9. Draft Artifacts
+
+When final `recommended_actions` include draftable file operations, Switchboard may preserve them as task-scoped artifacts under the runtime data root. These are operational handoff material, not agent writes to the user's project.
+
+Supported v1 captures:
+
+- `create_file` / `write_file` with `payload.path` and `payload.content` become `file` artifacts.
+- `edit_file` with `payload.path`, `payload.search`, and `payload.replace` becomes an `edit` artifact.
+- Patch-like actions with `payload.patch` or `payload.diff` become review/download-only `patch` artifacts.
+
+Task detail responses include `artifacts: [...]` with metadata and text previews. The task API also exposes:
+
+- `GET /api/tasks/{task_id}/artifacts`
+- `GET /api/tasks/{task_id}/artifacts/{artifact_id}/download`
+- `POST /api/tasks/{task_id}/artifacts/{artifact_id}/apply`
+
+Applying an artifact is explicit user action. It writes only inside the task's `project_path`; `file` artifacts write the target file, and `edit` artifacts perform one search/replace. Patch artifacts remain review/download-only in v1.
+
+## 10. Errors
 
 Errors are objects, not strings.
 
@@ -258,16 +301,16 @@ Stable error codes:
 | `invalid_request` | Task request failed schema validation |
 | `resolve_timeout` | Resolve loop exceeded `limits.max_seconds` |
 
-## 10. Status Transitions
+## 11. Status Transitions
 
 ```
 pending → running → completed
                  ↘ failed
                  ↘ cancelled
                  ↘ waiting_for_user      → running → ...    (action approval)
-                 ↘ awaiting_user_input   → pending → running → ...  (resolve-mode user question)
+                 ↘ awaiting_user_input   → pending → running → ...  (user clarification)
 ```
 
 `waiting_for_user` and `awaiting_user_input` are both reachable from `running` only. They differ in semantics:
 - `waiting_for_user` — orchestrator paused on an approval gate (action requires user OK).
-- `awaiting_user_input` — primary asked the user a question in `resolve` mode; resumes when the user POSTs an answer to `/api/tasks/{id}/answer`, which moves the task back to `pending` for the worker to re-claim.
+- `awaiting_user_input` — the primary or consultants asked the user a clarifying question; resumes when the user POSTs an answer to `/api/tasks/{id}/answer`, which moves the task back to `pending` for the worker to re-claim.

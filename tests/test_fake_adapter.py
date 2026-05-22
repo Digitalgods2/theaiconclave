@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from app.agents.fake_adapter import FakeAdapter
 from app.database import connect, init_database, now_iso
 from app.protocol.validators import Limits, Permissions
 from app.services import agent_registry
@@ -57,6 +58,54 @@ def _create_pending_task(extra: dict | None = None) -> str:
              context_json, permissions_json, limits_json)
             VALUES (?, ?, ?, 'pending', 'api', NULL, 'consult', 'general_consultation',
                     'Test request', 'fake', '["fake"]', NULL, ?, ?, ?)""",
+            (
+                tid,
+                now,
+                now,
+                json.dumps(context, sort_keys=True),
+                json.dumps(permissions.model_dump(), sort_keys=True),
+                json.dumps(limits.model_dump(), sort_keys=True),
+            ),
+        )
+    return tid
+
+
+class _CancelAfterPrimaryFake(FakeAdapter):
+    name = "cancel-after-primary"
+
+    async def run_primary(self, ctx):
+        resp = await super().run_primary(ctx)
+        with connect() as conn:
+            conn.execute(
+                "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE id = ?",
+                (now_iso(), ctx.task_id),
+            )
+        return resp
+
+
+def _create_cancel_after_primary_task() -> str:
+    tid = new_task_id()
+    now = now_iso()
+    permissions = Permissions(
+        can_read_files=True,
+        can_write_files=False,
+        can_run_commands=False,
+        can_access_network=False,
+        can_install_packages=False,
+        can_apply_patches=False,
+        can_read_env_files=False,
+        can_read_secrets=False,
+    )
+    limits = Limits(max_rounds=3, timeout_seconds=30)
+    context = {"files": [], "error": None, "git_diff": None, "extra": {}}
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO tasks
+            (id, created_at, updated_at, status, source, source_agent, mode, task_type,
+             user_request, primary_agent, consultants, project_path,
+             context_json, permissions_json, limits_json)
+            VALUES (?, ?, ?, 'pending', 'api', NULL, 'consult', 'general_consultation',
+                    'Cancel test request', 'cancel-after-primary', '["fake"]', NULL, ?, ?, ?)""",
             (
                 tid,
                 now,
@@ -141,3 +190,26 @@ async def test_consultant_agree_yields_no_disagreements(temp_db):
     assert result["agreement_level"] == "consensus"
     disagreements = json.loads(result["disagreements_json"])
     assert disagreements == []
+
+
+async def test_cancelled_consult_stops_after_current_adapter_call(temp_db):
+    agent_registry.register(_CancelAfterPrimaryFake())
+    tid = _create_cancel_after_primary_task()
+
+    await run_task(tid)
+
+    with connect() as conn:
+        task = conn.execute(
+            "SELECT status FROM tasks WHERE id = ?", (tid,)
+        ).fetchone()
+        result = conn.execute(
+            "SELECT * FROM final_results WHERE task_id = ?", (tid,)
+        ).fetchone()
+        runs = conn.execute(
+            "SELECT role FROM agent_runs WHERE task_id = ? ORDER BY started_at",
+            (tid,),
+        ).fetchall()
+
+    assert task["status"] == "cancelled"
+    assert result is None
+    assert [r["role"] for r in runs] == ["primary"]

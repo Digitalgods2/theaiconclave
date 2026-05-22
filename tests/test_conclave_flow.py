@@ -17,10 +17,17 @@ from pathlib import Path
 
 import pytest
 
-from app.agents.base import BaseAdapter
+from app.agents.base import AdapterTestResult, BaseAdapter
 from app.agents.fake_adapter import FakeAdapter
 from app.database import connect, init_database, now_iso
-from app.protocol.validators import Limits, Permissions
+from app.protocol.validators import (
+    AgentRole,
+    ConclaveConvergence,
+    ConclaveTurn,
+    Limits,
+    MessageType,
+    Permissions,
+)
 from app.services import agent_registry
 from app.services.orchestrator import run_task
 from app.utils.ids import task_id as new_task_id
@@ -40,6 +47,60 @@ class _BehaviorOverrideFake(FakeAdapter):
     @staticmethod
     def _behavior(ctx):  # type: ignore[override]
         return _current_behavior_lookup.get(ctx.task_id, "conclave_quick")
+
+
+class _CancelAfterConclaveTurnFake(_BehaviorOverrideFake):
+    async def run_conclave_turn(self, ctx):
+        turn = await super().run_conclave_turn(ctx)
+        with connect() as conn:
+            conn.execute(
+                "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE id = ?",
+                (now_iso(), ctx.task_id),
+            )
+        return turn
+
+
+class _QuestionTurnAdapter(BaseAdapter):
+    def __init__(self, agent_name: str, question: str):
+        self._agent_name = agent_name
+        self._question = question
+
+    @property
+    def name(self) -> str:  # type: ignore[override]
+        return self._agent_name
+
+    async def is_available(self) -> bool:
+        return True
+
+    async def test_connection(self) -> AdapterTestResult:
+        return AdapterTestResult(available=True, elapsed_ms=0)
+
+    async def run_primary(self, ctx):  # pragma: no cover - not used
+        raise NotImplementedError
+
+    async def run_consultant(self, ctx):  # pragma: no cover - not used
+        raise NotImplementedError
+
+    async def run_final(self, ctx):  # pragma: no cover - not used
+        raise NotImplementedError
+
+    async def run_peer(self, ctx):  # pragma: no cover - not used
+        raise NotImplementedError
+
+    async def run_conclave_turn(self, ctx) -> ConclaveTurn:
+        return ConclaveTurn(
+            protocol_version="1.0",
+            task_id=ctx.task_id,
+            agent=self.name,
+            role=AgentRole.PARTICIPANT,
+            message_type=MessageType.CONCLAVE_TURN,
+            summary=f"{self.name} needs clarification.",
+            analysis="A user answer is required before final synthesis.",
+            position="Cannot finalize without clarification.",
+            convergence=ConclaveConvergence.NEED_USER_INPUT,
+            user_input_question=self._question,
+            confidence=0.5,
+        )
 
 
 # Per-test behavior lookup keyed by task_id, used by the fake adapters above.
@@ -213,6 +274,37 @@ async def test_conclave_user_input_pause_resume(temp_db):
     assert _task_status(tid) == "completed"
 
 
+async def test_conclave_aggregates_all_user_input_questions(temp_db):
+    agent_registry.clear()
+    agent_registry.register(_QuestionTurnAdapter("alpha", "What visual direction should guide the design?"))
+    agent_registry.register(_QuestionTurnAdapter("beta", "Which pages are in scope?"))
+    agent_registry.register(_QuestionTurnAdapter("gamma", "Should existing CSS remain as a compatibility layer?"))
+    tid = _create_conclave_task(
+        "unused",
+        participants=["alpha", "beta", "gamma"],
+    )
+
+    await run_task(tid)
+
+    assert _task_status(tid) == "awaiting_user_input"
+    with connect() as conn:
+        req = conn.execute(
+            """SELECT agent_name, content FROM agent_messages
+               WHERE task_id = ? AND message_type = 'user_input_request'""",
+            (tid,),
+        ).fetchone()
+        result = conn.execute(
+            "SELECT * FROM final_results WHERE task_id = ?",
+            (tid,),
+        ).fetchone()
+    assert result is None
+    assert req is not None
+    assert req["agent_name"] == "alpha, beta, gamma"
+    assert "1. What visual direction should guide the design?" in req["content"]
+    assert "2. Which pages are in scope?" in req["content"]
+    assert "3. Should existing CSS remain as a compatibility layer?" in req["content"]
+
+
 # ---------------------------------------------------------------------------
 # Convergence threshold below 1.0: majority terminates
 # ---------------------------------------------------------------------------
@@ -305,3 +397,24 @@ async def test_conclave_majority_threshold(temp_db):
             (tid,),
         ).fetchone()
     assert directive["n"] == 1
+
+
+async def test_cancelled_conclave_does_not_start_another_round(temp_db):
+    agent_registry.clear()
+    agent_registry.register(_CancelAfterConclaveTurnFake("alpha", "conclave_quick"))
+    agent_registry.register(_BehaviorOverrideFake("beta", "conclave_quick"))
+    agent_registry.register(_BehaviorOverrideFake("gamma", "conclave_quick"))
+
+    tid = _create_conclave_task("conclave_diverge")
+    await run_task(tid)
+
+    assert _task_status(tid) == "cancelled"
+    assert _final_result(tid) is None
+    assert _participant_turn_count(tid) == 3
+    with connect() as conn:
+        directives = conn.execute(
+            """SELECT COUNT(*) AS n FROM agent_messages
+               WHERE task_id = ? AND message_type = 'synthesis_directive'""",
+            (tid,),
+        ).fetchone()
+    assert directives["n"] == 0

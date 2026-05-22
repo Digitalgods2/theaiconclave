@@ -27,7 +27,9 @@ Per the charter's own evolution rule:
 4. The keeper (`claude-code`) bumps the version number and updates `skills/generic/conclave_charter.md`.
 5. A decision record is filed at `docs/decisions/<NNNN>_<slug>.md`.
 
-The current version is **v1.1**, ratified 2026-05-11 (originally v1.0 on 2026-05-10). Decision records:
+The current version is **v1.3**, ratified 2026-05-21 (originally v1.0 on 2026-05-10). Decision records:
 
 - `docs/decisions/0001_charter_adoption.md` — initial adoption (v1.0)
 - `docs/decisions/0002_multimodal_disagreement_policy.md` — Multimodal Disagreement section added (v1.1)
+- `docs/decisions/0006_charter_v1_2_operability_before_capability.md` — Operability before capability principle and Decision Records Operability Impact field added (v1.2)
+- `docs/decisions/0021_evidence_norms_charter_v1_3.md` — Evidence Norms for load-bearing factual claims added (v1.3)

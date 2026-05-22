@@ -382,6 +382,8 @@ const Api = {
   cancelTask: (id) => api(`/api/tasks/${id}/cancel`, { method: "POST" }),
   answerTask: (id, answer) => api(`/api/tasks/${id}/answer`,
     { method: "POST", body: JSON.stringify({ answer }) }),
+  applyArtifact: (taskId, artifactId) => api(`/api/tasks/${taskId}/artifacts/${artifactId}/apply`,
+    { method: "POST" }),
   decideTask: (id, decision) => api(`/api/tasks/${id}/decide`,
     { method: "POST", body: JSON.stringify({ decision }) }),
   exportTask: (id) => api(`/api/tasks/${id}/export`, { method: "POST" }),
@@ -2496,6 +2498,9 @@ function renderDetail(data) {
   // Final result
   renderFinalResult(finalResult);
 
+  // Draft artifacts
+  renderArtifactPanel(task, Array.isArray(data.artifacts) ? data.artifacts : []);
+
   // Errors
   renderErrors(finalResult);
 
@@ -2508,7 +2513,7 @@ function renderDetail(data) {
   }
 
   // Decision panel (terminal status only) - rendered before the post-task bar
-  renderDecisionPanel(task);
+  renderDecisionPanel(task, messages);
 
   // Post-task action bar (terminal status only)
   const postBar = $("#post-task-bar");
@@ -2882,13 +2887,26 @@ function renderUsageSummary(task, agentRuns) {
   return el("p", { class: "detail-usage muted", text });
 }
 
-function renderDecisionPanel(task) {
+function hasUnansweredInputRequest(messages) {
+  let latestRequest = -1;
+  let latestResponse = -1;
+  const list = Array.isArray(messages) ? messages : [];
+  for (let i = 0; i < list.length; i++) {
+    const m = list[i] || {};
+    if (m.message_type === "user_input_request") latestRequest = i;
+    if (m.message_type === "user_input_response") latestResponse = i;
+  }
+  return latestRequest >= 0 && latestRequest > latestResponse;
+}
+
+function renderDecisionPanel(task, messages) {
   const panel = $("#decision-panel");
   const inner = $("#decision-panel-inner");
   if (!panel || !inner) return;
 
   const isTerminal = task && task.status && State.terminalStatuses.has(task.status);
-  if (!isTerminal) {
+  const unresolvedPrompt = hasUnansweredInputRequest(messages);
+  if (!isTerminal || unresolvedPrompt) {
     panel.hidden = true;
     inner.innerHTML = "";
     // Reset editing state when leaving terminal status
@@ -3213,6 +3231,7 @@ function renderAnswerPrompt(task, messages) {
   }
 
   const qEl = $("#answer-question");
+  const questionnaireEl = $("#answer-questionnaire");
   const askedByEl = $("#answer-asked-by");
   const ctxWrap = $("#answer-context");
   const ctxText = $("#answer-context-text");
@@ -3220,9 +3239,11 @@ function renderAnswerPrompt(task, messages) {
   if (questionText) {
     qEl.textContent = questionText;
     qEl.classList.remove("answer-question-missing");
+    renderQuestionnaire(questionnaireEl, questionText);
   } else {
     qEl.textContent = "An agent paused the deliberation for your input, but no question text was recorded — check the latest agent turn in the Transcript below.";
     qEl.classList.add("answer-question-missing");
+    renderQuestionnaire(questionnaireEl, "");
   }
 
   if (askedBy) {
@@ -3239,6 +3260,41 @@ function renderAnswerPrompt(task, messages) {
     ctxWrap.hidden = true;
     ctxText.textContent = "";
   }
+}
+
+function parseNumberedQuestions(text) {
+  const lines = String(text || "").split(/\r?\n/);
+  const questions = [];
+  for (const line of lines) {
+    const m = line.match(/^\s*(\d+)[.)]\s+(.+?)\s*$/);
+    if (m && m[2]) questions.push(m[2]);
+  }
+  return questions;
+}
+
+function renderQuestionnaire(container, questionText) {
+  if (!container) return;
+  container.innerHTML = "";
+  const questions = parseNumberedQuestions(questionText);
+  if (questions.length < 2) {
+    container.hidden = true;
+    return;
+  }
+  container.hidden = false;
+  questions.forEach((question, idx) => {
+    const row = el("label", { class: "answer-questionnaire-item" });
+    row.appendChild(el("span", { class: "answer-questionnaire-number", text: String(idx + 1) }));
+    const body = el("span", { class: "answer-questionnaire-body" });
+    body.appendChild(el("span", { class: "answer-questionnaire-question", text: question }));
+    body.appendChild(el("textarea", {
+      class: "answer-questionnaire-input",
+      rows: "2",
+      "data-question-index": String(idx + 1),
+      placeholder: "Answer question " + (idx + 1),
+    }));
+    row.appendChild(body);
+    container.appendChild(row);
+  });
 }
 
 function groupMessagesByRound(messages) {
@@ -3758,6 +3814,131 @@ function renderConfidencePanel(agg, trajectory) {
   return panel;
 }
 
+function renderActionPlan(steps) {
+  const wrap = el("div", { class: "action-plan" });
+  wrap.appendChild(el("div", { class: "action-plan-title", text: "Structured Action Plan" }));
+  const list = el("div", { class: "action-plan-list" });
+  for (const step of steps) {
+    if (!isPlainObject(step)) continue;
+    const status = String(step.policy_status || "unknown");
+    const card = el("div", { class: "action-plan-step action-plan-" + status });
+    const head = el("div", { class: "action-plan-step-head" });
+    head.appendChild(el("span", {
+      class: "action-plan-number",
+      text: String(step.step_number || "?"),
+    }));
+    head.appendChild(el("span", {
+      class: "action-plan-summary",
+      text: step.summary || "(no summary)",
+    }));
+    head.appendChild(el("span", {
+      class: "action-plan-status action-plan-status-" + status,
+      text: prettifyKey(status),
+    }));
+    card.appendChild(head);
+
+    const meta = el("div", { class: "action-plan-meta" });
+    if (step.action_type) {
+      meta.appendChild(el("span", { text: "type: " + step.action_type }));
+    }
+    if (step.target) {
+      meta.appendChild(el("span", { class: "action-plan-target", text: "target: " + step.target }));
+    }
+    if (Array.isArray(step.required_permissions) && step.required_permissions.length > 0) {
+      meta.appendChild(el("span", { text: "permissions: " + step.required_permissions.join(", ") }));
+    }
+    if (step.source_action_kind) {
+      meta.appendChild(el("span", { text: "source: " + step.source_action_kind }));
+    }
+    if (meta.childNodes.length > 0) card.appendChild(meta);
+
+    if (Array.isArray(step.policy_reasons) && step.policy_reasons.length > 0) {
+      const reasons = el("ul", { class: "action-plan-reasons" });
+      for (const reason of step.policy_reasons) {
+        reasons.appendChild(el("li", { text: String(reason) }));
+      }
+      card.appendChild(reasons);
+    }
+    list.appendChild(card);
+  }
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function renderArtifactPanel(task, artifacts) {
+  const section = $("#artifact-panel-section");
+  const container = $("#artifact-panel-container");
+  if (!section || !container) return;
+  container.innerHTML = "";
+  if (!Array.isArray(artifacts) || artifacts.length === 0) {
+    section.hidden = true;
+    return;
+  }
+  section.hidden = false;
+  const list = el("div", { class: "artifact-list" });
+  for (const artifact of artifacts) {
+    if (!isPlainObject(artifact)) continue;
+    const metadata = isPlainObject(artifact.metadata) ? artifact.metadata : {};
+    const card = el("div", { class: "artifact-card artifact-kind-" + (artifact.kind || "unknown") });
+    const head = el("div", { class: "artifact-head" });
+    head.appendChild(el("div", { class: "artifact-title", text: artifact.title || artifact.filename || artifact.id }));
+    head.appendChild(el("span", { class: "artifact-kind", text: artifact.kind || "artifact" }));
+    card.appendChild(head);
+
+    const meta = el("div", { class: "artifact-meta" });
+    meta.appendChild(el("span", { text: "file: " + (artifact.filename || "(unknown)") }));
+    if (metadata.target_path) meta.appendChild(el("span", { text: "target: " + metadata.target_path }));
+    if (metadata.apply_mode) meta.appendChild(el("span", { text: "mode: " + metadata.apply_mode }));
+    if (metadata.agent) meta.appendChild(el("span", { text: "agent: " + metadata.agent }));
+    card.appendChild(meta);
+
+    if (artifact.content) {
+      const details = el("details", { class: "artifact-preview" });
+      details.appendChild(el("summary", { text: "Preview" }));
+      details.appendChild(el("pre", { class: "field-value mono", text: artifact.content }));
+      card.appendChild(details);
+    }
+
+    const actions = el("div", { class: "artifact-actions" });
+    const download = el("a", {
+      class: "btn btn-secondary",
+      href: `/api/tasks/${task.id}/artifacts/${artifact.id}/download`,
+      text: "Download",
+    });
+    actions.appendChild(download);
+    const canApply = metadata.apply_mode === "write_file" || metadata.apply_mode === "search_replace";
+    if (canApply) {
+      const applyBtn = el("button", {
+        type: "button",
+        class: "btn btn-primary",
+        text: metadata.applied_at ? "Apply again" : "Apply to project",
+      });
+      applyBtn.addEventListener("click", async () => {
+        const target = metadata.target_path || artifact.filename || artifact.id;
+        const ok = window.confirm("Apply this draft artifact to " + target + "?");
+        if (!ok) return;
+        applyBtn.disabled = true;
+        applyBtn.textContent = "Applying...";
+        try {
+          await Api.applyArtifact(task.id, artifact.id);
+          await refreshDetail();
+        } catch (e) {
+          alert("Apply failed: " + e.message);
+          applyBtn.disabled = false;
+          applyBtn.textContent = metadata.applied_at ? "Apply again" : "Apply to project";
+        }
+      });
+      actions.appendChild(applyBtn);
+    }
+    if (metadata.applied_at) {
+      actions.appendChild(el("span", { class: "artifact-applied", text: "applied " + fmtTime(metadata.applied_at) }));
+    }
+    card.appendChild(actions);
+    list.appendChild(card);
+  }
+  container.appendChild(list);
+}
+
 function renderFinalResult(fr) {
   const section = $("#final-result-section");
   const container = $("#final-result-container");
@@ -3837,9 +4018,19 @@ function renderFinalResult(fr) {
     grid.appendChild(dis);
   }
 
+  const hasActionPlan = Array.isArray(fr.action_plan) && fr.action_plan.length > 0;
+  if (hasActionPlan) {
+    grid.appendChild(renderActionPlan(fr.action_plan));
+  }
+
   // Recommended actions
-  if (Array.isArray(fr.recommended_actions) && fr.recommended_actions.length > 0) {
+  if (!hasActionPlan && Array.isArray(fr.recommended_actions) && fr.recommended_actions.length > 0) {
     grid.appendChild(renderField("recommended actions", fr.recommended_actions));
+  } else if (hasActionPlan && Array.isArray(fr.recommended_actions) && fr.recommended_actions.length > 0) {
+    const raw = el("details", { class: "raw-recommendations" });
+    raw.appendChild(el("summary", { text: "Raw recommendations" }));
+    raw.appendChild(renderField("recommended actions", fr.recommended_actions));
+    grid.appendChild(raw);
   }
   // Risks
   if (Array.isArray(fr.risks) && fr.risks.length > 0) {
@@ -3896,7 +4087,17 @@ async function onSubmitAnswer(ev) {
   const status = $("#answer-status");
   status.className = "form-status";
   status.textContent = "";
-  const text = $("#answer-text").value.trim();
+  let text = $("#answer-text").value.trim();
+  const questionInputs = $$(".answer-questionnaire-input");
+  const answeredQuestions = [];
+  for (const input of questionInputs) {
+    const value = (input.value || "").trim();
+    const idx = input.getAttribute("data-question-index") || String(answeredQuestions.length + 1);
+    if (value) answeredQuestions.push(idx + ". " + value);
+  }
+  if (answeredQuestions.length > 0) {
+    text = answeredQuestions.join("\n") + (text ? "\n\nAdditional context:\n" + text : "");
+  }
   if (!text) {
     status.className = "form-status error";
     status.textContent = "Please enter an answer.";
@@ -3908,6 +4109,7 @@ async function onSubmitAnswer(ev) {
     status.className = "form-status ok";
     status.textContent = "Answer sent.";
     $("#answer-text").value = "";
+    for (const input of questionInputs) input.value = "";
     refreshDetail();
   } catch (e) {
     status.className = "form-status error";

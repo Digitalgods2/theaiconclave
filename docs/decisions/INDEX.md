@@ -25,6 +25,12 @@ Every ratified decision lives in this directory. The keeper (`claude-code`) main
 | **[0002](0002_multimodal_disagreement_policy.md)** | 2026-05-11 | Charter v1.1: Multimodal Disagreement section (do not synthesize visual perception disputes) | conclave 3-AI + Glen ratified | Charter amended; binding on every prompt |
 | **[0001](0001_charter_adoption.md)** | 2026-05-10 | Initial adoption of Conclave Charter v1.0 | conclave 3-AI + Glen ratified | Charter embedded in every prompt via `skills/generic/conclave_charter.md` |
 
+## Recent addition
+
+| **[0021](0021_evidence_norms_charter_v1_3.md)** | 2026-05-21 | Charter v1.3: Evidence Norms | conclave 3-AI + Glen ratified | Charter amended; participants must cite or identify the basis for load-bearing factual claims, label unsupported assumptions, and preserve material evidence gaps. |
+| **[0020](0020_clarification_gate_and_draft_artifacts.md)** | 2026-05-20 | Clarification Gate and Draft Artifacts | Glen-directed | Adds a consult-mode numbered clarification pause and app-owned draft artifacts for file/edit/patch handoff; supported artifacts can be explicitly applied to `project_path` by the user. |
+| **[0019](0019_structured_action_plan.md)** | 2026-05-20 | Structured Action Plan | Glen-directed | Adds `FinalResult.action_plan` as an advisory structured operational handoff compiled from final `recommended_actions`; classifies steps, required permissions, policy status, and reasons without executing, pausing, or creating approvals. |
+
 ## How to read this index
 
 Each row shows the decision's date, title, the deliberation mode that produced it, and the operational outcome. Click into any record for the full structured record with rejected alternatives, known risks, and open questions.
@@ -39,8 +45,8 @@ Per the Charter's amendment process:
 4. **Index**: the keeper appends a row to this file
 5. **Cross-link**: relevant docs that change as a result of the decision get updated and reference the decision number
 
-Decisions are append-only. Earlier decisions can be superseded by later ones (e.g., a v1.2 amendment to the Charter would supersede the v1.1 section but the v1.1 record stays in place as audit history).
+Decisions are append-only. Earlier decisions can be superseded by later ones (e.g., a v1.3 amendment to the Charter updates the current binding version while older amendment records stay in place as audit history).
 
 ## The conclave's own dogfooding
 
-Four of these decision records came out of the conclave deliberating about its own design (charter adoption, multimodal disagreement, retention, charter v1.2). The rest (sandbox, db concurrency + Tier 2 export, slash-command parity, detail export, Ollama Cloud seats, settings panel, OpenRouter seats, inline-sandbox for API seats, the DR0013 pre-fetched-URL spec, and the DR0014 Ollama Cloud removal) were Glen-directed. The Switchboard product is, in part, a tool for designing itself. This index is part of the audit trail of that process.
+Five of these decision records came out of the conclave deliberating about its own design (charter adoption, multimodal disagreement, retention, charter v1.2, charter v1.3). The rest were Glen-directed. The Switchboard product is, in part, a tool for designing itself. This index is part of the audit trail of that process.

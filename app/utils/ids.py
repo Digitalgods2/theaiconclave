@@ -53,3 +53,7 @@ def approval_id() -> str:
 
 def log_id() -> str:
     return f"log_{_ulid()}"
+
+
+def artifact_id() -> str:
+    return f"art_{_ulid()}"

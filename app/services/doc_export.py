@@ -189,6 +189,25 @@ def render_pdf(task: dict, messages: list[dict], final_result: dict | None,
             story.append(Paragraph(f"<b>Resolution status:</b> {esc(fr.get('resolution_status'))}", BODY))
         story.append(Spacer(1, 4))
         story.append(Paragraph(esc(fr.get("final_answer")), BODY))
+        action_plan = fr.get("action_plan") or []
+        if action_plan:
+            story.append(Paragraph("Structured Action Plan", TURN))
+            for step in action_plan:
+                if not isinstance(step, dict):
+                    continue
+                bits = [
+                    f"<b>{esc(step.get('step_number'))}. {esc(step.get('summary'))}</b>",
+                    f"type: {esc(step.get('action_type'))}",
+                    f"policy: {esc(step.get('policy_status'))}",
+                ]
+                if step.get("target"):
+                    bits.append(f"target: {esc(step.get('target'))}")
+                perms = step.get("required_permissions") or []
+                if perms:
+                    bits.append("permissions: " + esc(", ".join(map(str, perms))))
+                story.append(Paragraph("<br/>".join(bits), BODY))
+                for reason in (step.get("policy_reasons") or []):
+                    story.append(Paragraph(f"<i>Reason:</i> {esc(reason)}", BODY))
         for dd in (fr.get("disagreements") or []):
             story.append(Paragraph("Disagreements", TURN))
             story.append(Paragraph(f"<b>{esc(dd.get('topic'))}</b>", BODY))
@@ -293,6 +312,28 @@ def render_docx(task: dict, messages: list[dict], final_result: dict | None,
             r2.bold = True
             p2.add_run(str(fr.get("resolution_status")))
         _add_multiline(doc, fr.get("final_answer") or "")
+        action_plan = fr.get("action_plan") or []
+        if action_plan:
+            doc.add_heading("Structured Action Plan", level=2)
+            for step in action_plan:
+                if not isinstance(step, dict):
+                    continue
+                p = doc.add_paragraph()
+                p.add_run(f"{step.get('step_number')}. {step.get('summary') or ''}").bold = True
+                details = doc.add_paragraph()
+                bits = [
+                    f"type: {step.get('action_type') or ''}",
+                    f"policy: {step.get('policy_status') or ''}",
+                ]
+                if step.get("target"):
+                    bits.append(f"target: {step.get('target')}")
+                if step.get("required_permissions"):
+                    bits.append("permissions: " + ", ".join(map(str, step.get("required_permissions") or [])))
+                details.add_run(" | ".join(bits))
+                for reason in (step.get("policy_reasons") or []):
+                    rp = doc.add_paragraph()
+                    rp.add_run("Reason: ").italic = True
+                    rp.add_run(str(reason))
         for dd in (fr.get("disagreements") or []):
             doc.add_heading("Disagreements", level=2)
             p = doc.add_paragraph()
