@@ -180,6 +180,15 @@ const COPY_CHECK_SVG =
   '<polyline points="20 6 9 17 4 12"></polyline>' +
   '</svg>';
 
+const TRASH_ICON_SVG =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">' +
+  '<polyline points="3 6 5 6 21 6"></polyline>' +
+  '<path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>' +
+  '<path d="M10 11v6M14 11v6"></path>' +
+  '<path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>' +
+  '</svg>';
+
 async function copyToClipboard(text) {
   if (text === null || text === undefined) text = "";
   text = String(text);
@@ -2037,7 +2046,7 @@ function renderInbox() {
   if (filtered.length === 0) {
     const emptyText = all.length === 0 ? "No tasks yet." : "No tasks match the current filters.";
     tbody.appendChild(el("tr", {}, [
-      el("td", { colspan: 5, class: "muted", text: emptyText }),
+      el("td", { colspan: 6, class: "muted", text: emptyText }),
     ]));
     updateInboxCounter(0, all.length);
     return;
@@ -2072,9 +2081,64 @@ function renderInbox() {
     tr.appendChild(el("td", {}, [modeBadge(t.mode)]));
     tr.appendChild(el("td", { text: agentsList.join(", ") || "-" }));
     tr.appendChild(el("td", { text: fmtTime(t.created_at) }));
+    const actionCell = el("td", { class: "actions-cell" });
+    actionCell.appendChild(makeDeleteButton(t.id));
+    tr.appendChild(actionCell);
     tbody.appendChild(tr);
   }
   updateInboxCounter(filtered.length, all.length);
+}
+
+// A per-row delete (trash) button for the inbox. Stops the row click so it
+// doesn't also open the detail view, then hard-deletes via deleteTask().
+function makeDeleteButton(taskId) {
+  const btn = el("button", {
+    type: "button",
+    class: "row-delete-btn",
+    "aria-label": "Delete task " + shortId(taskId),
+    title: "Delete task",
+    html: TRASH_ICON_SVG,
+  });
+  btn.addEventListener("click", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    deleteTask(taskId);
+  });
+  return btn;
+}
+
+// Hard-delete a task after confirmation. The server cascade-removes the
+// transcript, runs, final result, approvals, and artifacts; this is permanent.
+async function deleteTask(taskId) {
+  const ok = window.confirm(
+    "Permanently delete task " + shortId(taskId) + "?\n\n" +
+    "This removes its transcript, final result, and draft artifacts " +
+    "everywhere in the app. This cannot be undone."
+  );
+  if (!ok) return;
+  try {
+    const resp = await fetch("/api/tasks/" + encodeURIComponent(taskId), { method: "DELETE" });
+    if (!resp.ok) {
+      let detail = "HTTP " + resp.status;
+      try { const j = await resp.json(); if (j && j.detail) detail = j.detail; } catch (_) { /* ignore */ }
+      window.alert("Could not delete task: " + detail);
+      return;
+    }
+  } catch (e) {
+    window.alert("Could not delete task: " + (e && e.message ? e.message : e));
+    return;
+  }
+  // Drop it from the cached list so the row disappears immediately, then
+  // re-fetch so the counter and any server-side derived state stay in sync.
+  State.inboxRawTasks = (State.inboxRawTasks || []).filter((t) => t.id !== taskId);
+  renderInbox();
+  refreshInbox();
+  // If the deleted task is the one open in the detail view, leave it.
+  if (State.currentTaskId === taskId) {
+    State.currentTaskId = null;
+    State.currentTaskData = null;
+    switchView("inbox");
+  }
 }
 
 function updateInboxCounter(shown, total) {

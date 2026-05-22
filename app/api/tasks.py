@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Body, HTTPException
 from fastapi.responses import Response
 
-from app.database import connect, now_iso
+from app.database import connect, now_iso, with_retry
 from app.protocol.validators import MessageType, TaskRequest
 from app.services.artifacts import (
     apply_artifact_to_project,
@@ -20,7 +21,7 @@ from app.services.artifacts import (
 from app.services.exporter import export_to_markdown
 from app.services import doc_export
 from app.utils.ids import message_id, task_id as new_task_id
-from app.utils.paths import exports_root
+from app.utils.paths import artifacts_root, exports_root, sandboxes_root
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
@@ -30,6 +31,12 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled"}
+
+# Statuses where the worker may still be mid-run on the task (or it is paused
+# waiting on the user). Deleting one of these would race the worker, so the
+# delete endpoint refuses them — cancel first. Mirrors the active set swept in
+# app/main.py's startup sandbox sweep.
+_ACTIVE_STATUSES = {"pending", "running", "awaiting_user_input", "waiting_for_user"}
 
 
 @router.post("")
@@ -947,3 +954,60 @@ async def cancel_task(task_id: str) -> dict[str, Any]:
             (now_iso(), task_id),
         )
     return {"task_id": task_id, "status": "cancelled"}
+
+
+@router.delete("/{task_id}")
+async def delete_task(task_id: str) -> dict[str, Any]:
+    """Permanently delete a task and everything attached to it.
+
+    Hard delete: the task row plus its agent runs, transcript messages, final
+    result, approvals, and draft-artifact rows are removed (FK `ON DELETE
+    CASCADE`), the on-disk per-task sandbox and artifact directories are
+    deleted, and any threaded child task has its `parent_task_id` cleared so
+    the thread does not dangle. There is no undo.
+
+    Refuses a task that is still in flight (pending / running / awaiting input)
+    — cancel it first, so the delete cannot race the worker.
+    """
+    with connect() as conn:
+        row = conn.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    if row["status"] in _ACTIVE_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"task is still in flight (status={row['status']}); "
+                f"cancel it before deleting"
+            ),
+        )
+
+    def _purge() -> None:
+        with connect() as conn:
+            conn.execute("BEGIN")
+            try:
+                # Detach threaded children so their parent_task_id doesn't dangle.
+                conn.execute(
+                    "UPDATE tasks SET parent_task_id = NULL WHERE parent_task_id = ?",
+                    (task_id,),
+                )
+                # FK cascade removes agent_runs, agent_messages, final_results,
+                # approvals, and task_artifacts; logs.task_id is set NULL. FK
+                # enforcement is on for every connection (see app/database.py).
+                conn.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+                conn.execute("COMMIT")
+            except Exception:
+                conn.execute("ROLLBACK")
+                raise
+
+    with_retry(_purge)
+
+    # Best-effort on-disk cleanup. The DB is already consistent; a leftover
+    # directory is harmless (orphan sandboxes are swept on the next startup),
+    # so a failure here must not turn a successful delete into an error.
+    for base in (sandboxes_root(), artifacts_root()):
+        target = base / task_id
+        if target.is_dir():
+            shutil.rmtree(target, ignore_errors=True)
+
+    return {"task_id": task_id, "status": "deleted"}
