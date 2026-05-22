@@ -25,7 +25,7 @@ from app.services import agent_registry
 from app.services import migration
 from app.services import pidlock
 from app.services.retention import retention_loop
-from app.utils.paths import default_db_path, user_data_root
+from app.utils.paths import default_db_path, platform_user_data_root, user_data_root
 from app.workers.task_worker import worker_loop
 
 
@@ -38,6 +38,21 @@ async def lifespan(app: FastAPI):
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
     logger = logging.getLogger("switchboard")
+
+    # Step 1.5 — rebrand: a packaged build whose data still lives under the
+    # pre-rebrand directory name ("AI Switchboard") is relocated to the current
+    # name ("The AI Conclave") before anything opens the root. The guard limits
+    # this to a genuine platform-resolved launch — it is skipped in dev mode and
+    # under a SWITCHBOARD_DATA_DIR override (where user_data_root() differs from
+    # the platform path). Idempotent once migrated.
+    try:
+        if user_data_root() == platform_user_data_root():
+            renamed = migration.migrate_legacy_data_dir()
+            if renamed:
+                logger.info("Rebrand data-directory migration completed: %s", renamed)
+    except migration.MigrationBlocked as e:
+        logger.error("Refusing to start — rebrand data-directory migration blocked.\n%s", e)
+        raise SystemExit(2) from e
 
     # Step 2 — FIRST AWAITABLE per DR0016: run the first-run migration before
     # any writer (init_database, retention worker, orphan reaper, etc.) opens

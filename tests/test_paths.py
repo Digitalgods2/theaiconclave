@@ -74,7 +74,7 @@ def test_platform_root_fallback(tmp_path, monkeypatch):
 
     root = paths.user_data_root()
     assert root.is_dir()
-    assert "AI Switchboard" in str(root) or "ai-switchboard" in str(root)
+    assert "The AI Conclave" in str(root) or "ai-conclave" in str(root)
     assert paths.is_dev_mode() is False
 
 

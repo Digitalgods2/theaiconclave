@@ -630,8 +630,8 @@
           <h4>6.5 One-click desktop launcher</h4>
           <!-- BEGIN:section-6.5 -->
 <p>Once the manual <code>uvicorn</code> invocation works, there's a double-clickable launcher so you don't have to keep a terminal open. The launcher (<code>launch.pyw</code> at the repo root) polls <code>/api/health</code> first: if the service is already up, it just opens a fresh browser tab. If not, it spawns <code>python -m uvicorn app.main:app</code> as a fully detached background process, waits up to 30 seconds for <code>/api/health</code> to respond, then opens the dashboard. Closing the launcher does not kill the service.</p>
-<p><strong>Windows.</strong> Run <code>tools\install-desktop-shortcut.ps1</code> in PowerShell. It creates <code>AI Switchboard.lnk</code> on your Desktop, pointing <code>pythonw.exe</code> at <code>launch.pyw</code> with the AI Conclave logo as the icon. Right-click → <em>Pin to taskbar</em> for one-click access from the taskbar.</p>
-<p><strong>macOS.</strong> Run <code>tools/install-desktop-app.sh</code>. It builds an <code>AI Switchboard.app</code> bundle on your Desktop; drag it onto the Dock to pin. First launch may trip macOS's "cannot check for malicious software" warning — right-click → <em>Open</em> → <em>Open</em> clears it permanently.</p>
+<p><strong>Windows.</strong> Run <code>tools\install-desktop-shortcut.ps1</code> in PowerShell. It creates <code>The AI Conclave.lnk</code> on your Desktop, pointing <code>pythonw.exe</code> at <code>launch.pyw</code> with the AI Conclave logo as the icon. Right-click → <em>Pin to taskbar</em> for one-click access from the taskbar.</p>
+<p><strong>macOS.</strong> Run <code>tools/install-desktop-app.sh</code>. It builds a <code>The AI Conclave.app</code> bundle on your Desktop; drag it onto the Dock to pin. First launch may trip macOS's "cannot check for malicious software" warning — right-click → <em>Open</em> → <em>Open</em> clears it permanently.</p>
 <p><strong>Linux.</strong> No bundled installer; drop a <code>.desktop</code> file in <code>~/.local/share/applications/</code> pointing at <code>python3 /path/to/launch.pyw</code>.</p>
 <p>Launcher events plus uvicorn's stdout/stderr land in <code>&lt;repo&gt;/data/launcher.log</code> — that's the place to look when a browser tab fails to appear. To stop the service: kill the python process (Task Manager / <code>pkill -f 'uvicorn app.main'</code>) or delete the <code>switchboard.pid</code> file at the runtime state root.</p>
 <!-- END:section-6.5 -->
@@ -1128,14 +1128,15 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
   <thead><tr><th>Launch mode</th><th>Resolved root</th></tr></thead>
   <tbody>
     <tr><td>Dev / running from the repo</td><td><code>&lt;repo&gt;/data/</code></td></tr>
-    <tr><td>Packaged build on Windows</td><td><code>%LOCALAPPDATA%\AI Switchboard\</code></td></tr>
-    <tr><td>Packaged build on macOS</td><td><code>~/Library/Application Support/AI Switchboard/</code></td></tr>
-    <tr><td>Packaged build on Linux</td><td><code>$XDG_DATA_HOME/ai-switchboard/</code> (or <code>~/.local/share/ai-switchboard/</code>)</td></tr>
+    <tr><td>Packaged build on Windows</td><td><code>%LOCALAPPDATA%\The AI Conclave\</code></td></tr>
+    <tr><td>Packaged build on macOS</td><td><code>~/Library/Application Support/The AI Conclave/</code></td></tr>
+    <tr><td>Packaged build on Linux</td><td><code>$XDG_DATA_HOME/ai-conclave/</code> (or <code>~/.local/share/ai-conclave/</code>)</td></tr>
     <tr><td>Explicit override</td><td>Whatever <code>SWITCHBOARD_DATA_DIR</code> points at.</td></tr>
   </tbody>
 </table>
 <p><strong>Config discovery</strong> has its own precedence, layered on top: <code>SWITCHBOARD_CONFIG</code> env var, then <code>&lt;state-root&gt;/config.yaml</code>, then dev-mode <code>./config.yaml</code>, then <code>./config.example.yaml</code>, then built-in defaults. The example file is checked in; the live <code>config.yaml</code> is gitignored.</p>
 <p><strong>First-run migration.</strong> When a packaged build launches and finds a populated <code>./data/</code> from a prior dev-mode run, it copies (not moves) the state into the new root before opening any writer: the DB is transferred with <code>VACUUM INTO</code> for a consistent single-file snapshot, then <code>sandboxes/</code>, <code>exports/</code>, and <code>uploads/</code> are copied via atomic <code>.tmp</code> rename. The original files at <code>./data/</code> are left intact so you can verify the migration before deleting them. If a live process holds <code>./data/switchboard.pid</code>, migration refuses to run and tells you to stop the old service first.</p>
+<p><strong>Rebrand directory migration.</strong> Packaged installs created before the rebrand stored state under <code>AI Switchboard</code> / <code>ai-switchboard</code> rather than <code>The AI Conclave</code> / <code>ai-conclave</code>. A packaged build relocates that directory automatically on startup — a whole-directory atomic rename, so the DB, config, and every subdirectory move together as one coherent unit. To relocate it yourself (for example after upgrading from source rather than a packaged build), stop the service and run <code>python tools/migrate-data-dir.py</code>; it is idempotent.</p>
 <!-- END:section-14.4 -->
         </section>
         <section id="help-reference-docs" class="help-subsection">

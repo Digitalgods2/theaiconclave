@@ -6,7 +6,7 @@
 # What this does:
 #   - Finds <repo>\launch.pyw and <repo>\ai-switchboard.ico relative to this
 #     script's location (one level up).
-#   - Creates "AI Switchboard.lnk" on the current user's Desktop.
+#   - Creates "The AI Conclave.lnk" on the current user's Desktop.
 #   - The shortcut runs pythonw.exe with launch.pyw, hides the console, sets
 #     the working directory to the repo (so DR0016 dev-mode detection fires).
 #   - Sets the AI Conclave logo as the shortcut's icon.
@@ -43,7 +43,7 @@ if (-not $pythonw) {
 }
 
 $desktop      = [Environment]::GetFolderPath("Desktop")
-$shortcutPath = Join-Path $desktop "AI Switchboard.lnk"
+$shortcutPath = Join-Path $desktop "The AI Conclave.lnk"
 
 $wshell = New-Object -ComObject WScript.Shell
 $shortcut = $wshell.CreateShortcut($shortcutPath)

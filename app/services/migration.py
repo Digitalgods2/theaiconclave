@@ -4,6 +4,12 @@ Runs once when a packaged build (or any non-dev-mode launch) starts against an
 empty `user_data_root()` while a populated `./data/` exists nearby. Non-
 destructive: originals are preserved. See DR0016 for the full design.
 
+This module also provides `migrate_legacy_data_dir()` — a one-time relocation
+of the packaged user-data directory from its pre-rebrand name ("AI Switchboard")
+to the current name ("The AI Conclave"). Unlike the first-run migration above,
+that is a whole-directory atomic rename: the DB, WAL/SHM, config, and every
+subdirectory move together as one coherent unit, so no `VACUUM INTO` is needed.
+
 Invariants (DR0016):
 
 - **Strict ordering**: this is the FIRST awaitable in `lifespan`, before
@@ -30,6 +36,7 @@ Invariants (DR0016):
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import sqlite3
 import sys
@@ -37,7 +44,12 @@ from pathlib import Path
 from typing import Optional
 
 from app.services import pidlock
-from app.utils.paths import is_dev_mode, user_data_root
+from app.utils.paths import (
+    is_dev_mode,
+    legacy_platform_user_data_root,
+    platform_user_data_root,
+    user_data_root,
+)
 
 logger = logging.getLogger("switchboard.migration")
 
@@ -239,3 +251,83 @@ def _cleanup_tmps(tmps: list[Path]) -> None:
                 p.unlink()
         except OSError as e:
             logger.warning("migration cleanup: failed to remove %s: %s", p, e)
+
+
+def _dir_has_state(root: Path) -> bool:
+    """True if `root` holds anything the rebrand migration should preserve."""
+    if (root / _OLD_DB_NAME).is_file():
+        return True
+    if (root / "config.yaml").is_file():
+        return True
+    return any((root / s).is_dir() for s in _SUBDIRS)
+
+
+def migrate_legacy_data_dir(
+    *,
+    old_root: Optional[Path] = None,
+    new_root: Optional[Path] = None,
+) -> Optional[dict]:
+    """Relocate the packaged user-data directory from its pre-rebrand name
+    (`AI Switchboard`) to the current name (`The AI Conclave`).
+
+    A whole-directory atomic rename — the DB, its WAL/SHM, `config.yaml`, and
+    every subdirectory move together as one coherent unit, so the `VACUUM INTO`
+    dance that `maybe_migrate` needs for its file-by-file *copy* is unnecessary.
+
+    Operates on the platform user-data roots directly and is independent of
+    dev mode, so it behaves identically whether invoked from
+    `tools/migrate-data-dir.py` or from a packaged build's startup.
+
+    Returns a summary dict on success, or None when there is nothing to do
+    (no legacy directory, an empty legacy directory, or already migrated).
+    Raises `MigrationBlocked` when a live instance holds the legacy directory
+    or the destination already holds state.
+    """
+    old_root = (old_root or legacy_platform_user_data_root()).resolve()
+    new_root = (new_root or platform_user_data_root()).resolve()
+
+    if old_root == new_root:
+        # Same name on this platform (shouldn't happen) — nothing to do.
+        return None
+    if not old_root.is_dir():
+        return None
+    if not _dir_has_state(old_root):
+        # Legacy directory exists but holds nothing worth moving.
+        return None
+
+    if new_root.exists():
+        if new_root.is_dir() and not any(new_root.iterdir()):
+            # Empty placeholder (e.g. created by an earlier user_data_root()
+            # call) — safe to clear so the atomic rename can land on it.
+            new_root.rmdir()
+        else:
+            raise MigrationBlocked(
+                f"The rebranded data directory {new_root} already exists and is "
+                f"not empty; migration will not overwrite it. Either remove it and "
+                f"retry, or keep using it and delete the legacy {old_root} yourself."
+            )
+
+    _check_no_live_old_instance(old_root)
+
+    new_root.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        # Atomic same-volume directory rename. old_root and new_root are
+        # siblings under the platform data location, so this never crosses a
+        # filesystem boundary in practice.
+        os.replace(old_root, new_root)
+    except OSError as e:
+        raise MigrationBlocked(
+            f"Could not rename {old_root} to {new_root}: {e}. The directories may "
+            f"be on different volumes, or a file in the legacy directory is locked. "
+            f"Close anything using it and retry."
+        ) from e
+
+    summary = {"src": str(old_root), "dst": str(new_root)}
+    logger.info("rebrand migration: renamed %s -> %s", old_root, new_root)
+    print(
+        f"\nThe AI Conclave: relocated the user-data directory\n"
+        f"  from {old_root}\n"
+        f"  to   {new_root}\n",
+        file=sys.stderr,
+    )
+    return summary

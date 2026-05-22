@@ -1,5 +1,5 @@
 #!/bin/bash
-# Create an "AI Switchboard.app" bundle on the user's Desktop.
+# Create a "The AI Conclave.app" bundle on the user's Desktop.
 # macOS / Linux equivalent of tools/install-desktop-shortcut.ps1.
 #
 # Usage (run once from anywhere; usually from the repo root):
@@ -11,7 +11,7 @@
 # Re-running overwrites the existing bundle — idempotent.
 #
 # What this produces:
-#   <INSTALL_DIR>/AI Switchboard.app/
+#   <INSTALL_DIR>/The AI Conclave.app/
 #     Contents/
 #       Info.plist                    (CFBundleIconFile=icon, NSHighResolutionCapable)
 #       MacOS/launcher                (bash; cd <repo>; exec python3 launch.pyw)
@@ -42,7 +42,7 @@ if [ -z "$PYTHON3" ]; then
 fi
 
 DEST="${INSTALL_DIR:-$HOME/Desktop}"
-APP_PATH="$DEST/AI Switchboard.app"
+APP_PATH="$DEST/The AI Conclave.app"
 
 echo "Installing to: $APP_PATH"
 
@@ -61,9 +61,9 @@ cat > "$APP_PATH/Contents/Info.plist" <<INFO_PLIST
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>AI Switchboard</string>
+    <string>The AI Conclave</string>
     <key>CFBundleDisplayName</key>
-    <string>AI Switchboard</string>
+    <string>The AI Conclave</string>
     <key>CFBundleIdentifier</key>
     <string>com.aiswitchboard.launcher</string>
     <key>CFBundleVersion</key>
@@ -116,7 +116,7 @@ chmod +x "$APP_PATH/Contents/MacOS/launcher"
 xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
 
 echo ""
-echo "Created AI Switchboard.app at: $APP_PATH"
+echo "Created The AI Conclave.app at: $APP_PATH"
 echo ""
 echo "  python3:      $PYTHON3"
 echo "  repo:         $REPO_DIR"

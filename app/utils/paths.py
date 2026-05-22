@@ -11,9 +11,13 @@ Precedence for the root:
    `pyproject.toml` and `config.example.yaml`, the root is `<that-dir>/data/`.
    Preserves the in-repo developer experience exactly.
 3. Platform-conventional user-data directory:
-     - Windows: `%LOCALAPPDATA%\AI Switchboard`
-     - macOS:   `~/Library/Application Support/AI Switchboard`
-     - Linux:   `$XDG_DATA_HOME/ai-switchboard` (or `~/.local/share/ai-switchboard`)
+     - Windows: `%LOCALAPPDATA%\The AI Conclave`
+     - macOS:   `~/Library/Application Support/The AI Conclave`
+     - Linux:   `$XDG_DATA_HOME/ai-conclave` (or `~/.local/share/ai-conclave`)
+
+Installs predating the rebrand used `AI Switchboard` / `ai-switchboard`;
+`legacy_platform_user_data_root()` resolves that old location so the
+one-time rebrand directory migration can relocate it.
 
 Result is cached after first call. All derived helpers create their
 directory lazily on first use; nothing executes side effects at import.
@@ -26,8 +30,13 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-_APP_DIRNAME_WIN_MAC = "AI Switchboard"
-_APP_DIRNAME_LINUX = "ai-switchboard"
+_APP_DIRNAME_WIN_MAC = "The AI Conclave"
+_APP_DIRNAME_LINUX = "ai-conclave"
+
+# Pre-rebrand directory names. Retained only so the one-time rebrand
+# directory migration can find and relocate an install that predates it.
+_LEGACY_APP_DIRNAME_WIN_MAC = "AI Switchboard"
+_LEGACY_APP_DIRNAME_LINUX = "ai-switchboard"
 
 _cached_root: Optional[Path] = None
 _cached_is_dev_mode: Optional[bool] = None
@@ -49,22 +58,36 @@ def _find_dev_anchor(start: Optional[Path] = None) -> Optional[Path]:
     return None
 
 
-def _platform_user_data_root() -> Path:
-    """Return the platform-conventional user-data root for this app."""
+def _platform_root_for(dirname_win_mac: str, dirname_linux: str) -> Path:
+    """Return the platform-conventional user-data root for the given app
+    directory names. Shared by the current resolver and the legacy resolver
+    the rebrand migration depends on."""
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA")
         if base:
-            return Path(base) / _APP_DIRNAME_WIN_MAC
-        return Path.home() / "AppData" / "Local" / _APP_DIRNAME_WIN_MAC
+            return Path(base) / dirname_win_mac
+        return Path.home() / "AppData" / "Local" / dirname_win_mac
 
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / _APP_DIRNAME_WIN_MAC
+        return Path.home() / "Library" / "Application Support" / dirname_win_mac
 
     # Linux / other Unix
     xdg = os.environ.get("XDG_DATA_HOME")
     if xdg:
-        return Path(xdg) / _APP_DIRNAME_LINUX
-    return Path.home() / ".local" / "share" / _APP_DIRNAME_LINUX
+        return Path(xdg) / dirname_linux
+    return Path.home() / ".local" / "share" / dirname_linux
+
+
+def platform_user_data_root() -> Path:
+    """The platform-conventional user-data root under the current (rebranded)
+    app name — what a packaged install resolves to."""
+    return _platform_root_for(_APP_DIRNAME_WIN_MAC, _APP_DIRNAME_LINUX)
+
+
+def legacy_platform_user_data_root() -> Path:
+    """The platform-conventional user-data root under the pre-rebrand app
+    name. Used only by the one-time rebrand directory migration."""
+    return _platform_root_for(_LEGACY_APP_DIRNAME_WIN_MAC, _LEGACY_APP_DIRNAME_LINUX)
 
 
 def user_data_root() -> Path:
@@ -87,7 +110,7 @@ def user_data_root() -> Path:
             root = dev_anchor / "data"
             _cached_is_dev_mode = True
         else:
-            root = _platform_user_data_root()
+            root = platform_user_data_root()
             _cached_is_dev_mode = False
 
     root.mkdir(parents=True, exist_ok=True)

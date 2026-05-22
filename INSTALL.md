@@ -132,7 +132,7 @@ Once the manual setup works, you can install a double-clickable launcher so you 
 powershell -ExecutionPolicy Bypass -File .\tools\install-desktop-shortcut.ps1
 ```
 
-Creates `AI Switchboard.lnk` on your Desktop pointing at `pythonw.exe launch.pyw` with the AI Conclave logo as the icon. Right-click the shortcut → *Pin to taskbar* if you want it on the taskbar.
+Creates `The AI Conclave.lnk` on your Desktop pointing at `pythonw.exe launch.pyw` with the AI Conclave logo as the icon. Right-click the shortcut → *Pin to taskbar* if you want it on the taskbar.
 
 **macOS:**
 
@@ -142,7 +142,7 @@ bash tools/install-desktop-app.sh
 INSTALL_DIR="$HOME/Applications" bash tools/install-desktop-app.sh
 ```
 
-Builds an `AI Switchboard.app` bundle on your Desktop. Drag onto the Dock to pin. First launch on a Mac may show macOS's "Apple cannot check this app for malicious software" warning — right-click → *Open* → *Open* dismisses it permanently for your user.
+Builds a `The AI Conclave.app` bundle on your Desktop. Drag onto the Dock to pin. First launch on a Mac may show macOS's "Apple cannot check this app for malicious software" warning — right-click → *Open* → *Open* dismisses it permanently for your user.
 
 Both installers are idempotent. The repo path is baked into the resulting shortcut/bundle, so if you move the repo, re-run the installer.
 
@@ -155,12 +155,14 @@ Per [DR0016](docs/decisions/0016_user_data_root_and_lazy_config.md), all writabl
 | Launch mode | Resolved root |
 |---|---|
 | **Dev / running from the repo** (cwd or ancestor has `pyproject.toml` + `config.example.yaml`) | `<repo>/data/` — same as before; nothing changes for contributors |
-| **Packaged build on Windows** | `%LOCALAPPDATA%\AI Switchboard\` |
-| **Packaged build on macOS** | `~/Library/Application Support/AI Switchboard/` |
-| **Packaged build on Linux** | `$XDG_DATA_HOME/ai-switchboard/` (or `~/.local/share/ai-switchboard/`) |
+| **Packaged build on Windows** | `%LOCALAPPDATA%\The AI Conclave\` |
+| **Packaged build on macOS** | `~/Library/Application Support/The AI Conclave/` |
+| **Packaged build on Linux** | `$XDG_DATA_HOME/ai-conclave/` (or `~/.local/share/ai-conclave/`) |
 | **Explicit override** | Whatever you set in `SWITCHBOARD_DATA_DIR` (test/CI/packager hook; wins over everything else) |
 
 When the packaged app launches for the first time and finds a populated `./data/` directory next to it, a one-time non-destructive migration runs: the SQLite DB is transferred via `VACUUM INTO` (handles the WAL/SHM coherence trap), and `sandboxes/`, `exports/`, `uploads/` are copied verbatim. The originals at `./data/` are preserved — you can delete them manually once you've confirmed everything moved cleanly. If an old AI Conclave Switchboard instance is still running against `./data/` when the new build launches, migration refuses to start and prints a clear error; stop the old instance and retry.
+
+**Rebrand directory migration.** Packaged installs created before the rebrand stored their state under `AI Switchboard` / `ai-switchboard` instead of `The AI Conclave` / `ai-conclave`. A packaged build now relocates that directory automatically on startup (a whole-directory atomic rename — DB, config, and subdirectories move together). To relocate it yourself without launching a packaged build — for example after upgrading from source — stop the service and run `python tools/migrate-data-dir.py`. It is idempotent and does nothing once migrated.
 
 Two env vars control this behavior:
 
