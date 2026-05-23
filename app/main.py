@@ -134,6 +134,7 @@ app = FastAPI(
 )
 app.include_router(health_api.router)
 app.include_router(tasks_api.router)
+app.include_router(tasks_api.trajectories_router)
 app.include_router(agents_api.router)
 app.include_router(uploads_api.router)
 app.include_router(git_api.router)

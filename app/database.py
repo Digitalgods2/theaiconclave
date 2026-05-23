@@ -178,6 +178,15 @@ def init_database(path: str | Path) -> None:
         # NULL for tasks created before Phase 2.5 of the post-DR plan. Shape:
         # [{number, title, date, summary, path, score}, ...].
         _add_column_if_missing(conn, "tasks", "prior_art_json", "TEXT")
+        # Failure-cause tags — rule-based labels describing why this
+        # deliberation was hard. Populated by services.trace_analyzer right
+        # after the orchestrator inserts the final_results row, never blocks
+        # finalization. Empty `[]` for older rows; new tasks land with the
+        # default and get UPDATEd post-hoc. List of FailureCause enum values.
+        _add_column_if_missing(
+            conn, "final_results", "failure_cause_tags_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )
 
 
 def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, type_decl: str) -> None:

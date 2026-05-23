@@ -25,6 +25,12 @@ from app.utils.paths import artifacts_root, exports_root, sandboxes_root
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
+# Sibling router for trajectory operations that don't fit cleanly under
+# /api/tasks/{id}/... — currently just the bulk export-all sweep. Lives in
+# this module so the trajectory surface stays in one place. Wired into the
+# FastAPI app from app/main.py alongside the main tasks router.
+trajectories_router = APIRouter(prefix="/api/trajectories", tags=["trajectories"])
+
 # Decision-record exports land under `<user_data_root>/exports/` (DR0016).
 # Kept deterministic so the user can re-export idempotently (same task_id ->
 # same file). The directory is created on demand by `exports_root()`.
@@ -147,14 +153,14 @@ async def list_tasks(
     clauses: list[str] = []
     params: list[Any] = []
     if status:
-        clauses.append("status = ?")
+        clauses.append("tasks.status = ?")
         params.append(status)
     if exported is not None:
         norm = str(exported).lower()
         if norm in ("true", "1", "yes"):
-            clauses.append("exported_at IS NOT NULL")
+            clauses.append("tasks.exported_at IS NOT NULL")
         elif norm in ("false", "0", "no"):
-            clauses.append("exported_at IS NULL")
+            clauses.append("tasks.exported_at IS NULL")
     if q:
         # Case-insensitive LIKE across id + user_request + user_decision +
         # joined final_results.final_answer. Uses LOWER() on both sides to
@@ -162,21 +168,30 @@ async def list_tasks(
         # case-insensitive by default).
         needle = f"%{q.lower()}%"
         clauses.append(
-            "(LOWER(id) LIKE ?"
-            " OR LOWER(user_request) LIKE ?"
-            " OR LOWER(COALESCE(user_decision, '')) LIKE ?"
-            " OR id IN (SELECT task_id FROM final_results"
-            "           WHERE LOWER(final_answer) LIKE ?))"
+            "(LOWER(tasks.id) LIKE ?"
+            " OR LOWER(tasks.user_request) LIKE ?"
+            " OR LOWER(COALESCE(tasks.user_decision, '')) LIKE ?"
+            " OR tasks.id IN (SELECT task_id FROM final_results"
+            "                 WHERE LOWER(final_answer) LIKE ?))"
         )
         params.extend([needle, needle, needle, needle])
     where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    # LEFT JOIN final_results so each inbox row carries its failure_cause_tags;
+    # the client filters by tag inline (DR0022).
     sql = (
-        f"""SELECT id, status, mode, task_type, primary_agent, consultants,
-                   created_at, updated_at, exported_at, export_path,
-                   source, source_agent,
-                   SUBSTR(user_request, 1, 120) AS user_request_snippet
-            FROM tasks {where}
-            ORDER BY created_at DESC LIMIT ?"""
+        f"""SELECT tasks.id AS id, tasks.status AS status, tasks.mode AS mode,
+                   tasks.task_type AS task_type,
+                   tasks.primary_agent AS primary_agent,
+                   tasks.consultants AS consultants,
+                   tasks.created_at AS created_at, tasks.updated_at AS updated_at,
+                   tasks.exported_at AS exported_at, tasks.export_path AS export_path,
+                   tasks.source AS source, tasks.source_agent AS source_agent,
+                   SUBSTR(tasks.user_request, 1, 120) AS user_request_snippet,
+                   final_results.failure_cause_tags_json AS failure_cause_tags_json
+            FROM tasks
+            LEFT JOIN final_results ON final_results.task_id = tasks.id
+            {where}
+            ORDER BY tasks.created_at DESC LIMIT ?"""
     )
     params.append(limit)
     with connect() as conn:
@@ -198,6 +213,9 @@ async def list_tasks(
                 "source": _column_or_none(r, "source"),
                 "source_agent": _column_or_none(r, "source_agent"),
                 "user_request_snippet": _column_or_none(r, "user_request_snippet"),
+                "failure_cause_tags": _safe_parse_json(
+                    _column_or_none(r, "failure_cause_tags_json"), []
+                ),
             }
             for r in rows
         ]
@@ -312,6 +330,10 @@ def _enriched_prior_art(task_row) -> list[dict[str, Any]]:
 def _row_to_final_result(row) -> dict[str, Any]:
     agg_raw = _column_or_none(row, "confidence_aggregate_json")
     action_plan_raw = _column_or_none(row, "action_plan_json")
+    tags_raw = _column_or_none(row, "failure_cause_tags_json")
+    tags = _safe_parse_json(tags_raw, default=[])
+    if not isinstance(tags, list):
+        tags = []
     return {
         "task_id": row["task_id"],
         "final_answer": row["final_answer"],
@@ -325,6 +347,10 @@ def _row_to_final_result(row) -> dict[str, Any]:
         "patches_requiring_approval": json.loads(row["patches_requiring_approval_json"]),
         "errors": json.loads(row["errors_json"]),
         "confidence_aggregate": json.loads(agg_raw) if agg_raw else None,
+        # Rule-based labels describing why this deliberation was hard, stamped
+        # by services.trace_analyzer after finalization. Empty list for older
+        # rows (pre-migration) or quick-converging tasks where no rule fired.
+        "failure_cause_tags": [str(t) for t in tags],
         "created_at": row["created_at"],
     }
 
@@ -935,6 +961,51 @@ async def download_task_detail(task_id: str, format: str = "pdf") -> Response:
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@trajectories_router.post("/export-all")
+async def export_all_trajectories() -> dict[str, Any]:
+    """Sweep every terminal task and (re)write its trajectory JSONL.
+
+    Returns `{exported_count, error_count, exported, errors}` — per-task
+    failures are caught so one bad task doesn't abort the batch (useful when
+    sweeping a long history for the first time). Files land under
+    `<exports_root>/trajectories/`.
+    """
+    from app.services import trajectory_exporter
+    return trajectory_exporter.export_all_terminal()
+
+
+@router.post("/{task_id}/trajectory/export")
+async def export_task_trajectory(task_id: str) -> dict[str, Any]:
+    """Re-export this task's trajectory as a single-line JSONL file.
+
+    Writes `<exports_root>/trajectories/<task_id>.jsonl` and returns
+    `{path, bytes}`. Idempotent — calling twice overwrites cleanly with the
+    current DB state. Unlike `/export` (the markdown Tier 2 archive), this
+    endpoint:
+      - works on any task that exists (terminal or otherwise);
+      - never mutates the task row;
+      - is also fired automatically by the orchestrator when a task hits a
+        terminal status (see `_post_finalize_hooks`). This endpoint is the
+        on-demand path used by the dashboard / "Export all" sweep.
+    """
+    with connect() as conn:
+        row = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="task not found")
+
+    from app.services import trajectory_exporter
+    try:
+        path = trajectory_exporter.export_trajectory(task_id)
+    except ValueError as e:
+        # Race: task was deleted between the 404 check and the export.
+        raise HTTPException(status_code=404, detail=str(e))
+    return {
+        "task_id": task_id,
+        "path":    str(path),
+        "bytes":   path.stat().st_size,
+    }
 
 
 @router.post("/{task_id}/cancel")

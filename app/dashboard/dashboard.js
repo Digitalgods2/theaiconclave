@@ -26,6 +26,7 @@ const State = {
     mode: "",                   // "" = all, else conclave|consult|resolve (client-side filter)
     search: "",                 // case-insensitive substring match against row text + ID
     exported: "",               // "" = any, "true" = exported only, "false" = not-exported only (server-side filter)
+    failureCause: "",           // "" = any, else a FailureCause enum value (client-side filter; DR0022)
   },
   inboxLimit: 50,               // last-N to request from server; persisted in localStorage
   inboxRawTasks: [],            // last server payload (already limit-applied), used for client-side filter rerenders
@@ -507,6 +508,33 @@ function renderSidebar() {
     btn.addEventListener("click", () => toggleSidebarItem(item.id));
     (item.pin === "bottom" ? bottomGroup : topGroup).appendChild(btn);
   }
+  // --- plugin hook: sidebar tabs ---
+  // Append a rail button for each plugin-contributed sidebarTab. Clicking
+  // routes through switchView(), which knows how to dispatch plugin ids
+  // via window.Plugins.activateSidebarTab() (see the switchView() hook
+  // further below).
+  if (window.Plugins && Array.isArray(window.Plugins.sidebarTabs)) {
+    for (const entry of window.Plugins.sidebarTabs) {
+      const tab = entry && entry.tab;
+      if (!tab || !tab.id) continue;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "rail-btn rail-btn-plugin";
+      btn.id = "rail-" + tab.id;
+      btn.dataset.itemId = tab.id;
+      btn.dataset.pluginName = entry.plugin || "";
+      // Use a neutral accent color so plugins don't clash with core items.
+      btn.style.setProperty("--rail-color", "#64748b");
+      btn.title = tab.label || tab.id;
+      btn.setAttribute("aria-label", tab.label || tab.id);
+      btn.setAttribute("data-label", tab.label || tab.id);
+      const glyph = tab.icon || "<span aria-hidden=\"true\">⊕</span>";
+      btn.innerHTML = glyph;
+      btn.addEventListener("click", () => switchView(tab.id));
+      topGroup.appendChild(btn);
+    }
+  }
+  // --- end plugin hook ---
   rail.appendChild(topGroup);
   rail.appendChild(bottomGroup);
 }
@@ -569,11 +597,35 @@ function updateThemeGlyph() {
 // View switching
 // ------------------------------------------------------------
 function switchView(name) {
+  // --- plugin hook: detect plugin-contributed sidebar tabs ---
+  // If `name` corresponds to a plugin-registered sidebarTab.id (not a core
+  // view), route to the plugin dispatcher instead of treating it as a
+  // missing core view. Core polling is stopped so a plugin view doesn't
+  // pay for inbox/detail timers it doesn't use.
+  const isPluginView = !!(
+    window.Plugins
+    && typeof window.Plugins.activateSidebarTab === "function"
+    && window.Plugins.sidebarTabs
+    && window.Plugins.sidebarTabs.some((e) => e && e.tab && e.tab.id === name)
+  );
+  // --- end plugin hook ---
+
   State.view = name;
   for (const v of ["new", "inbox", "detail", "help", "pricing", "settings", "recent-tasks", "usage"]) {
     const section = $("#view-" + v);
     if (section) section.hidden = (v !== name);
   }
+  // --- plugin hook: hide/show plugin host container ---
+  // A single reusable <section id="view-plugin-host"> is created lazily the
+  // first time a plugin view is activated, then reused for every plugin
+  // view thereafter. We hide it whenever we're not on a plugin view. With
+  // zero plugins registered, no host element is ever created — behavior is
+  // identical to a plugin-free dashboard.
+  let pluginHost = document.getElementById("view-plugin-host");
+  if (isPluginView) pluginHost = _ensurePluginHost();
+  if (pluginHost) pluginHost.hidden = !isPluginView;
+  // --- end plugin hook ---
+
   for (const t of $$(".tab")) {
     t.classList.toggle("active", t.dataset.view === name);
   }
@@ -586,7 +638,8 @@ function switchView(name) {
   // viewport and the user can drag the splitter wherever.
   document.body.classList.toggle("help-view-active", name === "help");
 
-  // Manage polling lifecycles
+  // Manage polling lifecycles. Plugin views get the same treatment as any
+  // non-inbox/non-detail view: both pollers are stopped.
   if (name === "inbox") startInboxPolling(); else stopInboxPolling();
   if (name === "detail") startDetailPolling(); else stopDetailPolling();
 
@@ -601,7 +654,33 @@ function switchView(name) {
   // Refresh per-seat readiness when the New Task panel opens. Server caches
   // /api/health for 30s, so re-firing on each panel-open is cheap.
   if (name === "new") loadReadiness();
+
+  // --- plugin hook: dispatch to plugin tab ---
+  // Done last so all core view hiding/timer mgmt above has settled before
+  // the plugin renders into a fresh root <div>.
+  if (isPluginView && pluginHost) {
+    window.Plugins.activateSidebarTab(name, pluginHost);
+  }
+  // --- end plugin hook ---
 }
+
+// --- plugin hook: plugin host container ---
+// Lazily create a single <section class="view"> that plugin views render
+// into. One container is reused for every plugin tab; activateSidebarTab()
+// clears it and mounts a fresh root <div> per activation.
+function _ensurePluginHost() {
+  let host = document.getElementById("view-plugin-host");
+  if (host) return host;
+  const main = document.querySelector(".content");
+  if (!main) return null;
+  host = document.createElement("section");
+  host.id = "view-plugin-host";
+  host.className = "view plugin-view";
+  host.hidden = true;
+  main.appendChild(host);
+  return host;
+}
+// --- end plugin hook ---
 
 // ------------------------------------------------------------
 // Pricing view — fetches /api/agents/pricing and renders a sortable table.
@@ -2034,11 +2113,16 @@ function renderInbox() {
   if (!tbody) return;
   const all = Array.isArray(State.inboxRawTasks) ? State.inboxRawTasks : [];
   const modeFilter = (State.inboxFilters.mode || "").toLowerCase();
+  const failureCauseFilter = State.inboxFilters.failureCause || "";
   // Search is server-side (id + user_request + user_decision + final_answer);
   // see /api/tasks?q=… in app/api/tasks.py. We don't filter here.
 
   const filtered = all.filter((t) => {
     if (modeFilter && (t.mode || "").toLowerCase() !== modeFilter) return false;
+    if (failureCauseFilter) {
+      const tags = Array.isArray(t.failure_cause_tags) ? t.failure_cause_tags : [];
+      if (!tags.includes(failureCauseFilter)) return false;
+    }
     return true;
   });
 
@@ -2083,6 +2167,41 @@ function renderInbox() {
     tr.appendChild(el("td", { text: fmtTime(t.created_at) }));
     const actionCell = el("td", { class: "actions-cell" });
     actionCell.appendChild(makeDeleteButton(t.id));
+    // --- plugin hook: inbox row actions ---
+    // Append one button per plugin-contributed action. Like the delete
+    // button, each must stopPropagation so the row click (open detail)
+    // doesn't fire. The plugin's onClick is responsible for its own
+    // confirms / fetches / refresh triggers.
+    if (window.Plugins && Array.isArray(window.Plugins.inboxRowActions)) {
+      for (const entry of window.Plugins.inboxRowActions) {
+        const action = entry && entry.action;
+        if (!action || typeof action.onClick !== "function") continue;
+        const pluginName = entry.plugin || "";
+        const btnAttrs = {
+          type: "button",
+          class: "row-plugin-action-btn",
+          "aria-label": action.label || action.id,
+          title: action.label || action.id,
+          "data-plugin": pluginName,
+          "data-action-id": action.id,
+        };
+        if (action.icon) btnAttrs.html = action.icon;
+        else btnAttrs.text = action.label || action.id;
+        const btn = el("button", btnAttrs);
+        btn.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          try {
+            action.onClick(t, window.Plugins.apiFor(pluginName));
+          } catch (e) {
+            console.error("[plugin:" + pluginName + "] inboxRowAction '"
+              + action.id + "' threw:", e);
+          }
+        });
+        actionCell.appendChild(btn);
+      }
+    }
+    // --- end plugin hook ---
     tr.appendChild(actionCell);
     tbody.appendChild(tr);
   }
@@ -2167,6 +2286,7 @@ function setupInboxFiltersUI() {
   const statusSel = $("#filter-status");
   const modeSel = $("#filter-mode");
   const exportedSel = $("#filter-exported");
+  const failureCauseSel = $("#filter-failure-cause");
   const searchInput = $("#filter-search");
   const limitSel = $("#filter-limit");
   const clearBtn = $("#inbox-clear-btn");
@@ -2211,6 +2331,16 @@ function setupInboxFiltersUI() {
     });
   }
 
+  if (failureCauseSel) {
+    failureCauseSel.value = State.inboxFilters.failureCause;
+    failureCauseSel.addEventListener("change", () => {
+      State.inboxFilters.failureCause = failureCauseSel.value;
+      // Tags travel on each list row (LEFT JOIN final_results in list_tasks),
+      // so filtering is client-side — no refetch.
+      renderInbox();
+    });
+  }
+
   if (bulkExportBtn) {
     bulkExportBtn.addEventListener("click", onBulkExportUnexported);
   }
@@ -2235,9 +2365,11 @@ function setupInboxFiltersUI() {
       State.inboxFilters.mode = "";
       State.inboxFilters.search = "";
       State.inboxFilters.exported = "";
+      State.inboxFilters.failureCause = "";
       if (statusSel) statusSel.value = "";
       if (modeSel) modeSel.value = "";
       if (exportedSel) exportedSel.value = "";
+      if (failureCauseSel) failureCauseSel.value = "";
       if (searchInput) searchInput.value = "";
       if (State.inboxSearchDebounce) {
         clearTimeout(State.inboxSearchDebounce);
@@ -2247,6 +2379,56 @@ function setupInboxFiltersUI() {
       refreshInbox();
     });
   }
+
+  // --- plugin hook: inbox filters ---
+  // Append a labeled <select> for each plugin-contributed filter. The
+  // plugin owns its own state (often via localStorage) and re-render
+  // trigger — onChange typically calls api.refreshInbox() if the filter
+  // is meant to affect the server query, or re-renders only its own UI
+  // if it's purely visual.
+  const filtersBar = $("#inbox-filters");
+  if (filtersBar && window.Plugins && Array.isArray(window.Plugins.inboxFilters)) {
+    for (const entry of window.Plugins.inboxFilters) {
+      const filter = entry && entry.filter;
+      if (!filter || !filter.id || !Array.isArray(filter.options)) continue;
+      const pluginName = entry.plugin || "";
+      const fieldId = "plugin-filter-" + filter.id;
+      // Avoid double-adding if setupInboxFiltersUI is ever re-run.
+      if (document.getElementById(fieldId)) continue;
+      const wrap = document.createElement("div");
+      wrap.className = "inbox-filter-field inbox-filter-field-plugin";
+      wrap.dataset.plugin = pluginName;
+      const label = document.createElement("label");
+      label.setAttribute("for", fieldId);
+      label.textContent = filter.label || filter.id;
+      const sel = document.createElement("select");
+      sel.id = fieldId;
+      for (const opt of filter.options) {
+        if (!opt || typeof opt.value !== "string") continue;
+        const o = document.createElement("option");
+        o.value = opt.value;
+        o.textContent = opt.label || opt.value;
+        sel.appendChild(o);
+      }
+      if (typeof filter.defaultValue === "string") {
+        sel.value = filter.defaultValue;
+      }
+      sel.addEventListener("change", () => {
+        if (typeof filter.onChange === "function") {
+          try {
+            filter.onChange(sel.value, window.Plugins.apiFor(pluginName));
+          } catch (e) {
+            console.error("[plugin:" + pluginName + "] inboxFilter '"
+              + filter.id + "' onChange threw:", e);
+          }
+        }
+      });
+      wrap.appendChild(label);
+      wrap.appendChild(sel);
+      filtersBar.appendChild(wrap);
+    }
+  }
+  // --- end plugin hook ---
 }
 
 // ------------------------------------------------------------
@@ -2594,7 +2776,73 @@ function renderDetail(data) {
       updateExportButtonState(null);
     }
   }
+
+  // --- plugin hook: detail panels ---
+  // Render plugin-contributed panels at the bottom of the detail view, after
+  // all core panels. We keep a single container <div id="plugin-detail-panels">
+  // that's created on first use and re-populated on every renderDetail()
+  // call (so panels reflect the latest taskData).
+  _renderPluginDetailPanels(data);
+  // --- end plugin hook ---
 }
+
+// --- plugin hook: detail panel rendering ---
+// Drops any prior plugin panels and re-renders one .plugin-panel per
+// registered detailPanel. Each plugin's render(taskData, rootEl, api) gets
+// a freshly-mounted body <div> to fill; the panel chrome (heading) is
+// supplied by us so plugins look consistent with the rest of the detail
+// view.
+function _renderPluginDetailPanels(data) {
+  const body = $("#detail-body");
+  if (!body) return;
+  const hasPanels = !!(
+    window.Plugins
+    && Array.isArray(window.Plugins.detailPanels)
+    && window.Plugins.detailPanels.length > 0
+  );
+  let host = document.getElementById("plugin-detail-panels");
+  // Bail early without creating any DOM if no plugins contribute panels.
+  // This keeps the empty-manifest path byte-identical to pre-plugin behavior.
+  if (!hasPanels && !host) return;
+  if (!host) {
+    host = document.createElement("section");
+    host.id = "plugin-detail-panels";
+    host.className = "plugin-detail-panels";
+    // Append at the very end of the detail body so plugin panels show below
+    // every core panel.
+    body.appendChild(host);
+  }
+  host.innerHTML = "";
+  if (!hasPanels) return;
+  for (const entry of window.Plugins.detailPanels) {
+    const panel = entry && entry.panel;
+    if (!panel || typeof panel.render !== "function") continue;
+    const pluginName = entry.plugin || "";
+    const wrap = document.createElement("section");
+    wrap.className = "plugin-panel";
+    wrap.dataset.plugin = pluginName;
+    wrap.dataset.panelId = panel.id;
+    if (panel.title) {
+      const h = document.createElement("h3");
+      h.textContent = panel.title;
+      wrap.appendChild(h);
+    }
+    const root = document.createElement("div");
+    root.className = "plugin-panel-body";
+    wrap.appendChild(root);
+    try {
+      panel.render(data, root, window.Plugins.apiFor(pluginName));
+    } catch (e) {
+      console.error("[plugin:" + pluginName + "] detailPanel '"
+        + panel.id + "' render threw:", e);
+      root.appendChild(document.createTextNode(
+        "(plugin panel render failed — see console)"
+      ));
+    }
+    host.appendChild(wrap);
+  }
+}
+// --- end plugin hook ---
 
 // Update the export button label + auxiliary "Last exported" hint based on
 // whether task.exported_at is set. Called from renderDetail and after a

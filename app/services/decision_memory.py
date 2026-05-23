@@ -171,9 +171,14 @@ def find_relevant(
     """Return the top-K matching past decisions for the given query.
 
     Each dict: {number, title, date, summary, path, score, superseded,
-    superseded_by}. Score is the cosine similarity (0.0–1.0) rounded to 3
-    decimals. Empty list if no matches exceed min_score or if the corpus
-    is empty.
+    superseded_by, failure_cause_tags}. Score is the cosine similarity
+    (0.0–1.0) rounded to 3 decimals. Empty list if no matches exceed
+    min_score or if the corpus is empty.
+
+    `failure_cause_tags` is always [] here (decision records don't carry tags
+    themselves) — the field exists so the dashboard's "these prior conclaves
+    hit X" treatment can render uniformly across entry sources. A future
+    past-task pairing pass can populate it.
 
     By default, decisions with a `**Status: SUPERSEDED**` banner are
     excluded — they're history, not guidance, and feeding their
@@ -213,6 +218,13 @@ def find_relevant(
             "score":         round(s, 3),
             "superseded":    d.get("superseded", False),
             "superseded_by": d.get("superseded_by", []),
+            # Failure-cause tags belong to past TASK final_results, not to
+            # decision records themselves. We surface the field as an empty
+            # list here so the prior-art entry shape is forward-compatible
+            # with the dashboard's "these prior conclaves hit X" treatment.
+            # Callers that want past-task tags should use
+            # `tag_matches_for_query` / join through past tasks instead.
+            "failure_cause_tags": [],
         }
         for s, d in scored[:top_k]
     ]
@@ -233,12 +245,17 @@ def enrich_with_supersession(matches: list[dict]) -> list[dict]:
     by_num = {d["number"]: d for d in (_CACHE["corpus"] or [])}
     out = []
     for m in matches:
+        # Older `prior_art_json` rows were frozen before failure_cause_tags
+        # existed — ensure every entry exposes the field so dashboard / API
+        # consumers can rely on it. Empty list is the correct default for
+        # decision records, which don't carry tags themselves.
+        base = {**m, "failure_cause_tags": list(m.get("failure_cause_tags") or [])}
         d = by_num.get(m.get("number"))
         if d is None:
-            out.append(m)
+            out.append(base)
             continue
         out.append({
-            **m,
+            **base,
             "superseded":    d.get("superseded", m.get("superseded", False)),
             "superseded_by": d.get("superseded_by", m.get("superseded_by", [])),
         })

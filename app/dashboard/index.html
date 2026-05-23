@@ -225,6 +225,21 @@
               <option value="false">Not exported</option>
             </select>
           </div>
+          <div class="inbox-filter-field">
+            <label for="filter-failure-cause">Failure cause</label>
+            <select id="filter-failure-cause" title="Show only tasks tagged with a specific failure-cause (DR0022)">
+              <option value="">(any)</option>
+              <option value="missing_evidence">Missing evidence</option>
+              <option value="tool_timeout">Tool timeout</option>
+              <option value="bad_json_output">Bad JSON output</option>
+              <option value="premise_conflict">Premise conflict</option>
+              <option value="multimodal_perception_split">Multimodal perception split</option>
+              <option value="unresolved_dissent">Unresolved dissent</option>
+              <option value="repetition_loop_backstop">Repetition loop</option>
+              <option value="clarification_unanswered">Clarification unanswered</option>
+              <option value="permission_denied">Permission denied</option>
+            </select>
+          </div>
           <div class="inbox-filter-field inbox-filter-search">
             <label for="filter-search">Search</label>
             <div class="inbox-search-row">
@@ -510,6 +525,11 @@
     </footer>
   </div>
 
+  <!-- Plugin loader (v1: frontend-only plugins). MUST load BEFORE dashboard.js
+       so window.Plugins exists when core code inspects it at the four hook
+       sites (sidebar, inbox rows, inbox filters, detail panels). See
+       /static/plugin_loader.js and /static/plugins/manifest.json. -->
+  <script src="/static/plugin_loader.js"></script>
   <script src="/static/dashboard.js"></script>
 </body>
 </html>

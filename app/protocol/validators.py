@@ -16,7 +16,7 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
-PROTOCOL_VERSION = "1.1"
+PROTOCOL_VERSION = "1.2"
 
 
 # ---------------------------------------------------------------------------
@@ -155,6 +155,33 @@ class PolicyStatus(str, Enum):
     NEEDS_APPROVAL = "needs_approval"
     BLOCKED = "blocked"
     UNKNOWN = "unknown"
+
+
+class FailureCause(str, Enum):
+    """Structured tags stamped onto every FinalResult describing WHY the
+    deliberation was hard. Populated rule-based by `services.trace_analyzer`
+    after the orchestrator writes the final_results row (never blocks the
+    deliberation). Surfaced in Decision Memory and the inbox so future tasks
+    can see "prior conclaves that struggled the same way."
+
+    The enum is the contract: callers may persist these as strings, and the
+    member set is part of the wire format. Add new members only via a charter
+    amendment + decision record so external readers don't crash on unknowns.
+    """
+
+    # Detection is non-trivial without semantic analysis — currently inert,
+    # callers may populate post-hoc once heuristics land.
+    MISSING_EVIDENCE = "missing_evidence"
+    # Same — premise conflict needs semantic analysis to detect reliably.
+    PREMISE_CONFLICT = "premise_conflict"
+
+    TOOL_TIMEOUT = "tool_timeout"
+    BAD_JSON_OUTPUT = "bad_json_output"
+    MULTIMODAL_PERCEPTION_SPLIT = "multimodal_perception_split"
+    UNRESOLVED_DISSENT = "unresolved_dissent"
+    REPETITION_LOOP_BACKSTOP = "repetition_loop_backstop"
+    CLARIFICATION_UNANSWERED = "clarification_unanswered"
+    PERMISSION_DENIED = "permission_denied"
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +403,11 @@ class FinalResult(BaseModel):
     resolution_status: Optional[ResolutionStatus] = None  # populated in resolve mode
     disagreements: list[Disagreement] = Field(default_factory=list)
     action_plan: list[ActionPlanStep] = Field(default_factory=list)
+    # Rule-based tags describing why this deliberation was hard, populated
+    # after the orchestrator persists this result (`services.trace_analyzer`).
+    # Empty for older rows / quick-converging tasks. Default factory keeps the
+    # round-trip clean for clients that don't know about this field yet.
+    failure_cause_tags: list[FailureCause] = Field(default_factory=list)
     recommended_actions: list[RecommendedAction] = Field(default_factory=list)
     commands_requiring_approval: list[str] = Field(default_factory=list)
     patches_requiring_approval: list[str] = Field(default_factory=list)
@@ -416,6 +448,7 @@ __all__ = [
     "ApprovalStatus",
     "ActionType",
     "PolicyStatus",
+    "FailureCause",
     "Permissions",
     "Limits",
     "Risk",

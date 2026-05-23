@@ -263,6 +263,45 @@ def test_enrich_preserves_non_superseded_entries():
     assert enriched[0]["superseded"] is False
 
 
+# ---------------------------------------------------------------------------
+# Failure-cause tag surfacing (forward-compatible shape for past-task pairing).
+# Decision records don't carry tags themselves — past TASKS do, via the new
+# `failure_cause_tags_json` column. But the prior-art entry shape needs the
+# field so the dashboard / API can render "these prior conclaves hit X."
+# ---------------------------------------------------------------------------
+
+def test_find_relevant_entries_include_failure_cause_tags_field():
+    """Every returned prior-art dict carries a `failure_cause_tags` list
+    (empty until past-task pairing lands)."""
+    matches = dm.find_relevant("OpenRouter API key storage", top_k=3)
+    assert len(matches) >= 1
+    for m in matches:
+        assert "failure_cause_tags" in m
+        assert isinstance(m["failure_cause_tags"], list)
+
+
+def test_enrich_with_supersession_adds_failure_cause_tags_when_missing():
+    """Older frozen prior_art_json blobs were written before the field
+    existed — `enrich_with_supersession` must backfill it as []."""
+    stale = [{"number": "0011", "title": "OpenRouter", "date": "2026-05-12",
+              "summary": "...", "path": "docs/decisions/0011_x.md", "score": 0.13}]
+    enriched = dm.enrich_with_supersession(stale)
+    assert "failure_cause_tags" in enriched[0]
+    assert enriched[0]["failure_cause_tags"] == []
+
+
+def test_enrich_preserves_existing_failure_cause_tags():
+    """If a caller already populated tags (future past-task pairing path),
+    the enrichment helper must NOT overwrite them."""
+    seeded = [{
+        "number": "0011", "title": "OpenRouter", "date": "2026-05-12",
+        "summary": "...", "path": "docs/decisions/0011_x.md", "score": 0.13,
+        "failure_cause_tags": ["unresolved_dissent"],
+    }]
+    enriched = dm.enrich_with_supersession(seeded)
+    assert enriched[0]["failure_cause_tags"] == ["unresolved_dissent"]
+
+
 def test_index_cache_rebuilds_when_file_added(tmp_path, monkeypatch):
     # Point the module at an isolated decisions dir.
     monkeypatch.setattr(dm, "_DECISIONS_DIR", tmp_path)

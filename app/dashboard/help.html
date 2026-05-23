@@ -1,6 +1,6 @@
-<!-- HELP_DOC_VERSION: 1.2.0 -->
+<!-- HELP_DOC_VERSION: 1.3.0 -->
 <!-- HELP_COVERED_APP_VERSION: 0.1.0 -->
-<!-- HELP_LAST_UPDATED: 2026-05-19 -->
+<!-- HELP_LAST_UPDATED: 2026-05-23 -->
 
 <div class="help-doc">
   <header class="help-doc-header">
@@ -120,6 +120,7 @@
             <li><a href="#help-ops-decision-memory">11.6 Decision Memory (Prior Art)</a></li>
             <li><a href="#help-ops-orphan-reaper">11.7 Orphan task reaper</a></li>
             <li><a href="#help-ops-tool-loop">11.8 OpenRouter tool-loop (per-seat opt-in)</a></li>
+            <li><a href="#help-ops-failure-causes">11.9 Failure-cause tags</a></li>
           </ol>
         </li>
         <li><a href="#help-exports">12. Exports</a>
@@ -127,6 +128,7 @@
             <li><a href="#help-exports-detail">12.1 Per-task detail export</a></li>
             <li><a href="#help-exports-decision">12.2 Decision record export</a></li>
             <li><a href="#help-exports-bulk">12.3 Bulk export</a></li>
+            <li><a href="#help-exports-trajectories">12.4 Trajectory exporter (JSONL)</a></li>
           </ol>
         </li>
         <li><a href="#help-trouble">13. Troubleshooting</a>
@@ -145,6 +147,7 @@
             <li><a href="#help-reference-files">14.3 File locations</a></li>
             <li><a href="#help-reference-stateroot">14.4 Where state lives</a></li>
             <li><a href="#help-reference-docs">14.5 Links to deep docs</a></li>
+            <li><a href="#help-reference-plugins">14.6 Dashboard plugin system</a></li>
           </ol>
         </li>
         <li><a href="#help-about-docs">15. About This Documentation</a>
@@ -957,6 +960,26 @@
 <p><strong>Fallback.</strong> When <code>tool_loop: false</code> (set per seat to opt out) the seat uses the DR0012 inlined-sandbox path unchanged. If a seat is configured <code>tool_loop: true</code> but the task has no sandbox attached, the adapter quietly falls back to the prompt-only path for that task. If a model is configured for tool-loop but doesn't implement function-calls cleanly, the loop will likely produce content immediately without ever emitting <code>tool_calls</code> — which is still a valid (if degraded) outcome; the adapter accepts it as the final turn.</p>
 <!-- END:section-11.8 -->
         </section>
+        <section id="help-ops-failure-causes" class="help-subsection">
+          <h4>11.9 Failure-cause tags</h4>
+          <!-- BEGIN:section-11.9 -->
+<p>Per DR0022, every conclave that reaches a terminal status is post-processed by <code>app/services/trace_analyzer.py</code>, which deterministically stamps a list of <strong>failure-cause tags</strong> onto the final result describing <em>why</em> the deliberation was hard. The analyzer is rule-based over the orchestrator's existing signals — no LLM call, zero per-task cost — so tagging is free and consistent across the whole task history.</p>
+<p>The tag vocabulary is a fixed nine-value enum:</p>
+<ul>
+  <li><code>missing_evidence</code> — an agent had no grounding data for a load-bearing claim.</li>
+  <li><code>tool_timeout</code> — an agent's tool call or run exceeded its time budget.</li>
+  <li><code>bad_json_output</code> — an agent's structured output failed to parse.</li>
+  <li><code>premise_conflict</code> — agents disagreed on starting assumptions.</li>
+  <li><code>multimodal_perception_split</code> — agents reported different observations of the same image or chart.</li>
+  <li><code>unresolved_dissent</code> — the conclave ended without convergence.</li>
+  <li><code>repetition_loop_backstop</code> — the orchestrator's repetition guard fired.</li>
+  <li><code>clarification_unanswered</code> — a clarification gate never received a user answer.</li>
+  <li><code>permission_denied</code> — an action was blocked by task permissions.</li>
+</ul>
+<p>Two of those (<code>missing_evidence</code> and <code>premise_conflict</code>) are reserved enum members in v1 with no rule wired up yet; the other seven are detected automatically. Tags surface in two places in the UI: the Detail view gains a <strong>"Failure causes"</strong> panel (shipped as a plugin at <code>app/dashboard/plugins/failure-cause-detail-panel.js</code>) listing the tags for the current task with a one-line description each, and the Inbox gains a <strong>"Failure cause"</strong> filter dropdown at the top of the table that lets you show only tasks tagged with a chosen cause. Inbox filtering is client-side over the payload — the <code>GET /api/tasks</code> response carries the tags per row via a LEFT JOIN on <code>final_results</code>.</p>
+<p>On the API, tags appear at <code>final_result.failure_cause_tags: [...]</code> on <code>GET /api/tasks/{id}</code> (protocol 1.2 and later) and on each row of <code>GET /api/tasks</code>. Decision Memory's prior-art entries (see <em>11.6</em>) also carry a <code>failure_cause_tags</code> field that is empty for now; future versions may pair past tasks by shared tags so the dashboard can warn "the last conclaves on a topic like yours hit X."</p>
+<!-- END:section-11.9 -->
+        </section>
       </section>
 
       <section id="help-exports" class="help-section">
@@ -985,6 +1008,20 @@
 <p>Useful patterns. Run it periodically — say, once a week or before any kind of retention work — to snapshot fresh decisions you have not gotten around to exporting individually. The Inbox's export-status filter lets you preview what is still unexported before running it; sort by date to confirm nothing important is about to roll out from under you. After a run, the Inbox indicators flip to "exported" for every task that was processed.</p>
 <p>Bulk export only processes terminal tasks (<code>completed</code>, <code>failed</code>, <code>cancelled</code>) — in-flight tasks are skipped. Tasks that already have an <code>exported_at</code> are also skipped, so the operation is idempotent: running it twice in a row does no extra work the second time.</p>
 <!-- END:section-12.3 -->
+        </section>
+        <section id="help-exports-trajectories" class="help-subsection">
+          <h4>12.4 Trajectory exporter (JSONL)</h4>
+          <!-- BEGIN:section-12.4 -->
+<p>Per DR0023, every terminal task can be written out as a self-contained <strong>trajectory</strong> — a single-line JSONL record at <code>&lt;state-root&gt;/exports/trajectories/&lt;task_id&gt;.jsonl</code> containing the entire task in one parseable blob: prompts, full transcript, per-run timings / tokens / cost, final result (including the Structured Action Plan and failure-cause tags), your recorded decision, and the confidence aggregate. The schema is versioned via <code>_TRAJECTORY_SCHEMA_VERSION = 1</code> at the top of <code>app/services/trajectory_exporter.py</code>.</p>
+<p>The point of this format is to be a portable, file-based escape hatch from the SQLite database. The markdown and PDF / DOCX / TXT exports described above are for human reading; trajectories are for tooling. One JSONL file per task means you can analyse your decision history with any tool that reads line-delimited JSON (<code>jq</code>, <code>pandas</code>, a spreadsheet importer), hand a single file to someone else to show what a deliberation actually looked like, or repurpose history as training or evaluation data downstream. The pattern is borrowed from the Hermes / Atropos "trajectory" idea — ours is local and per-file.</p>
+<p>Two access points exist:</p>
+<ul>
+  <li>A new <strong>Trajectories</strong> sidebar tab (shipped as a plugin at <code>app/dashboard/plugins/trajectory-tools.js</code>) with a one-click <em>Export all terminal-task trajectories</em> button that calls <code>POST /api/trajectories/export-all</code>.</li>
+  <li>A per-row <strong>Export trajectory</strong> button in the Inbox actions column (same plugin) — only meaningful for terminal tasks; non-terminal status returns a friendly alert.</li>
+</ul>
+<p>The HTTP endpoints behind those: <code>POST /api/tasks/{task_id}/trajectory/export</code> returns <code>{task_id, path, bytes}</code> (404 for an unknown task), and <code>POST /api/trajectories/export-all</code> iterates terminal tasks with per-task error isolation and returns a summary. The on-disk location follows the same <code>user_data_root()</code> resolution as the rest of <code>exports/</code> — dev mode resolves to <code>&lt;repo&gt;/data/exports/trajectories/</code>, packaged installs follow the platform-conventional path.</p>
+<p>Note: trajectories accumulate under <code>exports/trajectories/</code> without a retention budget today. That is acceptable for v1 because the files are small, you own the directory, and clearing it is a plain file-system delete.</p>
+<!-- END:section-12.4 -->
         </section>
       </section>
 
@@ -1157,6 +1194,21 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
   <li><code>CLAUDE.md</code> — Guidance for Claude Code instances working in this repo.</li>
 </ul>
 <!-- END:section-14.5 -->
+        </section>
+        <section id="help-reference-plugins" class="help-subsection">
+          <h4>14.6 Dashboard plugin system</h4>
+          <!-- BEGIN:section-14.6 -->
+<p>Per DR0024, the dashboard has a small frontend-only plugin system that lets new UI attach to the page without editing <code>dashboard.js</code> core. On <code>DOMContentLoaded</code>, the loader at <code>app/dashboard/plugin_loader.js</code> fetches <code>/static/plugins/manifest.json</code> and dynamically loads each listed plugin script in order; each plugin calls <code>window.Plugins.register({...})</code> to contribute UI through one of four extension points.</p>
+<p>The four extension points:</p>
+<ul>
+  <li><code>sidebarTabs</code> — <code>{id, label, icon?, onActivate(rootEl, api)}</code> adds a sidebar tab; <code>onActivate</code> is called with a fresh mount <code>&lt;div&gt;</code> when the user clicks the tab. Reserved core ids (<code>new</code>, <code>inbox</code>, <code>detail</code>, <code>help</code>, <code>pricing</code>, <code>settings</code>, <code>recent-tasks</code>, <code>usage</code>, <code>theme</code>) are rejected so a plugin can't shadow a core view.</li>
+  <li><code>inboxRowActions</code> — <code>{id, label, icon?, onClick(task, api)}</code> appends a button to every Inbox row's actions column; <code>onClick</code> receives the task data and the plugin api.</li>
+  <li><code>inboxFilters</code> — <code>{id, label, options: [{value, label}], onChange(value, api), defaultValue?}</code> appends a labeled <code>&lt;select&gt;</code> to the Inbox filters bar.</li>
+  <li><code>detailPanels</code> — <code>{id, title, render(taskData, rootEl, api)}</code> appends a panel to the Detail view.</li>
+</ul>
+<p>Each plugin receives an <code>api</code> object with <code>el</code>, <code>fetchJSON</code>, <code>refreshInbox</code>, <code>openDetail</code>, read-only <code>state.currentTaskId</code> and <code>state.view</code>, and a namespaced <code>log</code>. Plugins live as files under <code>app/dashboard/plugins/&lt;name&gt;.js</code> and are listed in <code>app/dashboard/plugins/manifest.json</code>. An empty manifest yields byte-identical pre-plugin dashboard behavior. The three plugins that ship in-tree are <code>example-hello.js</code> (a minimal demo and copy-paste template), <code>failure-cause-detail-panel.js</code> (the Detail-view panel for <em>11.9 Failure-cause tags</em>), and <code>trajectory-tools.js</code> (the sidebar tab and per-row button for <em>12.4 Trajectory exporter</em>).</p>
+<p><strong>v1 limits.</strong> The system is frontend-only — plugins cannot register backend routes today (deferred). They share the JS realm with the dashboard with no sandboxing, which is acceptable for a single-user local tool but means a buggy plugin can break the page; recovery is removing the filename from <code>manifest.json</code> and reloading. To write a new plugin, copy <code>app/dashboard/plugins/example-hello.js</code>, edit it, then add the filename to <code>manifest.json</code>. The deeper rationale and design constraints live in <code>docs/decisions/0024_dashboard_plugin_system.md</code>.</p>
+<!-- END:section-14.6 -->
         </section>
       </section>
 

@@ -150,8 +150,8 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
             (id, task_id, final_answer, agreement_level, resolution_status,
              disagreements_json, recommended_actions_json, action_plan_json, risks_json,
              commands_requiring_approval_json, patches_requiring_approval_json,
-             errors_json, confidence_aggregate_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             errors_json, confidence_aggregate_json, failure_cause_tags_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result_id(),
@@ -167,9 +167,69 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
                 json.dumps(result.patches_requiring_approval),
                 json.dumps([e.model_dump() for e in result.errors], sort_keys=True),
                 json.dumps(result.confidence_aggregate, sort_keys=True) if result.confidence_aggregate else None,
+                # Tags are stamped post-hoc by services.trace_analyzer once the
+                # row + status are settled; insert empty so the column is never NULL.
+                json.dumps([t.value for t in (result.failure_cause_tags or [])]),
                 now_iso(),
             ),
         )
+
+
+def _post_finalize_hooks(task_id: str) -> None:
+    """Run best-effort post-terminal-state hooks: trace analysis (stamps
+    failure_cause_tags onto the final_results row) and trajectory export
+    (writes the full task to a JSONL file). Wrapped in try/except so a
+    hook failure never turns a successful task into a failed one.
+
+    Called from `run_task` after the orchestrator has flipped the task to a
+    terminal status and the final_results row exists.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+
+    # 1) Failure-cause tags.
+    try:
+        from app.services import trace_analyzer
+        with connect() as conn:
+            task_row = conn.execute(
+                "SELECT * FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+            messages = conn.execute(
+                "SELECT * FROM agent_messages WHERE task_id = ? ORDER BY created_at",
+                (task_id,),
+            ).fetchall()
+            runs = conn.execute(
+                "SELECT * FROM agent_runs WHERE task_id = ? ORDER BY started_at",
+                (task_id,),
+            ).fetchall()
+            final_row = conn.execute(
+                "SELECT * FROM final_results WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        if final_row is not None:
+            tags = trace_analyzer.classify_failure_causes(
+                task_row=task_row,
+                messages=[dict(zip(m.keys(), m)) for m in messages],
+                runs=[dict(zip(r.keys(), r)) for r in runs],
+                final_result=dict(zip(final_row.keys(), final_row)),
+            )
+            tag_strings = [t.value for t in tags]
+            def _update_tags() -> None:
+                with connect() as conn:
+                    conn.execute(
+                        "UPDATE final_results SET failure_cause_tags_json = ? WHERE task_id = ?",
+                        (json.dumps(tag_strings), task_id),
+                    )
+            from app.database import with_retry
+            with_retry(_update_tags)
+    except Exception as e:  # noqa: BLE001
+        log.warning("failure-cause tagging failed for %s: %s", task_id, e)
+
+    # 2) Trajectory export — single-line JSONL snapshot of the whole task.
+    try:
+        from app.services import trajectory_exporter
+        trajectory_exporter.export_trajectory(task_id)
+    except Exception as e:  # noqa: BLE001
+        log.warning("trajectory export failed for %s: %s", task_id, e)
 
 
 def _compute_confidence_aggregate(turns: list) -> Optional[dict]:
@@ -1307,6 +1367,11 @@ async def run_task(task_id: str) -> None:
         _save_final_result(task_id, result)
         capture_from_final_result(task, task_id, result)
         _set_task_status(task_id, result.status)
+        # Post-terminal-state hooks: stamp failure-cause tags + auto-export
+        # the trajectory JSONL. Both are best-effort and isolated from the
+        # deliberation flow — see _post_finalize_hooks.
+        if result.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+            _post_finalize_hooks(task_id)
         # If the task carried a sandbox and reached a terminal status, clean up.
         if result.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
             if task.context.extra.get("sandbox_path"):

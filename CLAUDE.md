@@ -19,7 +19,7 @@ pip install -r requirements.txt
 # Run the service (foreground)
 python -m uvicorn app.main:app --host 127.0.0.1 --port 8787
 
-# Run the full test suite (~187 tests)
+# Run the full test suite (~420 tests)
 python -m pytest
 
 # Run a single test file / test
@@ -106,6 +106,9 @@ These come from ratified decision records and the Conclave Charter (`docs/CONCLA
 | Slash command surface | `clients/claude-code-commands/*.md`, `clients/codex-skill/`, `clients/gemini-extension/` — these are the source of truth; `clients/install.py` deploys them |
 | Agent role behavior (the "behave like a participant" text) | `skills/generic/*.md` — embedded into prompts at runtime |
 | Charter | `skills/generic/conclave_charter.md` (binding) + `docs/CONCLAVE_CHARTER.md` (human-readable mirror) — bump version, write a decision record |
+| Failure-cause tag rules | `app/services/trace_analyzer.py::classify_failure_causes` — rule-based, no LLM. Add a `FailureCause` enum member in `app/protocol/validators.py` first, then a rule. Tested in `tests/test_trace_analyzer.py` (DR0022) |
+| Trajectory export schema | `app/services/trajectory_exporter.py` — bump `_TRAJECTORY_SCHEMA_VERSION` on breaking shape changes; written automatically by the orchestrator's `_post_finalize_hooks` and on demand via `/api/tasks/{id}/trajectory/export` (DR0023) |
+| Dashboard plugin | Drop a JS file under `app/dashboard/plugins/<name>.js` and list it in `app/dashboard/plugins/manifest.json`; copy-paste template at `plugins/example-hello.js`. Four extension points: `sidebarTabs`, `inboxRowActions`, `inboxFilters`, `detailPanels` (DR0024) |
 
 ## Documents worth reading before non-trivial work
 

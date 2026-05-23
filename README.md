@@ -37,6 +37,9 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Threading** — `parent_task_id`, ancestry walks, prior-thread context auto-injected into follow-ups (`/continue`).
 - **Decision records** — significant work closes with a structured record (what was chosen, why, what was rejected, known risks, open questions, who keeps continuity, and — for capability/infrastructure changes — an Operability Impact field). See [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
 - **Decision Memory** — every new task auto-retrieves the most relevant past decision records (TF-IDF over `docs/decisions/`) and surfaces them as a *Prior Art* section both in agent prompts and on the dashboard, so settled questions don't get re-litigated.
+- **Failure-cause tags** — every conclave's final result is stamped with a structured list of *why it was hard* tags (`tool_timeout`, `multimodal_perception_split`, `unresolved_dissent`, `permission_denied`, …) by `app/services/trace_analyzer.py` — rule-based, no LLM call, zero per-task cost. Surfaced on the API, filterable in the inbox, and shown as a detail-view panel. (DR0022)
+- **Trajectory exporter** — every terminal task is auto-written as a self-contained JSONL file under `data/exports/trajectories/<task_id>.jsonl` containing the full transcript, per-run timings + tokens + cost, final result (with action plan + failure-cause tags), recorded decision, and confidence aggregate — a portable escape hatch from SQLite. Bulk re-export from the dashboard or `POST /api/trajectories/export-all`. (DR0023)
+- **Dashboard plugins (v1, frontend-only)** — small manifest-driven plugin system at `app/dashboard/plugins/` lets new UI (sidebar tabs, inbox row actions, inbox filters, detail panels) attach without editing `dashboard.js` core. Empty manifest → byte-identical pre-plugin behavior. Both the failure-cause detail panel and the trajectory tools ship as plugins to dogfood the surface. Copy-paste template at `plugins/example-hello.js`. (DR0024)
 - **Confidence-weighted convergence** — every conclave's final result carries an aggregate confidence stat (min/max/mean) plus a per-agent round-by-round trajectory, so you can see whether `consensus` was 4×0.95 (robust) or 1×0.95 + 3×0.4 (conformist drift). A wide-spread caveat fires automatically when participants converged with materially different certainty levels.
 - **Retention policy** — tier-based: Tier 1 (never trimmed — decisions, charter amendments, unresolved dissent), Tier 2 (retain until exported), Tier 3 (agent messages — trimmed first). Operational triggers at 2 GB DB size / 1,000 tasks; a 6-hour worker. Opt-in `trim_tier2_after_export` lets the worker also drop `final_results` for tasks already exported to disk.
 - **Tier 2 export/archive** — `exported_at` tracking, bulk export endpoint, inbox filter.
@@ -46,7 +49,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
 - **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **Test suite** (364 tests) covering protocol, modes, clarification pause/resume, draft artifacts, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, the OpenRouter tool-loop, the user-data-root resolver, config discovery, the first-run migration, per-seat readiness, the health endpoint shape, centralized prompt-budget enforcement, and the CLI-seat sandbox-manifest toggle.
+- **Test suite** (420 tests) covering protocol, modes, clarification pause/resume, draft artifacts, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, the OpenRouter tool-loop, the user-data-root resolver, config discovery, the first-run migration, per-seat readiness, the health endpoint shape, centralized prompt-budget enforcement, the CLI-seat sandbox-manifest toggle, task deletion + cascade, the rebrand directory migration, failure-cause classification (rule-based), and the trajectory exporter + HTTP endpoints.
 
 ---
 
@@ -193,7 +196,7 @@ See [`docs/help` section 4.5–4.8](app/dashboard/help.html) for the full operat
 pytest
 ```
 
-364 tests. Key files:
+420 tests. Key files:
 
 | File | Covers |
 |---|---|
@@ -209,6 +212,12 @@ pytest
 | `tests/test_export_tracking.py` | Tier 2 export marking, bulk export, inbox filter |
 | `tests/test_db_concurrency.py` | busy_timeout, WAL, `with_retry` semantics |
 | `tests/test_provenance.py` | `source_agent` round-trip, `--invoked-by` flag parser |
+| `tests/test_trace_analyzer.py` | rule-based failure-cause classification per DR0022 |
+| `tests/test_failure_cause_tags_end_to_end.py` | failure-cause tags round-trip through the orchestrator |
+| `tests/test_trajectory_exporter.py` | JSONL trajectory schema, idempotency, pre-migration defaults |
+| `tests/test_trajectory_export_endpoint.py` | `POST /api/tasks/{id}/trajectory/export` + bulk export |
+| `tests/test_delete_task.py` | `DELETE /api/tasks/{id}` cascade + on-disk cleanup + child pointer clearing |
+| `tests/test_legacy_dir_migration.py` | rebrand directory migration |
 | `tests/test_exporter.py` | decision-record markdown export |
 
 ---

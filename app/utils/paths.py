@@ -180,6 +180,19 @@ def exports_root() -> Path:
     return _subdir("exports")
 
 
+def trajectories_root() -> Path:
+    """Per-task trajectory JSONL files live here.
+
+    A "trajectory" is the whole story of one finished task — request, full
+    transcript, agent_runs (timings + cost), final result (with
+    `failure_cause_tags`), and the user's decision — serialized as a single
+    JSONL line so it can be fed into spreadsheets, notebooks, or future
+    fine-tuning corpora without writing a custom DB query. Filenames are the
+    task_id; re-exporting overwrites cleanly.
+    """
+    return _subdir("exports/trajectories")
+
+
 def artifacts_root() -> Path:
     """Per-task draft artifacts produced from agent recommendations live here."""
     return _subdir("artifacts")

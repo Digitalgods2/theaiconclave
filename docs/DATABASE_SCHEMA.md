@@ -106,6 +106,7 @@ CREATE TABLE final_results (
     commands_requiring_approval_json  TEXT NOT NULL DEFAULT '[]',
     patches_requiring_approval_json   TEXT NOT NULL DEFAULT '[]',
     errors_json                       TEXT NOT NULL DEFAULT '[]',
+    failure_cause_tags_json           TEXT NOT NULL DEFAULT '[]',  -- DR0022; JSON array of FailureCause enum strings
     created_at                        TEXT NOT NULL,
     FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
@@ -223,6 +224,6 @@ CREATE INDEX idx_logs_event_type ON logs(event_type, created_at);
 
 ## 7. Data Hygiene
 
-- The orchestrator never deletes rows from `tasks`, `agent_runs`, `agent_messages`, `final_results`, or `logs`. Cancellation marks status, it does not erase history.
+- The orchestrator never deletes rows from `tasks`, `agent_runs`, `agent_messages`, `final_results`, or `logs`. Cancellation marks status, it does not erase history. (User-initiated hard delete via `DELETE /api/tasks/{id}` is the one exception — it cascades the task and its descendants on explicit user action; refused for in-flight tasks.)
 - `approvals` rows are never deleted; resolution updates `status` and `resolved_at`.
 - `settings` is the only table where row deletion is normal (clearing an override).

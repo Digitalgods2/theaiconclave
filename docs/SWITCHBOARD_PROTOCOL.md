@@ -12,7 +12,7 @@ The wire format for messages flowing through The AI Conclave Switchboard. Every 
 
 ## 2. Versioning
 
-Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Current version: `1.1`.
+Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Current version: `1.2`.
 
 - **MINOR bump** — additive only (new optional fields). Older clients ignore unknown fields.
 - **MAJOR bump** — breaking. The AI Conclave Switchboard rejects mismatched majors with error `protocol_version_mismatch`.
@@ -246,11 +246,14 @@ Built by the result builder and returned to the caller.
   "risks": [
     {"severity": "low", "description": "May install into wrong interpreter if venv is not active."}
   ],
-  "errors": []
+  "errors": [],
+  "failure_cause_tags": ["clarification_unanswered"]
 }
 ```
 
 `disagreements` MUST contain every disagreement raised by any consultant that the primary did not explicitly accept. Do not summarize. Do not omit "minor" disagreements. The user reads this list to decide whether the consensus is real.
+
+`failure_cause_tags` (since protocol 1.2 / DR0022) is a structured list of `FailureCause` values stamped by the orchestrator's post-finalize hook describing *why the deliberation was hard*. Members: `missing_evidence`, `tool_timeout`, `bad_json_output`, `premise_conflict`, `multimodal_perception_split`, `unresolved_dissent`, `repetition_loop_backstop`, `clarification_unanswered`, `permission_denied`. Empty list = the deliberation ran clean. Classification is rule-based (no LLM call) and is performed by `app/services/trace_analyzer.py` after the terminal-status flip.
 
 `action_plan` is the Structured Action Plan. It is compiled from the final synthesized response's `recommended_actions` in `consult` and `resolve` modes. In v1 it is advisory only: it makes the operational handoff legible and permission-aware, but it does not execute actions, create approvals, pause tasks, or remove blocked steps. `conclave` mode returns an empty action plan until a future protocol revision gives the final synthesized answer structured recommended actions.
 

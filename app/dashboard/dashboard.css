@@ -4291,3 +4291,114 @@ body.theme-dark .tool-details-summary:hover { color: #93c5fd; }
 body.theme-dark .tool-payload {
   background: #1a2035; border-color: #2d3548; color: #cbd5e1;
 }
+
+/* =========================================================
+   Plugin system (v1: frontend-only plugins)
+   Minimal styles for plugin-contributed UI. Plugins should
+   reuse existing classes (.btn, .muted, .view-header, etc.)
+   wherever possible; these rules cover the few cases where
+   the plugin loader / dashboard adds plugin-specific markup.
+   ========================================================= */
+
+/* Sidebar rail buttons added by plugins. Uses the same .rail-btn base. */
+.rail-btn-plugin { /* reserved for future plugin-only tweaks */ }
+
+/* The shared host section that every plugin sidebar view renders into.
+   It's a regular .view, so it already has the standard padding/layout. */
+.plugin-view .plugin-view-root { display: block; }
+
+/* Inbox row action buttons contributed by plugins. Match .row-delete-btn
+   sizing/affordance so the actions column reads as one consistent strip. */
+.row-plugin-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #6c7180;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 4px;
+}
+.row-plugin-action-btn svg {
+  width: 14px; height: 14px; display: block; pointer-events: none;
+}
+.row-plugin-action-btn:hover {
+  background: #eef0f5; color: #2a3045;
+}
+.row-plugin-action-btn:focus-visible {
+  outline: 2px solid #2a66e3; outline-offset: 1px;
+}
+
+/* Container for plugin-contributed detail panels (rendered after every core
+   panel in renderDetail). The wrapping section adds spacing between panels;
+   each individual .plugin-panel mirrors the core panel chrome. */
+.plugin-detail-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+.plugin-panel {
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.plugin-panel > h3 {
+  font-size: 15px;
+  margin: 0 0 8px;
+  color: #2a3045;
+}
+.plugin-panel-body { font-size: 13.5px; color: #2a3045; }
+
+/* Dark-theme parity */
+body.theme-dark .row-plugin-action-btn { color: #94a3b8; }
+body.theme-dark .row-plugin-action-btn:hover {
+  background: #232a3d; color: #e5e7eb;
+}
+body.theme-dark .plugin-panel {
+  background: #161b2c; border-color: #2d3548;
+}
+body.theme-dark .plugin-panel > h3 { color: #e5e7eb; }
+body.theme-dark .plugin-panel-body { color: #cbd5e1; }
+
+/* Failure-cause chips (rendered by the failure-cause-detail-panel plugin) */
+.failure-cause-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.failure-cause-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.failure-cause-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #fbe9e7;
+  color: #8a1f17;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.failure-cause-desc {
+  font-size: 12.5px;
+}
+.small { font-size: 11.5px; }
+body.theme-dark .failure-cause-chip {
+  background: #3a1a16;
+  color: #fbd5d0;
+}
+
+
