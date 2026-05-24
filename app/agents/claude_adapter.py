@@ -351,6 +351,25 @@ def _extract_result_field(stdout: str) -> str:
     return result
 
 
+def _claude_in_subscription_mode() -> bool:
+    """True if the Claude CLI appears to be on a Pro/Max subscription.
+
+    Mirrors the detection in `app/api/agents.py::_detect_cli_auth_mode` —
+    duplicated here (rather than imported) to avoid an `app.api -> app.agents`
+    import direction the rest of the codebase doesn't have.
+
+    When true, the CLI's `total_cost_usd` field is a list-price *estimate*
+    that the subscription absorbs at the provider end — we record token
+    counts but NOT a USD figure (recording the estimate misleads the
+    dashboard's spend view, which is how this got noticed).
+    """
+    try:
+        creds = Path.home() / ".claude" / ".credentials.json"
+        return creds.exists() and creds.stat().st_size > 0
+    except OSError:
+        return False
+
+
 def _extract_usage_from_claude(stdout: str) -> dict[str, Any]:
     """Pull tokens + cost from Claude's envelope."""
     try:
@@ -363,7 +382,10 @@ def _extract_usage_from_claude(stdout: str) -> dict[str, Any]:
         "output_tokens": usage.get("output_tokens"),
     }
     cost = envelope.get("total_cost_usd")
-    if isinstance(cost, (int, float)):
+    if isinstance(cost, (int, float)) and not _claude_in_subscription_mode():
+        # API mode → the CLI's reported cost is the bill we'll actually see.
+        # Subscription mode → the CLI still prints a list-price estimate that
+        # the subscription absorbs; recording it pollutes the spend view.
         out["cost_usd"] = float(cost)
     return out
 

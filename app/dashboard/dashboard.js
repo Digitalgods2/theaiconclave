@@ -4811,8 +4811,8 @@ function renderUsage(data) {
 
   // Summary cards
   const cards = el("div", { class: "usage-cards" });
-  cards.appendChild(_usageCard("Today", todayTotal > 0 ? fmtUsd(todayTotal) : "$0", "OpenRouter spend"));
-  cards.appendChild(_usageCard("Last 7 days", weekly7d > 0 ? fmtUsd(weekly7d) : "$0", "OpenRouter spend"));
+  cards.appendChild(_usageCard("Today", todayTotal > 0 ? fmtUsd(todayTotal) : "$0", "Per-token spend"));
+  cards.appendChild(_usageCard("Last 7 days", weekly7d > 0 ? fmtUsd(weekly7d) : "$0", "Per-token spend"));
   cards.appendChild(_usageCard("All-time tasks", String(allTime.task_count || 0), "tasks run"));
   const totalTok = (allTime.input_tokens || 0) + (allTime.output_tokens || 0);
   cards.appendChild(_usageCard("All-time tokens", _fmtTok(totalTok), "input + output"));
@@ -4820,7 +4820,7 @@ function renderUsage(data) {
 
   // 7-day bar chart
   const chartSec = el("div", { class: "usage-section" });
-  chartSec.appendChild(el("h3", { text: "Daily OpenRouter spend — last 7 days" }));
+  chartSec.appendChild(el("h3", { text: "Daily per-token spend — last 7 days" }));
   if (daily.length > 0) {
     const maxCost = Math.max(...daily.map((d) => d.cost_usd || 0), 0.00001);
     const chart = el("div", { class: "usage-chart" });
