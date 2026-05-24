@@ -226,9 +226,9 @@ async def list_tasks(
 async def usage_summary() -> dict[str, Any]:
     """Aggregate token and cost data from agent_runs for the Usage & Spend panel.
 
-    Returns today-by-agent, a 7-day daily series, and all-time totals.
-    Only agent_runs that recorded cost_usd > 0 (OpenRouter seats) contribute
-    to the spend columns; CLI subscription runs show zero cost but non-zero
+    Returns today-by-agent, last-7-days-by-agent, a 7-day daily series, and
+    all-time totals. Only agent_runs with recorded `cost_usd` contribute to
+    the spend columns; CLI subscription runs show — for spend but non-zero
     token counts when the adapters record them.
     """
     with connect() as conn:
@@ -243,6 +243,23 @@ async def usage_summary() -> dict[str, Any]:
             WHERE DATE(started_at) = DATE('now')
             GROUP BY agent_name
             ORDER BY total_cost DESC
+            """
+        ).fetchall()
+
+        # Per-agent breakdown over the same 7-day window the chart uses. Lets
+        # the user see who contributed to weekly spend even on days when
+        # today's conclave didn't include the OpenRouter seats.
+        last7d_rows = conn.execute(
+            """
+            SELECT agent_name,
+                   SUM(COALESCE(cost_usd, 0))      AS total_cost,
+                   SUM(COALESCE(input_tokens, 0))  AS total_input,
+                   SUM(COALESCE(output_tokens, 0)) AS total_output,
+                   COUNT(*)                         AS run_count
+            FROM agent_runs
+            WHERE started_at >= DATE('now', '-6 days')
+            GROUP BY agent_name
+            ORDER BY total_cost DESC, agent_name ASC
             """
         ).fetchall()
 
@@ -269,17 +286,18 @@ async def usage_summary() -> dict[str, Any]:
             """
         ).fetchone()
 
+    def _agent_row(r):
+        return {
+            "agent_name": r["agent_name"],
+            "cost_usd": r["total_cost"],
+            "input_tokens": r["total_input"],
+            "output_tokens": r["total_output"],
+            "run_count": r["run_count"],
+        }
+
     return {
-        "today_by_agent": [
-            {
-                "agent_name": r["agent_name"],
-                "cost_usd": r["total_cost"],
-                "input_tokens": r["total_input"],
-                "output_tokens": r["total_output"],
-                "run_count": r["run_count"],
-            }
-            for r in today_rows
-        ],
+        "today_by_agent": [_agent_row(r) for r in today_rows],
+        "last7d_by_agent": [_agent_row(r) for r in last7d_rows],
         "daily_7d": [
             {
                 "day": r["day"],

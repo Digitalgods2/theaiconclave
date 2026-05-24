@@ -4802,9 +4802,10 @@ function renderUsage(data) {
   if (!content) return;
   content.innerHTML = "";
 
-  const todayAgents = (data && data.today_by_agent) || [];
-  const daily       = (data && data.daily_7d) || [];
-  const allTime     = (data && data.all_time) || {};
+  const todayAgents  = (data && data.today_by_agent) || [];
+  const last7dAgents = (data && data.last7d_by_agent) || [];
+  const daily        = (data && data.daily_7d) || [];
+  const allTime      = (data && data.all_time) || {};
 
   const todayTotal = todayAgents.reduce((s, a) => s + (a.cost_usd || 0), 0);
   const weekly7d   = daily.reduce((s, d) => s + (d.cost_usd || 0), 0);
@@ -4845,25 +4846,22 @@ function renderUsage(data) {
 
   // Today per-agent breakdown
   if (todayAgents.length > 0) {
-    const agentSec = el("div", { class: "usage-section" });
-    agentSec.appendChild(el("h3", { text: "Today — by agent" }));
-    const table = el("table", { class: "usage-agent-table" });
-    const thead = el("thead");
-    thead.innerHTML = "<tr><th>Agent</th><th class='num'>Runs</th><th class='num'>Input tok</th><th class='num'>Output tok</th><th class='num'>Spend</th></tr>";
-    table.appendChild(thead);
-    const tbody = el("tbody");
-    for (const a of todayAgents) {
-      const tr = el("tr");
-      tr.appendChild(el("td", { text: a.agent_name }));
-      tr.appendChild(el("td", { class: "num", text: String(a.run_count || 0) }));
-      tr.appendChild(el("td", { class: "num", text: fmtInt(a.input_tokens || 0) }));
-      tr.appendChild(el("td", { class: "num", text: fmtInt(a.output_tokens || 0) }));
-      tr.appendChild(el("td", { class: "num", text: a.cost_usd > 0 ? fmtUsd(a.cost_usd) : "—" }));
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-    agentSec.appendChild(table);
-    content.appendChild(agentSec);
+    content.appendChild(_renderUsageByAgentSection("Today — by agent", todayAgents));
+  }
+
+  // Last-7-days per-agent breakdown — answers "who actually contributed
+  // to weekly spend?" even on days when today's conclave skipped the
+  // OpenRouter seats. Only show if it differs from the today view to
+  // avoid duplicating a one-day-only history.
+  const showLast7d = last7dAgents.length > 0 && (
+    last7dAgents.length !== todayAgents.length ||
+    last7dAgents.some((a, i) => (
+      !todayAgents[i] || a.agent_name !== todayAgents[i].agent_name ||
+      (a.cost_usd || 0) !== (todayAgents[i].cost_usd || 0)
+    ))
+  );
+  if (showLast7d) {
+    content.appendChild(_renderUsageByAgentSection("Last 7 days — by agent", last7dAgents));
   }
 
   content.appendChild(el("p", {
@@ -4878,6 +4876,31 @@ function _usageCard(title, value, subtitle) {
   card.appendChild(el("div", { class: "usage-card-value", text: value }));
   card.appendChild(el("div", { class: "usage-card-sub",   text: subtitle }));
   return card;
+}
+
+// Per-agent usage table — shared shape for both the today and the last-7-days
+// breakdowns. Rows are {agent_name, run_count, input_tokens, output_tokens,
+// cost_usd}; spend renders as "—" for any row with no recorded cost.
+function _renderUsageByAgentSection(title, rows) {
+  const agentSec = el("div", { class: "usage-section" });
+  agentSec.appendChild(el("h3", { text: title }));
+  const table = el("table", { class: "usage-agent-table" });
+  const thead = el("thead");
+  thead.innerHTML = "<tr><th>Agent</th><th class='num'>Runs</th><th class='num'>Input tok</th><th class='num'>Output tok</th><th class='num'>Spend</th></tr>";
+  table.appendChild(thead);
+  const tbody = el("tbody");
+  for (const a of rows) {
+    const tr = el("tr");
+    tr.appendChild(el("td", { text: a.agent_name }));
+    tr.appendChild(el("td", { class: "num", text: String(a.run_count || 0) }));
+    tr.appendChild(el("td", { class: "num", text: fmtInt(a.input_tokens || 0) }));
+    tr.appendChild(el("td", { class: "num", text: fmtInt(a.output_tokens || 0) }));
+    tr.appendChild(el("td", { class: "num", text: a.cost_usd > 0 ? fmtUsd(a.cost_usd) : "—" }));
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody);
+  agentSec.appendChild(table);
+  return agentSec;
 }
 
 function _fmtTok(n) {
