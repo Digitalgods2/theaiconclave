@@ -16,7 +16,6 @@ from app.services.prompt_builder import (
     build_conclave_prompt,
     build_consultant_prompt,
     build_final_prompt,
-    build_peer_prompt,
     build_primary_prompt,
 )
 
@@ -214,15 +213,6 @@ def test_conclave_prompt_round_one_unaffected():
     )
     assert "this is round 1" in prompt
     assert "earlier turns omitted" not in prompt
-
-
-def test_peer_prompt_with_ceiling_passes_through():
-    """build_peer_prompt has no priors of its own; ceiling is forwarded but has
-    nothing to trim."""
-    task = _make_task()
-    prompt = build_peer_prompt(task, "tsk_test", "codex", ceiling_chars=50_000)
-    assert "Required Output" in prompt
-    assert "earlier turn" not in prompt
 
 
 def test_budget_does_not_eat_into_schema_demand():

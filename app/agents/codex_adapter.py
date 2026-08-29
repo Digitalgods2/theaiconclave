@@ -32,14 +32,12 @@ from app.protocol.validators import (
     ConsultantCritique,
     ErrorCode,
     MessageType,
-    PeerAnswer,
     PrimaryResponse,
 )
 from app.services.prompt_builder import (
     build_conclave_prompt,
     build_consultant_prompt,
     build_final_prompt,
-    build_peer_prompt,
     build_primary_prompt,
 )
 from app.utils.attachments import image_attachment_paths
@@ -254,18 +252,6 @@ class CodexAdapter(BaseAdapter):
         )
         return PrimaryResponse.model_validate(data)
 
-    async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
-        prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name, ceiling_chars=self.max_context_chars, include_sandbox_manifest=False)
-        text = await self._invoke(
-            prompt, ctx.timeout_seconds,
-            image_attachment_paths(ctx.task),
-            ctx.task.context.extra.get("sandbox_path"),
-        )
-        data = _parse_and_coerce(
-            text, ctx.task_id, self.name,
-            role="peer", default_message_type=MessageType.PEER_ANSWER.value,
-        )
-        return PeerAnswer.model_validate(data)
 
     async def run_conclave_turn(self, ctx: AdapterContext) -> ConclaveTurn:
         others = [c for c in ctx.task.consultants if c != self.name]

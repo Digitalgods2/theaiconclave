@@ -26,10 +26,10 @@ CREATE TABLE tasks (
     status            TEXT NOT NULL,                    -- pending | running | waiting_for_user | completed | failed | cancelled
     source            TEXT NOT NULL,                    -- dashboard | api | webhook | cli | watcher
     source_agent      TEXT,                             -- agent that submitted, if any
-    mode              TEXT NOT NULL,                    -- consult | handoff | poll
+    mode              TEXT NOT NULL,                    -- resolve | consult | conclave
     task_type         TEXT NOT NULL,
     user_request      TEXT NOT NULL,
-    primary_agent     TEXT,                             -- null in poll mode
+    primary_agent     TEXT,                             -- null in conclave mode
     consultants       TEXT NOT NULL DEFAULT '[]',       -- JSON array of agent names
     project_path      TEXT,
     context_json      TEXT NOT NULL DEFAULT '{}',
@@ -44,7 +44,7 @@ CREATE INDEX idx_tasks_created_at ON tasks(created_at DESC);
 
 ### `agent_runs`
 
-One row per agent invocation. A `consult` task with one consultant produces three runs (primary proposal, consultant critique, primary final). A `poll` task with N peers produces N runs.
+One row per agent invocation. A `consult` task with one consultant produces three runs (primary proposal, consultant critique, primary final). A `conclave` task produces one run per participant per round.
 
 ```sql
 CREATE TABLE agent_runs (
@@ -77,7 +77,7 @@ CREATE TABLE agent_messages (
     agent_run_id    TEXT,                               -- null for synthetic/orchestrator-injected messages
     agent_name      TEXT NOT NULL,
     role            TEXT NOT NULL,
-    message_type    TEXT NOT NULL,                      -- primary_proposal | consultant_critique | primary_final | peer_answer | error
+    message_type    TEXT NOT NULL,                      -- primary_proposal | consultant_critique | primary_final | conclave_turn | error
     direction       TEXT NOT NULL,                      -- to_agent | from_agent
     content         TEXT,                               -- raw text (prompt or response body)
     structured_json TEXT,                               -- protocol-validated JSON if applicable
@@ -196,7 +196,6 @@ CREATE INDEX idx_logs_event_type ON logs(event_type, created_at);
 | `TaskRequest` | One `tasks` row; `permissions`, `limits`, `context` go to `_json` columns. |
 | `PrimaryResponse` (proposal or final) | One `agent_messages` row with `direction=from_agent`; the prompt that produced it is a separate row with `direction=to_agent`. |
 | `ConsultantCritique` | One `agent_messages` row, `direction=from_agent`. |
-| `PeerAnswer` | One `agent_messages` row per peer, `direction=from_agent`. |
 | `FinalResult` | One `final_results` row. |
 | Draft artifacts | Zero or more `task_artifacts` rows, plus files under `artifacts/`. |
 | `Approval` | One `approvals` row. |

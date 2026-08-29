@@ -84,9 +84,6 @@ class _QuestionTurnAdapter(BaseAdapter):
     async def run_final(self, ctx):  # pragma: no cover - not used
         raise NotImplementedError
 
-    async def run_peer(self, ctx):  # pragma: no cover - not used
-        raise NotImplementedError
-
     async def run_conclave_turn(self, ctx) -> ConclaveTurn:
         return ConclaveTurn(
             protocol_version="1.0",

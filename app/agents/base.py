@@ -20,7 +20,6 @@ from app.protocol.validators import (
     ConclaveTurn,
     ConsultantCritique,
     ErrorCode,
-    PeerAnswer,
     Permissions,
     PrimaryResponse,
     TaskRequest,
@@ -133,10 +132,6 @@ class BaseAdapter(ABC):
     @abstractmethod
     async def run_final(self, ctx: AdapterContext) -> PrimaryResponse:
         """Final response after consultant critique. Returns message_type=primary_final."""
-
-    @abstractmethod
-    async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
-        """Independent answer in poll mode. Returns message_type=peer_answer."""
 
     @abstractmethod
     async def run_conclave_turn(self, ctx: AdapterContext) -> ConclaveTurn:

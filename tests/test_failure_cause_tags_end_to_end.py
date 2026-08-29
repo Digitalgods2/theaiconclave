@@ -110,9 +110,6 @@ class _StubbornParticipant(BaseAdapter):
     async def run_final(self, ctx):  # pragma: no cover
         raise NotImplementedError
 
-    async def run_peer(self, ctx):  # pragma: no cover
-        raise NotImplementedError
-
     async def run_conclave_turn(self, ctx) -> ConclaveTurn:
         return ConclaveTurn(
             protocol_version="1.0",
@@ -164,7 +161,6 @@ async def test_clean_consensus_yields_empty_tags(temp_db):
         async def run_primary(self, ctx): raise NotImplementedError  # pragma: no cover
         async def run_consultant(self, ctx): raise NotImplementedError  # pragma: no cover
         async def run_final(self, ctx): raise NotImplementedError  # pragma: no cover
-        async def run_peer(self, ctx): raise NotImplementedError  # pragma: no cover
         async def run_conclave_turn(self, ctx) -> ConclaveTurn:
             return ConclaveTurn(
                 protocol_version="1.0", task_id=ctx.task_id, agent=self._n,

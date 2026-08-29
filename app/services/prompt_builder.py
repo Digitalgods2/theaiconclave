@@ -156,12 +156,6 @@ def _format_prior_message(m: dict) -> str:
         return f"## (you previously asked the user)\n{m.get('content', '')}"
     if mt == "user_input_response":
         return f"## User answered\n{m.get('content', '')}"
-    if mt == "peer_answer":
-        return (
-            f"## {agent} (peer) — answer\n"
-            f"summary: {m.get('summary', '')}\n"
-            f"analysis: {m.get('analysis', '')}"
-        )
     return f"## {agent} — {mt}\n{m.get('content', '')}"
 
 
@@ -460,21 +454,6 @@ def build_final_prompt(
     return prompt.replace(
         '"message_type": "primary_proposal"',
         '"message_type": "primary_final"',
-    )
-
-
-def build_peer_prompt(
-    task: TaskRequest,
-    task_id: str,
-    agent_name: str,
-    ceiling_chars: Optional[int] = None,
-    include_sandbox_manifest: bool = True,
-) -> str:
-    """Prompt for poll-mode peers. Just primary-shaped output, no critique loop."""
-    return build_primary_prompt(
-        task, task_id, agent_name, prior_messages=[],
-        ceiling_chars=ceiling_chars,
-        include_sandbox_manifest=include_sandbox_manifest,
     )
 
 

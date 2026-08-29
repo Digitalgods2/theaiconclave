@@ -149,11 +149,11 @@ You're working on the `Conclave AI` codebase and considering whether to add a Se
    ```
    /decide latest "Skipping Sentry for now. Single-user local-only doesn't justify the
    dep. Re-deciding if we ever expose this service to non-local clients. Add a TODO in
-   docs/MVP_PLAN.md to revisit when network access ships."
+   docs/historical/MVP_PLAN.md to revisit when network access ships."
    ```
 
 4. **You execute in Claude Code**:
-   > *"Add the TODO to docs/MVP_PLAN.md per my decision on the Sentry task. Reference the task ID in the comment."*
+   > *"Add the TODO to docs/historical/MVP_PLAN.md per my decision on the Sentry task. Reference the task ID in the comment."*
 
    Claude Code reads MVP_PLAN.md, finds an appropriate section, edits it, and confirms.
 

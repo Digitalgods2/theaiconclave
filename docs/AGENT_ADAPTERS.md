@@ -6,7 +6,7 @@ Adapters are the *only* place in the codebase that knows how to invoke a specifi
 
 ```python
 from app.protocol.validators import (
-    PrimaryResponse, ConsultantCritique, PeerAnswer, TaskRequest, Permissions
+    PrimaryResponse, ConsultantCritique, TaskRequest, Permissions
 )
 
 class AdapterContext(BaseModel):
@@ -31,7 +31,6 @@ class BaseAdapter:
     async def run_primary(self, ctx: AdapterContext) -> PrimaryResponse: ...
     async def run_consultant(self, ctx: AdapterContext) -> ConsultantCritique: ...
     async def run_final(self, ctx: AdapterContext) -> PrimaryResponse: ...
-    async def run_peer(self, ctx: AdapterContext) -> PeerAnswer: ...
 ```
 
 `run_primary` returns a `PrimaryResponse` with `message_type=primary_proposal`.

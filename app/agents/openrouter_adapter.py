@@ -52,14 +52,12 @@ from app.protocol.validators import (
     ConsultantCritique,
     ErrorCode,
     MessageType,
-    PeerAnswer,
     PrimaryResponse,
 )
 from app.services.prompt_builder import (
     build_conclave_prompt,
     build_consultant_prompt,
     build_final_prompt,
-    build_peer_prompt,
     build_primary_prompt,
 )
 from app.services.sandbox_tools import (
@@ -737,14 +735,6 @@ class OpenRouterAdapter(BaseAdapter):
                                  default_message_type=MessageType.PRIMARY_FINAL.value)
         return PrimaryResponse.model_validate(data)
 
-    async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
-        self._last_tool_events = []
-        prompt = build_peer_prompt(ctx.task, ctx.task_id, self.name,
-                                   ceiling_chars=self._effective_max_chars())
-        text = await self._invoke_dispatch(ctx, prompt)
-        data = _parse_and_coerce(text, ctx.task_id, self.name, role="peer",
-                                 default_message_type=MessageType.PEER_ANSWER.value)
-        return PeerAnswer.model_validate(data)
 
     async def run_conclave_turn(self, ctx: AdapterContext) -> ConclaveTurn:
         self._last_tool_events = []

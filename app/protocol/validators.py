@@ -37,14 +37,11 @@ class TaskMode(str, Enum):
     RESOLVE = "resolve"     # open-ended, primary-driven, goal-based termination
     CONSULT = "consult"     # bounded second opinion
     CONCLAVE = "conclave"   # N equal participants, full-mesh visibility, convergence termination
-    HANDOFF = "handoff"     # named agent becomes primary
-    POLL = "poll"           # parallel independent answers, no iteration
 
 
 class AgentRole(str, Enum):
     PRIMARY = "primary"
     CONSULTANT = "consultant"
-    PEER = "peer"
     PARTICIPANT = "participant"   # conclave mode — equal voice, no primary/consultant asymmetry
 
 
@@ -52,7 +49,6 @@ class MessageType(str, Enum):
     PRIMARY_PROPOSAL = "primary_proposal"
     CONSULTANT_CRITIQUE = "consultant_critique"
     PRIMARY_FINAL = "primary_final"
-    PEER_ANSWER = "peer_answer"
     CONCLAVE_TURN = "conclave_turn"               # one participant's contribution per round
     USER_INPUT_REQUEST = "user_input_request"
     USER_INPUT_RESPONSE = "user_input_response"
@@ -282,19 +278,13 @@ class TaskRequest(BaseModel):
 
     @model_validator(mode="after")
     def _check_mode_requirements(self) -> "TaskRequest":
-        # primary_agent required for resolve, consult, handoff
-        if self.mode in (TaskMode.RESOLVE, TaskMode.CONSULT, TaskMode.HANDOFF):
+        # primary_agent required for resolve and consult
+        if self.mode in (TaskMode.RESOLVE, TaskMode.CONSULT):
             if not self.primary_agent:
                 raise ValueError(f"primary_agent is required when mode={self.mode.value}")
         # consult requires non-empty consultants
         if self.mode == TaskMode.CONSULT and not self.consultants:
             raise ValueError("consultants must be non-empty when mode=consult")
-        # poll requires no primary and at least 2 consultants
-        if self.mode == TaskMode.POLL:
-            if self.primary_agent is not None:
-                raise ValueError("primary_agent must be omitted when mode=poll")
-            if len(self.consultants) < 2:
-                raise ValueError("poll mode requires at least 2 consultants")
         # conclave requires no primary and at least 2 participants (in `consultants` list)
         if self.mode == TaskMode.CONCLAVE:
             if self.primary_agent is not None:
@@ -352,19 +342,6 @@ class ConsultantCritique(BaseModel):
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
     # Resolve mode addition: does this consultant believe another round would help?
     wants_continuation: bool = False
-
-
-class PeerAnswer(BaseModel):
-    protocol_version: str
-    task_id: str
-    agent: str
-    role: Literal[AgentRole.PEER]
-    message_type: Literal[MessageType.PEER_ANSWER]
-    summary: str
-    analysis: str
-    recommended_actions: list[RecommendedAction] = Field(default_factory=list)
-    risks: list[Risk] = Field(default_factory=list)
-    confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 class ConclaveTurn(BaseModel):
@@ -460,7 +437,6 @@ __all__ = [
     "TaskRequest",
     "PrimaryResponse",
     "ConsultantCritique",
-    "PeerAnswer",
     "ConclaveTurn",
     "FinalResult",
     "Approval",

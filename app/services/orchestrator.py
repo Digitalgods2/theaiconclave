@@ -4,7 +4,6 @@ Modes:
 - resolve: open-ended loop until primary returns RESOLVED/CANNOT_RESOLVE,
   pauses on NEEDS_USER_INPUT, backstopped by max_seconds + max_rounds + repetition.
 - consult: bounded primary → consultant(s) → primary final.
-- handoff/poll: deferred to v0.2.
 
 Resumption: run_resolve seeds prior_messages from the agent_messages table,
 so a task that paused for user input can be re-entered after the user answers.
@@ -1348,7 +1347,9 @@ async def run_task(task_id: str) -> None:
             if result is None:
                 return  # paused for user input
         else:
-            # handoff and poll deferred to v0.2 per MVP_PLAN.md
+            # Unreachable today: every TaskMode has a flow above. Kept as a
+            # guard so a mode added to the enum without a flow fails loudly
+            # with a real result row instead of an UnboundLocalError.
             result = FinalResult(
                 protocol_version=PROTOCOL_VERSION,
                 task_id=task_id,
@@ -1356,11 +1357,11 @@ async def run_task(task_id: str) -> None:
                 mode=task.mode,
                 primary_agent=task.primary_agent,
                 consultants=task.consultants,
-                final_answer="(mode not implemented in MVP)",
+                final_answer=f"(no orchestration flow for mode {task.mode.value})",
                 agreement_level=AgreementLevel.UNRESOLVED,
                 errors=[ProtocolError(
                     code=ErrorCode.INVALID_REQUEST,
-                    message=f"Mode {task.mode.value} is not implemented in MVP.",
+                    message=f"Mode {task.mode.value} has no orchestration flow.",
                 )],
             )
         _raise_if_cancelled(task_id)

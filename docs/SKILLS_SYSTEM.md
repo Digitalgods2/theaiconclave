@@ -53,7 +53,6 @@ When the AI Conclave Switchboard runs an agent, the adapter constructs a prompt 
 | `run_primary` | `primary_agent_behavior.md` + `safety_behavior.md` |
 | `run_consultant` | `consultant_behavior.md` + `safety_behavior.md` |
 | `run_final` | `primary_agent_behavior.md` + `safety_behavior.md` + the prior consultant critique |
-| `run_peer` | `primary_agent_behavior.md` + `safety_behavior.md` (peer mode is "primary without critique loop") |
 
 If a per-agent skill file exists for the agent and role, the adapter substitutes it for the generic version.
 

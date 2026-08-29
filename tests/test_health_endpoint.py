@@ -41,7 +41,6 @@ class _StubAdapter(BaseAdapter):
     async def run_primary(self, ctx): raise NotImplementedError
     async def run_consultant(self, ctx): raise NotImplementedError
     async def run_final(self, ctx): raise NotImplementedError
-    async def run_peer(self, ctx): raise NotImplementedError
     async def run_conclave_turn(self, ctx): raise NotImplementedError
 
 

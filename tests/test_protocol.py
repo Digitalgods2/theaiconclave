@@ -18,7 +18,6 @@ from app.protocol.validators import (
     ConsultantCritique,
     FinalResult,
     MessageType,
-    PeerAnswer,
     PrimaryResponse,
     TaskRequest,
 )
@@ -41,8 +40,7 @@ def _load(name: str) -> dict:
         ("task_request_code_review.json", TaskRequest),
         ("agent_response_primary.json", PrimaryResponse),
         ("agent_response_consultant.json", ConsultantCritique),
-        ("peer_answer_poll.json", PeerAnswer),
-        ("final_result.json", FinalResult),
+            ("final_result.json", FinalResult),
         ("approval_required.json", Approval),
     ],
 )
@@ -69,32 +67,6 @@ def test_consult_requires_at_least_one_consultant() -> None:
     raw = _load("task_request_debug.json")
     raw["consultants"] = []
     with pytest.raises(ValueError, match="consultants must be non-empty"):
-        TaskRequest.model_validate(raw)
-
-
-def test_handoff_requires_primary() -> None:
-    raw = _load("task_request_debug.json")
-    raw["mode"] = "handoff"
-    raw["primary_agent"] = None
-    with pytest.raises(ValueError, match="primary_agent is required"):
-        TaskRequest.model_validate(raw)
-
-
-def test_poll_requires_at_least_two_consultants() -> None:
-    raw = _load("task_request_debug.json")
-    raw["mode"] = "poll"
-    raw["primary_agent"] = None
-    raw["consultants"] = ["claude-code"]
-    with pytest.raises(ValueError, match="poll mode requires at least 2"):
-        TaskRequest.model_validate(raw)
-
-
-def test_poll_rejects_primary_agent() -> None:
-    raw = _load("task_request_debug.json")
-    raw["mode"] = "poll"
-    raw["consultants"] = ["claude-code", "gemini"]
-    raw["primary_agent"] = "codex"
-    with pytest.raises(ValueError, match="primary_agent must be omitted"):
         TaskRequest.model_validate(raw)
 
 

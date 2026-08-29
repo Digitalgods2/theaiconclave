@@ -1104,7 +1104,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
     <tr><td><code>Source agent / provenance</code></td><td>The <code>source_agent</code> column recording which surface submitted the task: <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>.</td></tr>
     <tr><td><code>Operability</code></td><td>From Charter v1.2 and carried forward in v1.3: every capability must preserve observability, durability, recoverability, audit trail, retention, and export.</td></tr>
     <tr><td><code>Thread</code></td><td>Chain of related tasks linked via <code>parent_task_id</code>; surfaced through <code>/continue</code> and <code>/thread</code>.</td></tr>
-    <tr><td><code>Mode</code></td><td>Shape of the deliberation: <code>conclave</code>, <code>resolve</code>, <code>consult</code>, <code>handoff</code>, or <code>poll</code>.</td></tr>
+    <tr><td><code>Mode</code></td><td>Shape of the deliberation: <code>conclave</code>, <code>resolve</code>, or <code>consult</code>.</td></tr>
     <tr><td><code>Agreement level</code></td><td>Final-result classification of how aligned the agents ended up: <code>consensus</code>, <code>minor_disagreement</code>, <code>major_disagreement</code>, or <code>unresolved</code>.</td></tr>
     <tr><td><code>Adapter</code></td><td>The per-tool subclass of <code>BaseAdapter</code> that encapsulates one agent's CLI or HTTP quirks behind the orchestrator's uniform interface.</td></tr>
   </tbody>

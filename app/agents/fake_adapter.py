@@ -34,7 +34,6 @@ from app.protocol.validators import (
     ConsultantCritique,
     ErrorCode,
     MessageType,
-    PeerAnswer,
     PrimaryResponse,
     RecommendedAction,
     ResolutionStatus,
@@ -328,20 +327,6 @@ class FakeAdapter(BaseAdapter):
             convergence=convergence,
             user_input_question=question,
             confidence=0.7,
-        )
-
-    async def run_peer(self, ctx: AdapterContext) -> PeerAnswer:
-        return PeerAnswer(
-            protocol_version="1.0",
-            task_id=ctx.task_id,
-            agent=self.name,
-            role=AgentRole.PEER,
-            message_type=MessageType.PEER_ANSWER,
-            summary=f"Fake peer answer for: {ctx.task.user_request[:80]}",
-            analysis="Independent fake response, no critique loop.",
-            recommended_actions=[],
-            risks=[],
-            confidence=0.5,
         )
 
     # ------------------------------------------------------------------

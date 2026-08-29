@@ -3461,11 +3461,11 @@ function onSubmitFollowup() {
     if (hasOption) modeSelect.value = parentMode;
   }
 
-  // Pre-select agents to match the parent task. For consult/resolve/handoff,
+  // Pre-select agents to match the parent task. For consult/resolve,
   // the primary agent goes first so the agent ordering matches buildPayload's
   // "first agent is primary" convention.
   const parentAgents = [];
-  const isPrimaryFirst = parentMode === "consult" || parentMode === "resolve" || parentMode === "handoff";
+  const isPrimaryFirst = parentMode === "consult" || parentMode === "resolve";
   if (isPrimaryFirst && task.primary_agent) {
     parentAgents.push(task.primary_agent);
   }

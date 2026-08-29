@@ -26,17 +26,15 @@ Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Cu
 `resolve` — **default for non-trivial tasks.** Open-ended primary-driven loop until the primary signals `resolved` or `cannot_resolve`, with cost/time/repetition backstops. The primary may pause to ask the user a question (`needs_user_input`) and resume after the user answers.
 `consult` — bounded second opinion: primary proposes, consultants critique, primary finalizes. If the primary or consultants surface clarification questions, the orchestrator may pause once with a numbered questionnaire and resume after the user answers. Use when you want a quick review, not full deliberation.
 `conclave` — **N equal participants, full-mesh visibility.** No primary. Each round, every participant contributes one `ConclaveTurn` with their current `position` and a `convergence` signal. Terminates when at least `convergence_threshold` fraction of participants signal `i_am_done` (default 1.0 = unanimous). The orchestrator never picks a winner; on weak convergence it surfaces every position to the user.
-`handoff` — named agent is primary; the calling agent is consultant or absent.
-`poll` — each agent answers independently. No critique loop, no primary.
 
 ### Role (per agent on a task)
-`primary` · `consultant` · `peer` (poll mode only)
+`primary` · `consultant`
 
 ### Message type
-`primary_proposal` · `consultant_critique` · `primary_final` · `peer_answer` · `conclave_turn` · `user_input_request` · `user_input_response` · `error`
+`primary_proposal` · `consultant_critique` · `primary_final` · `conclave_turn` · `user_input_request` · `user_input_response` · `error`
 
 ### Role
-`primary` · `consultant` · `peer` · `participant` (conclave only)
+`primary` · `consultant` · `participant` (conclave only)
 
 ### Resolution status (resolve mode primary)
 `resolved` · `needs_more_rounds` · `needs_user_input` · `cannot_resolve`
@@ -101,11 +99,11 @@ Sent by a caller (dashboard, agent, webhook) to create a new task.
 | `protocol_version` | yes | `MAJOR.MINOR` |
 | `source` | yes | Origin channel: `dashboard`, `api`, `webhook`, `cli`, `watcher` |
 | `source_agent` | no | The AI agent that submitted the task, if any |
-| `mode` | yes | One of `resolve`, `consult`, `handoff`, `poll` |
+| `mode` | yes | One of `resolve`, `consult`, `conclave` |
 | `task_type` | yes | `debug`, `code_review`, `architecture_review`, `security_review`, `deployment_help`, `documentation`, `general_consultation` |
 | `user_request` | yes | The verbatim question or instruction |
-| `primary_agent` | conditional | Required for `resolve`, `consult`, `handoff`. Omitted for `poll`. |
-| `consultants` | conditional | Array of agent names. Required for `consult` (≥1) and `poll` (≥2). Optional in `resolve` and `handoff`. |
+| `primary_agent` | conditional | Required for `resolve` and `consult`. Omitted for `conclave`. |
+| `consultants` | conditional | Array of agent names. Required for `consult` (≥1) and `conclave` (≥2). Optional in `resolve`. |
 | `project_path` | no | Absolute path; gates file access |
 | `context` | no | Compact, relevant context. Free-form sub-object; the orchestrator does not interpret `extra`. |
 | `permissions` | yes | All eight booleans must be present and explicit |
@@ -180,26 +178,7 @@ Returned by a consultant after seeing the primary's proposal.
 
 In **consult mode**, `suggested_questions` are also used by the clarification gate. The orchestrator deduplicates the primary's `user_input_question` and all consultant `suggested_questions`, records one numbered `user_input_request`, sets the task to `awaiting_user_input`, and resumes final synthesis after `/api/tasks/{id}/answer`.
 
-## 7. Peer Answer (Poll Mode)
-
-Returned by each peer in poll mode. No critique, no primary, no rounds.
-
-```json
-{
-  "protocol_version": "1.0",
-  "task_id": "tsk_01HX...",
-  "agent": "gemini",
-  "role": "peer",
-  "message_type": "peer_answer",
-  "summary": "...",
-  "analysis": "...",
-  "recommended_actions": [],
-  "risks": [],
-  "confidence": 0.6
-}
-```
-
-## 8. Final Result
+## 7. Final Result
 
 Built by the result builder and returned to the caller.
 
@@ -259,7 +238,7 @@ Built by the result builder and returned to the caller.
 
 `recommended_actions`, `commands_requiring_approval`, and `patches_requiring_approval` remain in the final result for backward compatibility. New clients should present `action_plan` as the primary user-facing action artifact when it is non-empty.
 
-## 9. Draft Artifacts
+## 8. Draft Artifacts
 
 When final `recommended_actions` include draftable file operations, The AI Conclave Switchboard may preserve them as task-scoped artifacts under the runtime data root. These are operational handoff material, not agent writes to the user's project.
 
@@ -277,7 +256,7 @@ Task detail responses include `artifacts: [...]` with metadata and text previews
 
 Applying an artifact is explicit user action. It writes only inside the task's `project_path`; `file` artifacts write the target file, and `edit` artifacts perform one search/replace. Patch artifacts remain review/download-only in v1.
 
-## 10. Errors
+## 9. Errors
 
 Errors are objects, not strings.
 
@@ -304,7 +283,7 @@ Stable error codes:
 | `invalid_request` | Task request failed schema validation |
 | `resolve_timeout` | Resolve loop exceeded `limits.max_seconds` |
 
-## 11. Status Transitions
+## 10. Status Transitions
 
 ```
 pending → running → completed
