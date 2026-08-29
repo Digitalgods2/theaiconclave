@@ -116,8 +116,20 @@ The orchestrator converts these to `ProtocolError` entries on the task.
 
 ### `gemini_adapter`
 - Path configurable via `agents.gemini.command`
-- MVP status: stub returning `agent_unavailable`
+- **Retired by Google on 2026-06-18** for AI Pro / Ultra / free tiers; still works on Gemini Code Assist Standard and Enterprise licences, so the adapter stays in-tree, disabled by default. New Google seats should use `antigravity_adapter`.
+- Invocation pattern: `gemini -p "" -o json --approval-mode plan`, prompt on stdin.
 - Notes: JSON-mode behavior varies by model. The adapter must specify the model explicitly and not rely on defaults.
+
+### `antigravity_adapter`
+- Successor to `gemini_adapter`. Wraps the Antigravity CLI (`agy`), Google's closed-source Go replacement.
+- Path configurable via `agents.antigravity.command_path`; model and reasoning effort via `agents.antigravity.model` / `.effort` (`agy models` lists the slugs).
+- Invocation pattern: `agy -p= --input-format stream-json --output-format stream-json --mode plan`, prompt delivered as one NDJSON line on stdin.
+- Four quirks the adapter exists to absorb:
+  - **`-p` must be written `-p=`.** It is a Go flag that consumes the next token, so a bare `-p` takes `--input-format` as its prompt and exits 2.
+  - **The prompt cannot ride on argv.** Conclave prompts exceed the Windows 32,767-character command-line limit, so `--input-format stream-json` (stdin) is the only viable channel. It requires `--output-format stream-json`, hence the NDJSON parsing; the terminal `result` event carries the same envelope `--output-format json` would return in one shot.
+  - **A failed run still exits 0.** Timeouts and model errors arrive as `status: "ERROR"` in the result envelope with return code 0, so `status` is the authoritative success signal.
+  - **`--mode plan` is the read-only guarantee** (the analogue of Gemini's `--approval-mode plan`) and is mutually exclusive with `--disable-slash-commands` — passing both makes `agy` warn and silently drop plan mode. The adapter never passes the latter.
+- Cost: the envelope reports tokens but no dollar figure, and default Google-account auth bills against an AI Pro/Ultra subscription. Token counts are recorded; `cost_usd` never is.
 
 ### `openclaw_adapter`
 - MVP status: stub returning `agent_unavailable`

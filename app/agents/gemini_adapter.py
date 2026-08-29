@@ -19,6 +19,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from app.agents._spawn import SPAWN_KWARGS
 from app.agents.base import (
     AdapterContext,
     AdapterError,
@@ -99,6 +100,7 @@ class GeminiAdapter(BaseAdapter):
                 cmd_path, "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **SPAWN_KWARGS,
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
             return AdapterTestResult(
@@ -175,6 +177,7 @@ class GeminiAdapter(BaseAdapter):
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **SPAWN_KWARGS,
             )
         except FileNotFoundError as e:
             raise AdapterError(

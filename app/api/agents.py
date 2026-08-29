@@ -63,6 +63,7 @@ _CLI_API_ENV_VARS = {
     "claude-code": ["ANTHROPIC_API_KEY"],
     "codex": ["OPENAI_API_KEY"],
     "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+    "antigravity": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
 }
 
 
@@ -119,6 +120,26 @@ def _detect_cli_auth_from_files(name: str) -> tuple[Optional[str], Optional[str]
         p = home / ".gemini" / "oauth_creds.json"
         if p.exists() and p.stat().st_size > 0:
             return ("subscription", "~/.gemini/oauth_creds.json")
+    elif name == "antigravity":
+        # `agy` stores the provider choice in its own settings file. Per Google's
+        # install docs, API-key auth is opted into with modelProvider="gemini"
+        # plus GEMINI_API_KEY; the default Google-account flow keeps credentials
+        # in the OS keyring, where we cannot (and should not) read them, so the
+        # absence of that setting means subscription.
+        settings = home / ".gemini" / "antigravity-cli" / "settings.json"
+        if settings.exists():
+            try:
+                import json
+                data = json.loads(settings.read_text(encoding="utf-8", errors="replace"))
+                provider = data.get("modelProvider")
+                if isinstance(provider, str) and provider.strip().lower() == "gemini":
+                    return (
+                        "api",
+                        "~/.gemini/antigravity-cli/settings.json (modelProvider=gemini)",
+                    )
+            except Exception:
+                pass
+            return ("subscription", "~/.gemini/antigravity-cli/settings.json")
     elif name == "claude-code":
         p = home / ".claude" / ".credentials.json"
         if p.exists() and p.stat().st_size > 0:
@@ -195,6 +216,12 @@ def _normalize_cli_model_to_slug(cli: str, raw: str) -> str:
 
     if cli == "gemini":
         return "google/" + raw
+
+    if cli == "antigravity":
+        # `agy models` slugs fold reasoning effort into the name
+        # ("gemini-3.1-pro-high"); OpenRouter prices the model, not the effort.
+        import re
+        return "google/" + re.sub(r"-(low|medium|high)$", "", raw)
 
     return raw
 

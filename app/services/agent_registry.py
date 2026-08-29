@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.agents.antigravity_adapter import AntigravityAdapter
 from app.agents.base import BaseAdapter
 from app.agents.claude_adapter import ClaudeCodeAdapter
 from app.agents.codex_adapter import CodexAdapter
@@ -43,17 +44,26 @@ def init_registry(config=None) -> None:
     register_openrouter_models() so that tests don't pull in network-backed
     adapters.
     """
-    def _cmd_path(name: str):
+    def _agent_attr(name: str, attr: str):
         if config is None:
             return None
         agents = getattr(config, "agents", None) or {}
         entry = agents.get(name) if isinstance(agents, dict) else None
-        return getattr(entry, "command_path", None) if entry else None
+        return getattr(entry, attr, None) if entry else None
+
+    def _cmd_path(name: str):
+        return _agent_attr(name, "command_path")
 
     register(FakeAdapter())
     register(CodexAdapter(command_path=_cmd_path("codex")))
     register(GeminiAdapter(command_path=_cmd_path("gemini")))
     register(ClaudeCodeAdapter(command_path=_cmd_path("claude-code")))
+    register(AntigravityAdapter(
+        command_path=_cmd_path("antigravity"),
+        model=_agent_attr("antigravity", "model"),
+        effort=_agent_attr("antigravity", "effort"),
+        extra_args=_agent_attr("antigravity", "args") or [],
+    ))
 
 
 def register_openrouter_models(config) -> None:

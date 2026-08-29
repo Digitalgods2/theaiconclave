@@ -26,7 +26,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 
 ### Highlights
 
-- **Three real AI adapters** — Codex (`codex exec --json`), Gemini (`gemini -p -o json`), Claude Code (`claude -p --output-format json`). All read-only by default, all JSON-output-disciplined.
+- **Real AI adapters** — Codex (`codex exec --json`), Claude Code (`claude -p --output-format json`), Antigravity (`agy --output-format stream-json --mode plan`), plus the retired-upstream Gemini CLI (`gemini -p -o json`) for Code Assist licence holders. All read-only by default, all JSON-output-disciplined.
 - **Pluggable open-weight council seats** — `deepseek` / `glm` / `qwen` / `kimi` (and anything else you list in config) appear in the same checkbox list as the CLI agents. Backing is **OpenRouter** — pay-per-token, no subscription, ~$0.001–$0.02 per conclave turn — via a single config-driven adapter. Brings a genuinely outside-the-OpenAI/Google/Anthropic-axis voice to a deliberation. Opt-in **tool-loop** mode (`tool_loop: true` per seat) lets each model call `read_file` / `list_dir` / `glob` to pull files on demand instead of getting the whole sandbox pre-inlined — bounded by per-turn iteration / byte / bad-call caps with full audit-trail visibility.
 - **Settings panel** — a narrow left rail with a gear icon → Settings → API Keys: store/reveal the OpenRouter key (password field + eyeball toggle), kept in the local DB. Rule: the env var (`OPENROUTER_API_KEY`) wins, else the DB value.
 - **Charter v1.3**, embedded in every participant prompt. It now requires participants to cite or identify the basis for load-bearing factual claims, while amendments still go through a conclave-mode deliberation, user ratification, and a numbered decision record.
@@ -180,6 +180,7 @@ Each frontier CLI can authenticate via OAuth/subscription (default — your Clau
 
 - **Codex** — `~/.codex/auth.json` carries an explicit `auth_mode` field (`"apikey"` = API, `"chatgpt"` = subscription)
 - **Gemini** — `~/.gemini/settings.json` has `security.auth.selectedType` (substrings `"api"` or `"key"` = API, `"oauth-personal"` = subscription)
+- **Antigravity** — `~/.gemini/antigravity-cli/settings.json` has `modelProvider` (`"gemini"` + `GEMINI_API_KEY` = API; otherwise subscription, since Google-account credentials live in the OS keyring)
 - **Claude Code** — `~/.claude/.credentials.json` presence = OAuth subscription. (If Claude Code introduces an explicit mode marker in a future version, the detection logic in `app/api/agents.py` extends the same way as Codex's.)
 
 Env vars (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GEMINI_API_KEY` / `GOOGLE_API_KEY`) are a **fallback signal** of API intent only when the file gives no clear answer — the file's explicit selection wins.
@@ -228,7 +229,7 @@ pytest
 |---|---|
 | `app/` | FastAPI service |
 | `app/protocol/` | Pydantic models for the wire format |
-| `app/agents/` | Adapter base class + per-tool adapters (codex, gemini, claude-code, fake) |
+| `app/agents/` | Adapter base class + per-tool adapters (codex, claude-code, antigravity, gemini, fake) |
 | `app/services/` | Orchestrator, agent registry, result builder, retention, exporter, prompt builder |
 | `app/workers/` | Background task worker |
 | `app/api/` | HTTP endpoints |

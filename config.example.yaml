@@ -128,6 +128,8 @@ agents:
     timeout_seconds: 180
 
   gemini:
+    # Retired by Google 2026-06-18 except on Code Assist Standard/Enterprise
+    # licences. Superseded by the `antigravity` seat below.
     enabled: false
     command: gemini
     command_path: null              # absolute path override; null = use PATH
@@ -135,6 +137,26 @@ agents:
     model_slug: "google/gemini-2.5-pro"   # OpenRouter slug used for pricing lookup when in API mode
     supported_modes: []
     supported_task_types: []
+    timeout_seconds: 180
+
+  # Antigravity CLI (`agy`) — successor to the Gemini CLI, which Google retired
+  # on 2026-06-18 for AI Pro / Ultra / free tiers. Read-only in deliberation via
+  # `--mode plan`; the prompt is delivered over stdin as stream-json because
+  # conclave prompts exceed the Windows command-line length limit.
+  antigravity:
+    enabled: true
+    command: agy
+    command_path: null              # absolute path override; null = use PATH
+    args: []                        # extra flags appended verbatim (e.g. ["--sandbox"])
+    model: "gemini-3.1-pro-high"    # `agy models` lists the slugs
+    effort: null                    # low | medium | high; null = the CLI's default
+    model_slug: "google/gemini-3.1-pro"   # OpenRouter slug used for pricing lookup only
+    supported_modes: [consult, handoff]
+    supported_task_types:
+      - debug
+      - code_review
+      - architecture_review
+      - general_consultation
     timeout_seconds: 180
 
   fake:

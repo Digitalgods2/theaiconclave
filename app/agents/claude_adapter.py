@@ -20,6 +20,7 @@ from typing import Any, Optional
 
 from pathlib import Path
 
+from app.agents._spawn import SPAWN_KWARGS
 from app.agents.base import (
     AdapterContext,
     AdapterError,
@@ -101,6 +102,7 @@ class ClaudeCodeAdapter(BaseAdapter):
                 cmd_path, "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **SPAWN_KWARGS,
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
             return AdapterTestResult(
@@ -188,6 +190,7 @@ class ClaudeCodeAdapter(BaseAdapter):
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
+                **SPAWN_KWARGS,
             )
         except FileNotFoundError as e:
             raise AdapterError(
