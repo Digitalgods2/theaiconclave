@@ -134,3 +134,65 @@ def test_get_secret_returns_none_when_db_uninitialised(monkeypatch):
     import app.database as db
     monkeypatch.setattr(db, "_db_path", None)
     assert settings_store.get_secret("anything") is None
+
+
+# ---------------------------------------------------------------------------
+# Storage failures must not be reported as success (delete_secret used to
+# swallow every exception, so a failed clear returned ok:true).
+# ---------------------------------------------------------------------------
+
+def test_delete_secret_tolerates_uninitialised_db(tmp_path, monkeypatch):
+    """The no-schema case still degrades gracefully, matching get_secret."""
+    import sqlite3
+
+    from app.services import settings_store
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def execute(self, *a):
+            raise sqlite3.OperationalError("no such table: settings")
+
+    monkeypatch.setattr(settings_store, "connect", lambda: _Conn())
+    settings_store.delete_secret("openrouter_api_key")  # must not raise
+
+
+def test_delete_secret_propagates_real_failures(monkeypatch):
+    """A locked DB is not the uninitialised case and must not be swallowed."""
+    import sqlite3
+
+    import pytest
+
+    from app.services import settings_store
+
+    class _Conn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def execute(self, *a):
+            raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(settings_store, "connect", lambda: _Conn())
+    with pytest.raises(sqlite3.OperationalError):
+        settings_store.delete_secret("openrouter_api_key")
+
+
+def test_clear_reports_failure_instead_of_success(client, monkeypatch):
+    """The endpoint must not answer ok:true when the store refused the write."""
+    from app.services import settings_store
+
+    def _boom(_key):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(settings_store, "delete_secret", _boom)
+    r = client.post("/api/settings/api-keys/openrouter", json={"value": ""})
+    body = r.json()
+    assert body["ok"] is False
+    assert "disk full" in body["error"]

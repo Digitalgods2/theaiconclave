@@ -13,6 +13,7 @@ except via the explicit `/reveal` endpoint, and never logs it.
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Optional
 
 from app.database import connect, now_iso
@@ -46,12 +47,21 @@ def set_secret(key: str, value: str) -> None:
 
 
 def delete_secret(key: str) -> None:
-    """Remove `key` if present. No-op if absent or DB not initialised."""
+    """Remove `key` if present. No-op if absent or the DB isn't initialised.
+
+    Tolerates only the uninitialised-database case, to match `get_secret`'s
+    graceful degradation in tests that never create a schema. Every other
+    failure — a locked DB, a disk error — propagates, because the caller
+    (`POST /api/settings/api-keys/{name}` with an empty value) reports
+    success to the user based on this returning. Swallowing those meant the
+    dashboard could say an API key was cleared when it was still stored.
+    """
     try:
         with connect() as conn:
             conn.execute("DELETE FROM settings WHERE key = ?", (key,))
-    except Exception:  # noqa: BLE001
-        pass
+    except sqlite3.OperationalError as e:
+        if "no such table" not in str(e).lower():
+            raise
 
 
 __all__ = ["get_secret", "set_secret", "delete_secret"]

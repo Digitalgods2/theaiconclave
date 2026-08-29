@@ -69,12 +69,20 @@ async def set_api_key(name: str, body: dict = Body(...)) -> dict[str, Any]:
         return {"ok": False, "error": f"unknown api key: {name}"}
     db_key, env_name = _API_KEYS[name]
     value = body.get("value")
-    if value is None or (isinstance(value, str) and value.strip() == ""):
-        settings_store.delete_secret(db_key)
-        action = "cleared"
-    else:
-        settings_store.set_secret(db_key, str(value).strip())
-        action = "saved"
+    clearing = value is None or (isinstance(value, str) and value.strip() == "")
+    try:
+        if clearing:
+            settings_store.delete_secret(db_key)
+            action = "cleared"
+        else:
+            settings_store.set_secret(db_key, str(value).strip())
+            action = "saved"
+    except Exception as e:  # noqa: BLE001 — surface storage failure, never claim success
+        return {
+            "ok": False,
+            "error": f"could not {'clear' if clearing else 'save'} the key: {e}",
+            "status": _status(db_key, env_name),
+        }
     return {"ok": True, "action": action, "status": _status(db_key, env_name)}
 
 
