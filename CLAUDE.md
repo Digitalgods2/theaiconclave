@@ -65,6 +65,8 @@ No linter or formatter is configured; match surrounding style.
 ### The adapter contract (`app/agents/base.py`, see `docs/AGENT_ADAPTERS.md`)
 Every agent (CLI or API) is a `BaseAdapter` subclass. The orchestrator only ever calls adapters through this interface — per-tool quirks (`codex exec --json`, `gemini -p -o json`, `claude -p --output-format json`, OpenRouter HTTP) stay encapsulated. Adapters never retry; they raise `AdapterError(code, message)` which the orchestrator converts to a `ProtocolError` on the task.
 
+The four CLI seats subclass **`CliAdapterBase`** (`agents/cli_adapter_base.py`), which owns the four `run_*` methods; a subclass supplies only `name`, `max_context_chars`, and `_invoke()`. `openrouter_adapter.py` and `fake_adapter.py` deliberately do not inherit it (see `docs/AGENT_ADAPTERS.md`), though OpenRouter shares `_response_coercion.parse_and_coerce`.
+
 Adapter files: `codex_adapter.py`, `claude_adapter.py`, `antigravity_adapter.py`, `gemini_adapter.py`, `openrouter_adapter.py`, `fake_adapter.py` (tests + smoke tests; hidden from the dashboard). Every CLI adapter spawns subprocesses through the shared flags in `agents/_spawn.py` — see *Platform notes*.
 
 `gemini_adapter.py` wraps a CLI Google **retired on 2026-06-18** for AI Pro/Ultra/free tiers; it stays in-tree, disabled, for Code Assist Standard/Enterprise licence holders. `antigravity_adapter.py` (the `agy` binary) is its successor and carries the quirks that CLI forces — `-p=` rather than `-p`, prompt over stdin as stream-json because conclave prompts exceed the Windows command-line limit, `status` rather than the exit code as the success signal, and `--mode plan` for read-only (never with `--disable-slash-commands`, which silently voids it). See `docs/AGENT_ADAPTERS.md`.
@@ -126,7 +128,8 @@ These come from ratified decision records and the Conclave Charter (`docs/CONCLA
 
 | To change... | Edit... |
 |---|---|
-| Wire format / message schema | `app/protocol/validators.py` — then every adapter + the prompt builder + the relevant test in `tests/test_protocol.py` |
+| Wire format / message schema | `app/protocol/validators.py` — then `agents/cli_adapter_base.py` (all four CLI seats at once), `openrouter_adapter.py`, `fake_adapter.py`, the prompt builder, and `tests/test_protocol.py` |
+| Add a CLI seat | Subclass `CliAdapterBase`, implement `_invoke()` + `readiness()`/`test_connection()`, register in `agent_registry`, add a `config.yaml` block |
 | Termination rules for a mode | `app/services/orchestrator.py` — `run_conclave` / `run_resolve` / `run_consult` |
 | What gets sent to an agent | `app/services/prompt_builder.py` (general) or the adapter's `_build_*` helpers (per-tool framing); size/trim policy lives in `app/services/prompt_budget.py` |
 | Add an open-weight council seat | `config.yaml` → `openrouter.models[]` — no code change |

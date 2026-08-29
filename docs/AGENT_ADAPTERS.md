@@ -119,6 +119,17 @@ The orchestrator converts these to `ProtocolError` entries on the task.
 - Invocation pattern: `gemini -p "" -o json --approval-mode plan`, prompt on stdin.
 - Notes: JSON-mode behavior varies by model. The adapter must specify the model explicitly and not rely on defaults.
 
+### `CliAdapterBase` (`app/agents/cli_adapter_base.py`)
+Template-method base shared by the four CLI seats (`codex`, `claude-code`, `gemini`, `antigravity`). It owns `run_primary` / `run_consultant` / `run_final` / `run_conclave_turn`, which were byte-identical across all four before extraction. A subclass supplies only `name`, `max_context_chars`, and `_invoke()` — argv construction, subprocess spawning, stdout parsing, and usage extraction are the whole per-CLI surface.
+
+Adding a CLI seat means writing `_invoke()` and the readiness helpers, not reimplementing the deliberation flow.
+
+`parse_and_coerce()` lives separately in `app/agents/_response_coercion.py`: it overwrites the identity fields (`protocol_version`, `task_id`, `agent`, `role`) on every parsed envelope rather than trusting the model's own claims, and normalizes a stringified `"null"` resolution status. `OpenRouterAdapter` imports it directly while deliberately *not* inheriting `CliAdapterBase`.
+
+**Not for `openrouter_adapter`**: no image support, dispatch through the DR0015 tool-loop rather than a direct `_invoke`, `include_sandbox_manifest` left at `True` (per DR0018 an API seat needs the manifest inlined), and a context ceiling that comes from a method which learns a tighter bound at runtime. **Not for `fake_adapter`**: no subprocess, no prompt building, no JSON parsing.
+
+Covered by `tests/test_cli_adapter_base.py`, which asserts behavior (the prompt handed to `_invoke`, the model returned) rather than internal wiring, so it survives further refactoring.
+
 ### `antigravity_adapter`
 - Successor to `gemini_adapter`. Wraps the Antigravity CLI (`agy`), Google's closed-source Go replacement.
 - Path configurable via `agents.antigravity.command_path`; model and reasoning effort via `agents.antigravity.model` / `.effort` (`agy models` lists the slugs).
