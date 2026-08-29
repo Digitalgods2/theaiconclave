@@ -118,8 +118,6 @@ class AgentConfig(BaseModel):
     # (Antigravity's `--effort low|medium|high`). None = the CLI's default.
     effort: Optional[str] = None
     endpoint: Optional[str] = None
-    supported_modes: list[str] = Field(default_factory=list)
-    supported_task_types: list[str] = Field(default_factory=list)
     timeout_seconds: int = 180
 
 

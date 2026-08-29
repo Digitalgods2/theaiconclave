@@ -104,12 +104,6 @@ agents:
     command_path: null              # absolute path override; null = use PATH
     args: []                        # baseline args; adapter appends prompt-specific flags
     model_slug: "openai/gpt-5.5"         # top-tier general flagship (set `model = "gpt-5.5"` in ~/.codex/config.toml to match)
-    supported_modes: [consult, handoff]
-    supported_task_types:
-      - debug
-      - code_review
-      - architecture_review
-      - general_consultation
     timeout_seconds: 180
 
   claude-code:
@@ -118,13 +112,6 @@ agents:
     command_path: null              # absolute path override; null = use PATH
     args: []
     model_slug: "anthropic/claude-opus-4.7"   # top-tier reasoning (run `/model opus` in Claude Code to match)
-    supported_modes: [consult, handoff]
-    supported_task_types:
-      - debug
-      - code_review
-      - architecture_review
-      - security_review
-      - general_consultation
     timeout_seconds: 180
 
   gemini:
@@ -135,7 +122,6 @@ agents:
     command_path: null              # absolute path override; null = use PATH
     args: []
     model_slug: "google/gemini-2.5-pro"   # OpenRouter slug used for pricing lookup when in API mode
-    supported_modes: []
     supported_task_types: []
     timeout_seconds: 180
 
@@ -151,27 +137,12 @@ agents:
     model: "gemini-3.1-pro-high"    # `agy models` lists the slugs
     effort: null                    # low | medium | high; null = the CLI's default
     model_slug: "google/gemini-3.1-pro"   # OpenRouter slug used for pricing lookup only
-    supported_modes: [consult, handoff]
-    supported_task_types:
-      - debug
-      - code_review
-      - architecture_review
-      - general_consultation
     timeout_seconds: 180
 
   fake:
     enabled: true                   # used by tests; safe to leave on
     command: ""                     # not invoked; fake adapter returns canned data
     args: []
-    supported_modes: [consult, handoff, poll]
-    supported_task_types:
-      - debug
-      - code_review
-      - architecture_review
-      - security_review
-      - deployment_help
-      - documentation
-      - general_consultation
     timeout_seconds: 5
 
 # -----------------------------------------------------------------------------
