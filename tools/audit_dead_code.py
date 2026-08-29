@@ -53,13 +53,13 @@ ALLOWLIST: set[str] = {
 # already-surfaced backlog. Removing a config field changes the documented
 # config surface, so each needs an explicit decision before deletion.
 PENDING_REVIEW: set[str] = {
-    "retain_days",               # LoggingConfig
-    "audit_to_file",             # LoggingConfig
-    "package_installs",          # ApprovalRequiredConfig
-    "loop_detection_threshold",  # OrchestrationConfig
-    "max_context_bytes",         # OrchestrationConfig
-    "bind_to_api_port",          # DashboardConfig
-    "defaults",                  # Config — the whole `defaults:` section is unread
+    # Config.defaults is NOT dead scaffolding — it is an unimplemented feature,
+    # and deleting it would erase the intent. Limits has no field defaults, the
+    # API applies no fallback, and dashboard.js hardcodes its own values that
+    # CONTRADICT the documented ones (5/360/1200 vs 50/180/600). Fixing it means
+    # having the API apply these defaults when a client omits limits, which is a
+    # behavior change, not a cleanup. Left declared until that call is made.
+    "defaults",
 }
 
 # Modules that exist to be imported by something outside this repo, or that

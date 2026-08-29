@@ -13,8 +13,6 @@ database:
 
 logging:
   level: info             # debug | info | warn | error
-  retain_days: null       # null = retain forever (MVP default)
-  audit_to_file: false    # also write audit events to data/logs/audit.log
 
 # -----------------------------------------------------------------------------
 # Defaults applied when a task request omits a field.
@@ -51,14 +49,11 @@ permissions:
 approval_required:
   patches: true
   commands: true
-  package_installs: true
 
 # -----------------------------------------------------------------------------
 # Orchestration knobs.
 # -----------------------------------------------------------------------------
 orchestration:
-  loop_detection_threshold: 0.8     # n-gram overlap that triggers loop_detected
-  max_context_bytes: 524288         # 512 KiB ceiling on context per agent call
   worker_poll_interval_seconds: 2   # how often the worker checks for new tasks
 
 # -----------------------------------------------------------------------------
@@ -82,7 +77,6 @@ retention:
 # -----------------------------------------------------------------------------
 dashboard:
   enabled: true
-  bind_to_api_port: true
 
 # -----------------------------------------------------------------------------
 # Agent registry. Each entry maps a canonical agent name to the CLI it wraps.

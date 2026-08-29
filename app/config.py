@@ -42,8 +42,6 @@ class DatabaseConfig(BaseModel):
 
 class LoggingConfig(BaseModel):
     level: str = "info"
-    retain_days: Optional[int] = None
-    audit_to_file: bool = False
 
 
 class DefaultsConfig(BaseModel):
@@ -70,12 +68,9 @@ class PermissionsConfig(BaseModel):
 class ApprovalRequiredConfig(BaseModel):
     patches: bool = True
     commands: bool = True
-    package_installs: bool = True
 
 
 class OrchestrationConfig(BaseModel):
-    loop_detection_threshold: float = 0.8
-    max_context_bytes: int = 524288
     worker_poll_interval_seconds: int = 2
 
 
@@ -96,7 +91,6 @@ class RetentionConfig(BaseModel):
 
 class DashboardConfig(BaseModel):
     enabled: bool = True
-    bind_to_api_port: bool = True
 
 
 class AgentConfig(BaseModel):
