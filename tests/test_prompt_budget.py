@@ -9,7 +9,6 @@ Covers:
 
 from __future__ import annotations
 
-import pytest
 
 from app.protocol.validators import Limits, Permissions, TaskMode, TaskRequest, TaskSource
 from app.services import prompt_budget

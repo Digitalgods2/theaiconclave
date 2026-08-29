@@ -18,13 +18,11 @@ import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
 from app.agents.openrouter_adapter import (
     MAX_CONSECUTIVE_BAD_CALLS,
-    MAX_TOOL_BYTES,
     MAX_TOOL_ITERATIONS,
     OpenRouterAdapter,
     _messages_to_single_prompt,

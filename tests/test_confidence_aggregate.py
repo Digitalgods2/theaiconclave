@@ -20,7 +20,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.api.tasks import _compute_confidence_trajectory, _row_to_final_result
-from app.database import connect, init_database
+from app.database import init_database
 from app.services.orchestrator import (
     _compute_confidence_aggregate,
     _synthesis_directive_dict,

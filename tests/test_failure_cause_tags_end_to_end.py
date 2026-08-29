@@ -19,7 +19,6 @@ from pathlib import Path
 import pytest
 
 from app.agents.base import AdapterTestResult, BaseAdapter
-from app.agents.fake_adapter import FakeAdapter
 from app.database import connect, init_database, now_iso
 from app.protocol.validators import (
     AgentRole,

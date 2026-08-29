@@ -16,7 +16,7 @@ from fastapi.testclient import TestClient
 
 from app.database import init_database, connect, now_iso
 from app.services import agent_registry
-from app.utils.ids import task_id as new_task_id, result_id
+from app.utils.ids import task_id as new_task_id
 
 
 @pytest.fixture

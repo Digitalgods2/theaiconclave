@@ -14,7 +14,7 @@ critique, etc.) so that nuance survives the snapshot.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any
 
 
 # ---------------------------------------------------------------------------

@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pytest
 
-from app.database import connect, init_database, now_iso
+from app.database import connect, init_database
 from app.services.orphan_reaper import reap_orphans
 from app.utils.ids import message_id, task_id as new_task_id
 

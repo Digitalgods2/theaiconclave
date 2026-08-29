@@ -19,9 +19,9 @@ judge call fails or is inconclusive, the original `minor_disagreement` stands.
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any
 
-from app.agents.base import AdapterContext, BaseAdapter
+from app.agents.base import BaseAdapter
 from app.protocol.validators import TaskRequest
 from app.utils.json_tools import extract_json_object
 

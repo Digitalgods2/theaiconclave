@@ -6,7 +6,6 @@ idempotent reuse, cleanup, orphan sweep, manifest rendering.
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,7 +15,6 @@ from app.services.sandbox import (
     build_manifest,
     cleanup_sandbox,
     prepare_sandbox,
-    sandbox_path_for,
     sweep_orphan_sandboxes,
 )
 

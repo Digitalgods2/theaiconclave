@@ -11,7 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-import json
 import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -21,8 +20,6 @@ import pytest
 from app.database import connect, init_database, now_iso
 from app.services import agent_registry
 from app.services.retention import (
-    completed_task_count,
-    db_size_bytes,
     find_trimmable_tasks,
     trim_to_budget,
 )

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock
 
-import pytest
 
 from app.protocol.validators import Limits, Permissions, TaskRequest
 from app.services.judge import _format_positions_for_judge, judge_convergence

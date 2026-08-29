@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import re
 
-import pytest
 
 from app.services.exporter import export_to_markdown
 

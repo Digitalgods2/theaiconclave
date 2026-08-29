@@ -23,7 +23,7 @@ from pathlib import Path
 
 import pytest
 
-from app.database import connect, init_database, now_iso
+from app.database import connect, init_database
 from app.services import agent_registry
 from app.services.retention import (
     find_trimmable_tier2_tasks,

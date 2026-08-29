@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 
 from app.protocol.validators import FailureCause
 from app.services.trace_analyzer import classify_failure_causes

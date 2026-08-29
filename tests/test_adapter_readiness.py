@@ -9,7 +9,6 @@ Each CLI adapter reports a structured `Readiness` covering three cases:
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 
 import pytest
 

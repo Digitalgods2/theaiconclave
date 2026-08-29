@@ -32,7 +32,7 @@ shows the older context being load-bearing.
 
 from __future__ import annotations
 
-from typing import Callable, Iterable, Optional
+from typing import Callable
 
 # Headroom reserved on top of any computed budget, regardless of adapter.
 # Covers: schema demand block (~1 KB), the model's response (estimated by

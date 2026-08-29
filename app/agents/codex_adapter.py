@@ -28,14 +28,12 @@ from app.agents.base import (
     Readiness,
 )
 from app.protocol.validators import (
-    AgentRole,
     ConclaveTurn,
     ConsultantCritique,
     ErrorCode,
     MessageType,
     PeerAnswer,
     PrimaryResponse,
-    ResolutionStatus,
 )
 from app.services.prompt_builder import (
     build_conclave_prompt,
