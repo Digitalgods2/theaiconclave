@@ -47,9 +47,6 @@ def result_id() -> str:
     return f"res_{_ulid()}"
 
 
-def approval_id() -> str:
-    return f"apr_{_ulid()}"
-
 
 def log_id() -> str:
     return f"log_{_ulid()}"

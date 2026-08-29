@@ -5,6 +5,11 @@ data/switchboard.db-wal
 data/sandboxes/
 data/uploads/
 data/exports/
+data/artifacts/
+data/switchboard.pid
+# Ad-hoc scratch scripts written next to the runtime state
+data/_*.py
+data/_*.json
 
 # Local config (may contain API keys / endpoints) — config.example.yaml is tracked, config.yaml is not
 config.yaml
