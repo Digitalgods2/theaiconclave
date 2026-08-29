@@ -41,6 +41,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+from app.agents._response_coercion import parse_and_coerce as _parse_and_coerce
 from app.agents.base import (
     AdapterContext,
     AdapterError,
@@ -66,7 +67,6 @@ from app.services.sandbox_tools import (
     tool_list_dir,
     tool_read_file,
 )
-from app.utils.json_tools import extract_json_object
 from app.utils.sandbox_inline import build_sandbox_manifest, build_sandbox_section
 
 
@@ -894,32 +894,6 @@ def _overflow_message(model_slug: str, limit_tokens: int, learned_chars: int,
             f"(real limit {limit_tokens:,} tokens). No sandbox attached to trim; the "
             f"base prompt + transcript exceeds the limit. Set `max_context_chars` for "
             f"this seat to around {learned_chars:,} in config.yaml.")
-
-
-def _parse_and_coerce(
-    text: str,
-    task_id: str,
-    agent_name: str,
-    *,
-    role: str,
-    default_message_type: str,
-) -> dict[str, Any]:
-    try:
-        data = extract_json_object(text)
-    except ValueError as e:
-        raise AdapterError(
-            ErrorCode.AGENT_ERROR,
-            f"could not extract JSON from openrouter[{agent_name}] response: {e}",
-            details={"text_tail": text[-2000:]},
-        )
-    data["protocol_version"] = "1.0"
-    data["task_id"] = task_id
-    data["agent"] = agent_name
-    data["role"] = role
-    data.setdefault("message_type", default_message_type)
-    if data.get("resolution_status") in ("null", "None", ""):
-        data["resolution_status"] = None
-    return data
 
 
 __all__ = ["OpenRouterAdapter"]

@@ -54,28 +54,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 from app.agents._spawn import SPAWN_KWARGS
+from app.agents.cli_adapter_base import CliAdapterBase
 from app.agents.base import (
-    AdapterContext,
     AdapterError,
     AdapterTestResult,
-    BaseAdapter,
     Readiness,
 )
 from app.protocol.validators import (
-    ConclaveTurn,
-    ConsultantCritique,
     ErrorCode,
-    MessageType,
-    PrimaryResponse,
 )
-from app.services.prompt_builder import (
-    build_conclave_prompt,
-    build_consultant_prompt,
-    build_final_prompt,
-    build_primary_prompt,
-)
-from app.utils.attachments import image_attachment_paths
-from app.utils.json_tools import extract_json_object
 
 # Grace added to our own asyncio timeout so `agy`'s `--print-timeout` fires
 # first and we get its structured ERROR envelope (with usage) instead of
@@ -83,7 +70,7 @@ from app.utils.json_tools import extract_json_object
 _TIMEOUT_GRACE_SECONDS = 20
 
 
-class AntigravityAdapter(BaseAdapter):
+class AntigravityAdapter(CliAdapterBase):
     name = "antigravity"
     _command = "agy"
     # Gemini 3.1 Pro context is ~1M tokens; conservative cap below that,
@@ -318,88 +305,6 @@ class AntigravityAdapter(BaseAdapter):
 
     # ------------------------------------------------------------------
 
-    async def run_primary(self, ctx: AdapterContext) -> PrimaryResponse:
-        prompt = build_primary_prompt(
-            task=ctx.task,
-            task_id=ctx.task_id,
-            agent_name=self.name,
-            prior_messages=ctx.prior_messages,
-            ceiling_chars=self.max_context_chars,
-            include_sandbox_manifest=False,
-        )
-        text = await self._invoke(
-            prompt, ctx.timeout_seconds,
-            image_attachment_paths(ctx.task),
-            ctx.task.context.extra.get("sandbox_path"),
-        )
-        data = _parse_and_coerce(
-            text, ctx.task_id, self.name,
-            role="primary", default_message_type=MessageType.PRIMARY_PROPOSAL.value,
-        )
-        return PrimaryResponse.model_validate(data)
-
-    async def run_consultant(self, ctx: AdapterContext) -> ConsultantCritique:
-        prompt = build_consultant_prompt(
-            task=ctx.task,
-            task_id=ctx.task_id,
-            agent_name=self.name,
-            prior_messages=ctx.prior_messages,
-            ceiling_chars=self.max_context_chars,
-            include_sandbox_manifest=False,
-        )
-        text = await self._invoke(
-            prompt, ctx.timeout_seconds,
-            image_attachment_paths(ctx.task),
-            ctx.task.context.extra.get("sandbox_path"),
-        )
-        data = _parse_and_coerce(
-            text, ctx.task_id, self.name,
-            role="consultant", default_message_type=MessageType.CONSULTANT_CRITIQUE.value,
-        )
-        return ConsultantCritique.model_validate(data)
-
-    async def run_final(self, ctx: AdapterContext) -> PrimaryResponse:
-        prompt = build_final_prompt(
-            task=ctx.task,
-            task_id=ctx.task_id,
-            agent_name=self.name,
-            prior_messages=ctx.prior_messages,
-            ceiling_chars=self.max_context_chars,
-            include_sandbox_manifest=False,
-        )
-        text = await self._invoke(
-            prompt, ctx.timeout_seconds,
-            image_attachment_paths(ctx.task),
-            ctx.task.context.extra.get("sandbox_path"),
-        )
-        data = _parse_and_coerce(
-            text, ctx.task_id, self.name,
-            role="primary", default_message_type=MessageType.PRIMARY_FINAL.value,
-        )
-        return PrimaryResponse.model_validate(data)
-
-
-    async def run_conclave_turn(self, ctx: AdapterContext) -> ConclaveTurn:
-        others = [c for c in ctx.task.consultants if c != self.name]
-        prompt = build_conclave_prompt(
-            task=ctx.task,
-            task_id=ctx.task_id,
-            agent_name=self.name,
-            prior_messages=ctx.prior_messages,
-            other_participants=others,
-        )
-        text = await self._invoke(
-            prompt, ctx.timeout_seconds,
-            image_attachment_paths(ctx.task),
-            ctx.task.context.extra.get("sandbox_path"),
-        )
-        data = _parse_and_coerce(
-            text, ctx.task_id, self.name,
-            role="participant", default_message_type=MessageType.CONCLAVE_TURN.value,
-        )
-        return ConclaveTurn.model_validate(data)
-
-
 # ---------------------------------------------------------------------------
 # Output parsing helpers
 # ---------------------------------------------------------------------------
@@ -452,27 +357,3 @@ def _extract_usage(result: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def _parse_and_coerce(
-    text: str,
-    task_id: str,
-    agent_name: str,
-    *,
-    role: str,
-    default_message_type: str,
-) -> dict[str, Any]:
-    try:
-        data = extract_json_object(text)
-    except ValueError as e:
-        raise AdapterError(
-            ErrorCode.AGENT_ERROR,
-            f"could not extract JSON from antigravity response: {e}",
-            details={"text_tail": text[-2000:]},
-        )
-    data["protocol_version"] = "1.0"
-    data["task_id"] = task_id
-    data["agent"] = agent_name
-    data["role"] = role
-    data.setdefault("message_type", default_message_type)
-    if data.get("resolution_status") in ("null", "None", ""):
-        data["resolution_status"] = None
-    return data
