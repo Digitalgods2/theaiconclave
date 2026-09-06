@@ -1,0 +1,13 @@
+# Direct dependency constraints. Compile requirements.lock with uv pip compile --universal --generate-hashes.
+# Regenerate intentionally after validating the full suite.
+fastapi==0.136.1
+uvicorn[standard]==0.46.0
+pydantic==2.13.4
+PyYAML==6.0.2
+pytest==8.4.1
+pytest-asyncio==1.3.0
+httpx==0.28.1
+python-multipart==0.0.32
+pypdf==6.5.0
+reportlab==4.4.7
+python-docx==1.2.0

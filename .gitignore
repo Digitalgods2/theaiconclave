@@ -11,6 +11,9 @@ data/switchboard.pid
 data/_*.py
 data/_*.json
 
+# Generated landing-page browser screenshots
+landing/output/playwright/
+
 # Local config (may contain API keys / endpoints) — config.example.yaml is tracked, config.yaml is not
 config.yaml
 config.yml
@@ -36,3 +39,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Local verification artifacts
+output/playwright/
+data/verification/

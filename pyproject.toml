@@ -14,3 +14,32 @@ requires-python = ">=3.13"
 #
 # Test config (asyncio_mode, testpaths) lives in pytest.ini, not here, to keep
 # one source of truth.
+
+[tool.ruff]
+target-version = "py313"
+line-length = 110
+
+[tool.ruff.lint]
+# Start with correctness-critical rules; expand style rules module-by-module.
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.pyright]
+pythonVersion = "3.13"
+typeCheckingMode = "basic"
+include = [
+  "app/config.py",
+  "app/schema_migrations.py",
+  "app/api/projects.py",
+  "app/services/evidence.py",
+  "app/services/synthesis.py",
+  "app/services/results.py",
+  "app/services/public_http.py",
+  "app/services/evidence_views.py",
+  "app/services/task_metrics.py",
+  "app/api/task_feedback.py",
+  "app/api/metrics.py",
+  "app/services/orphan_reaper.py",
+  "app/services/retention.py",
+  "clients/switchboard_conclave.py",
+]
+reportMissingTypeStubs = false

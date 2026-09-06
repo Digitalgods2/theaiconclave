@@ -1,0 +1,4 @@
+-r requirements.in
+ruff==0.16.2
+pyright==1.1.408
+playwright==1.52.0
