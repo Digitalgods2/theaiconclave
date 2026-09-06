@@ -4,7 +4,7 @@
 >
 > A personal AI decision board for builders, writers, researchers, and technical creators who need more than an answer. They need the reasoning trail.
 
-A local background service that lets AI coding agents — **Codex, Gemini, and Claude Code** — consult one another through structured deliberation instead of free-form chat. You ask a question; the conclave deliberates; you get a verdict with the disagreements surfaced verbatim, not flattened.
+A local background service that lets AI coding agents — **Codex, Antigravity, Claude Code, and configured API seats** — consult one another through structured deliberation instead of free-form chat. You ask a question; the conclave deliberates; you get a verdict with the disagreements surfaced verbatim, not flattened.
 
 It's a tool that is, in part, **used to design itself** — most of its governing decisions came out of the three AIs deliberating about The AI Conclave's own architecture (see [`docs/decisions/`](docs/decisions/INDEX.md)).
 
@@ -12,7 +12,7 @@ It's a tool that is, in part, **used to design itself** — most of its governin
 
 ## What it does
 
-Three AIs sit "in the house" and talk to each other through a mediator. The mediator (the AI Conclave Switchboard) controls cost with time/round backstops, records every exchange to SQLite, surfaces a live view of the deliberation, and produces a structured final result. Above every prompt sits the **Conclave Charter** — a constitutional layer (currently v1.3) that governs reasoning norms, evidence norms, dissent norms, multimodal-disagreement handling, the "operability before capability" principle, permissions, and decision records.
+Multiple AIs sit "in the house" and talk to each other through a mediator. The mediator (the AI Conclave Switchboard) controls work with round and repetition backstops, records every exchange to SQLite, surfaces a live view of the deliberation, and produces a structured final result. Above every prompt sits the **Conclave Charter** — a constitutional layer (currently v1.3) that governs reasoning norms, evidence norms, dissent norms, multimodal-disagreement handling, the "operability before capability" principle, permissions, and decision records.
 
 You drive it from inside whichever CLI you're already working in — Claude Code, Codex, or Gemini — via slash commands, or from the web dashboard, or directly over HTTP.
 
@@ -20,7 +20,7 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 
 | Mode | Shape | Termination | Use for |
 |---|---|---|---|
-| **`conclave`** | N **equal** participants, full-mesh visibility, no primary. Every round, every participant posts one position + a convergence signal. | When ≥ `convergence_threshold` (default 1.0 = unanimous) of participants signal `i_am_done`. Weak convergence triggers a synthesis round + a judge pass. | Genuine multi-AI deliberation. "Ask the conclave." |
+| **`conclave`** | N **equal** participants, full-mesh visibility, no primary. Every round, every participant posts one position + a convergence signal. | When ≥ `convergence_threshold` (default 1.0 = unanimous) signal `i_am_done`. Weak convergence gets one focused participant round; optional non-participant judge and synthesis seats can then arbitrate wording and produce the final answer. | Genuine multi-AI deliberation. "Ask the conclave." |
 | **`resolve`** | Open-ended, primary-driven loop. Each turn the primary signals `resolved` / `needs_more_rounds` / `needs_user_input` / `cannot_resolve`. | When the primary signals done (and consultants concur), or a cost/time/repetition backstop fires. Goal-based, not turn-capped. | "Let Codex handle this." Drilling to a real answer. |
 | **`consult`** | Bounded second-opinion exchange: primary proposes → consultant(s) critique → primary finalizes. If agents ask clarifying questions, the AI Conclave Switchboard pauses once with a numbered questionnaire before final synthesis. | After the primary's final message, or after a one-time clarification pause/resume. | Quick review, not a full deliberation. "Get a second opinion." |
 
@@ -32,8 +32,12 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Charter v1.3**, embedded in every participant prompt. It now requires participants to cite or identify the basis for load-bearing factual claims, while amendments still go through a conclave-mode deliberation, user ratification, and a numbered decision record.
 - **Multimodal attachments** — text / Markdown / PDF inlined; images passed natively to each adapter (no lossy text conversion). The charter's *Multimodal Disagreement* section forbids synthesizing visual-perception disputes — they get escalated to the user instead.
 - **Project sandbox** — a per-task read-only copy of your code project so agents can browse source during a deliberation without write/execute risk. (In-conclave write/execute — "Layer 2" — was [considered and intentionally not built](docs/ROADMAP.md).)
+- **Decision Projects** — persistent named workspaces group related tasks, carry user-authored instructions, and reuse frozen evidence across a line of decisions.
+- **Frozen web evidence** — user-named public HTTPS URLs are fetched once through a provider-neutral, SSRF-resistant acquisition layer. Extracted HTML/PDF/text is size-capped, hashed, quality-labelled, stored in SQLite, and shown identically to every participant as untrusted source content. An optional generic JSON search endpoint can supply URLs; no search vendor is bundled.
+- **Auditable citations** — agent turns return evidence IDs; final results preserve the cited URL, retrieval time, content hash, quality signals, invalid IDs, and source-coverage summary.
+- **Independent review seats** — optional judge and synthesizer agents must be outside the participant set. The synthesizer creates the user-facing conclave answer, actions, and risks while being instructed to preserve material dissent.
 - **Structured Action Plan** — final recommendations are compiled into typed, ordered, permission-aware steps so the operational handoff is legible before you act.
-- **Draft artifacts** — file/edit/patch recommendations can be preserved under app-owned `data/artifacts/` as reviewable drafts. File and search/replace artifacts can be explicitly applied to the task's `project_path`; patch artifacts are review/download-only in v1.
+- **Draft artifacts** — file/edit/patch recommendations are preserved under app-owned `data/artifacts/`. Apply is a two-phase human action: preview the server-computed diff/hash, confirm that exact target state, then use an atomic write. Existing files require explicit overwrite permission and receive a recoverable backup plus audit event.
 - **Threading** — `parent_task_id`, ancestry walks, prior-thread context auto-injected into follow-ups (`/continue`).
 - **Decision records** — significant work closes with a structured record (what was chosen, why, what was rejected, known risks, open questions, who keeps continuity, and — for capability/infrastructure changes — an Operability Impact field). See [`docs/decisions/INDEX.md`](docs/decisions/INDEX.md).
 - **Decision Memory** — every new task auto-retrieves the most relevant past decision records (TF-IDF over `docs/decisions/`) and surfaces them as a *Prior Art* section both in agent prompts and on the dashboard, so settled questions don't get re-litigated.
@@ -41,22 +45,23 @@ You drive it from inside whichever CLI you're already working in — Claude Code
 - **Trajectory exporter** — every terminal task is auto-written as a self-contained JSONL file under `data/exports/trajectories/<task_id>.jsonl` containing the full transcript, per-run timings + tokens + cost, final result (with action plan + failure-cause tags), recorded decision, and confidence aggregate — a portable escape hatch from SQLite. Bulk re-export from the dashboard or `POST /api/trajectories/export-all`. (DR0023)
 - **Dashboard plugins (v1, frontend-only)** — small manifest-driven plugin system at `app/dashboard/plugins/` lets new UI (sidebar tabs, inbox row actions, inbox filters, detail panels) attach without editing `dashboard.js` core. Empty manifest → byte-identical pre-plugin behavior. Both the failure-cause detail panel and the trajectory tools ship as plugins to dogfood the surface. Copy-paste template at `plugins/example-hello.js`. (DR0024)
 - **Confidence-weighted convergence** — every conclave's final result carries an aggregate confidence stat (min/max/mean) plus a per-agent round-by-round trajectory, so you can see whether `consensus` was 4×0.95 (robust) or 1×0.95 + 3×0.4 (conformist drift). A wide-spread caveat fires automatically when participants converged with materially different certainty levels.
-- **Retention policy** — tier-based: Tier 1 (never trimmed — decisions, charter amendments, unresolved dissent), Tier 2 (retain until exported), Tier 3 (agent messages — trimmed first). Operational triggers at 2 GB DB size / 1,000 tasks; a 6-hour worker. Opt-in `trim_tier2_after_export` lets the worker also drop `final_results` for tasks already exported to disk.
+- **Retention policy** — tier-based: Tier 1 (never trimmed — decisions, charter amendments, unresolved dissent), Tier 2 (retain until exported), Tier 3 (agent messages — trimmed first). Operational triggers at 2 GB DB size / 1,000 terminal tasks still retaining Tier-3 transcripts; task rows and decisions remain. A 6-hour worker performs the sweep. Opt-in `trim_tier2_after_export` lets the worker also drop `final_results` for tasks already exported to disk.
 - **Tier 2 export/archive** — `exported_at` tracking, bulk export endpoint, inbox filter.
 - **Orphan task reaper** — startup sweep marks any task stuck in `running` for >1h as `failed` with preserved transcript and a `task_orphaned` audit-log entry. Bare-minimum recoverability without UI surface — the full recovery console is intentionally deferred until stuck tasks are observed in practice.
 - **Live deliberation visibility** — the dashboard shows the currently-active agent + elapsed time + recent runs while a task is in flight.
 - **Cost/usage tracking** — per-`agent_run` token counts and (where the provider reports it) USD-equivalent cost; per-message inline + aggregate on terminal tasks.
 - **Provenance** — every task records which CLI submitted it (`source_agent`: `claude-code` / `codex` / `gemini` / `dashboard` / `api`).
-- **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths.
+- **SQLite concurrency hardening** — WAL mode, `busy_timeout=30s`, a `with_retry()` wrapper on the heaviest write paths, numbered transactional migrations, and an atomic single-instance lock.
+- **Network boundary** — loopback remains the default. Non-loopback binding is refused unless `allow_remote` is explicitly enabled and a 16+ character API token is configured; configured tokens protect every `/api/` route.
 - **Dashboard** — single-page vanilla-JS app served from FastAPI at `/`. Inbox with status/mode/search/export filters, detail view with transcript, decision panel, drag-a-folder upload, git-diff attachment.
-- **Test suite** (420 tests) covering protocol, modes, clarification pause/resume, draft artifacts, threading, retention (incl. Tier 2 trim), attachments, sandbox, sandbox-inline, judge, DB concurrency, export tracking, exporter, provenance, document export, the OpenRouter adapter, the settings API, orphan reaper, confidence aggregate, Decision Memory, the OpenRouter tool-loop, the user-data-root resolver, config discovery, the first-run migration, per-seat readiness, the health endpoint shape, centralized prompt-budget enforcement, the CLI-seat sandbox-manifest toggle, task deletion + cascade, the rebrand directory migration, failure-cause classification (rule-based), and the trajectory exporter + HTTP endpoints.
+- **Test suite** (500+) covering protocol, modes, clarification, artifacts, threading, retention, attachments, sandboxes, neutral review, evidence security, projects, migrations, DB concurrency, exports, adapters, settings, recovery, and HTTP endpoints.
 
 ---
 
 ## Quick start
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.lock          # reproducible validated versions
 cp config.example.yaml config.yaml      # edit if you want to change ports / adapter paths
 uvicorn app.main:app --host 127.0.0.1 --port 8787
 ```
@@ -105,10 +110,12 @@ Task details also include any draft artifacts generated from final recommendatio
 ```bash
 curl http://127.0.0.1:8787/api/tasks/tsk_<id>/artifacts
 curl -OJ http://127.0.0.1:8787/api/tasks/tsk_<id>/artifacts/art_<id>/download
-curl -X POST http://127.0.0.1:8787/api/tasks/tsk_<id>/artifacts/art_<id>/apply
+curl http://127.0.0.1:8787/api/tasks/tsk_<id>/artifacts/art_<id>/apply-preview
+# POST /apply with confirm=true, the preview's expected_target_sha256, and
+# allow_overwrite=true only after reviewing an existing-file overwrite.
 ```
 
-Apply is an explicit user action and is constrained to the task's `project_path`.
+Apply is an explicit optimistic-lock action constrained to the task's `project_path`.
 
 ---
 
@@ -197,7 +204,7 @@ See [`docs/help` section 4.5–4.8](app/dashboard/help.html) for the full operat
 pytest
 ```
 
-420 tests. Key files:
+500 tests. Key files:
 
 | File | Covers |
 |---|---|
@@ -273,3 +280,27 @@ This is a single-user, local-only project. The runtime database (`data/switchboa
 ---
 
 Copyright © 2026 digitalgods.ai. All rights reserved.
+
+
+## Reliability and decision-value improvements (2026-09-05)
+
+- Configure API access with `CONCLAVE_API_TOKEN` or `server.api_token`. Dashboard
+  **Connection access** stores the entered token for the current tab. The portable CLI
+  reads `CONCLAVE_API_TOKEN`; the launcher resolves the configured token, host, and port.
+- Restart recovery reconciles every prior running claim after acquiring the instance
+  lock. **Retry as linked task** creates a new attempt from a failed/cancelled task;
+  the original transcript and outcome remain available.
+- Final synthesis preserves divergent positions and named dissent independently of
+  its prose. API and JSONL exports share result serialization; PDF, Word, Markdown,
+  and text exports include citations and evidence coverage.
+- Evidence connections use validated public IP addresses while retaining the original
+  Host header and TLS identity. Exact presented excerpt hashes and omissions appear
+  in task details. Frozen source hashes describe stored text, not an entire web page.
+- Inspect/edit/archive decision projects and choose which frozen sources to reuse.
+  CLI and dashboard follow-ups preserve project, permissions, review seats, and evidence.
+- Terminal tasks support optional **Was this review useful?** feedback. **Usage & Spend**
+  includes decision-value metrics by mode, with explicit coverage for incomplete costs
+  and tokens. Recording feedback never schedules an agent.
+
+See [implementation plan and verification](docs/IMPLEMENTATION_PLAN.md). Adaptive routing
+remains deferred until real outcome data supports it.

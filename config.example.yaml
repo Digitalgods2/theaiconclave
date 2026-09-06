@@ -2,69 +2,38 @@
 # Copy to config.yaml and adjust for your machine.
 # Values in .env override values here.
 
-protocol_version: "1.0"
-
 server:
   host: 127.0.0.1
   port: 8787
+  # Non-loopback binding is refused unless allow_remote is true and a token
+  # (16+ chars) is set here or through CONCLAVE_API_TOKEN.
+  allow_remote: false
+  api_token: null
 
 database:
-  path: data/switchboard.db
+  path: null                    # null = repo data/ in development; packaged user-data root
 
 logging:
   level: info             # debug | info | warn | error
-
-# -----------------------------------------------------------------------------
-# Defaults applied when a task request omits a field.
-# The task request is always authoritative; this is only a fallback.
-# -----------------------------------------------------------------------------
-defaults:
-  mode: resolve              # resolve | consult — resolve is open-ended, consult is bounded
-  primary_agent: codex
-  consultant: claude-code
-  max_rounds: 50             # backstop in resolve mode; primary cap in consult (use lower for consult)
-  timeout_seconds: 180       # per agent call
-  max_seconds: 600           # total task time ceiling (resolve mode)
-  task_type: general_consultation
-
-# -----------------------------------------------------------------------------
-# Default permissions when a task request does not specify them.
-# A task may NOT escalate beyond what the user submits — this is a fallback,
-# not a ceiling.
-# -----------------------------------------------------------------------------
-permissions:
-  can_read_files: true
-  can_write_files: false
-  can_run_commands: false
-  can_access_network: false
-  can_install_packages: false
-  can_apply_patches: false
-  can_read_env_files: false
-  can_read_secrets: false
-
-# -----------------------------------------------------------------------------
-# Forced-approval categories. These actions ALWAYS require approval, regardless
-# of granted permissions. In MVP these flags cannot be set to false.
-# -----------------------------------------------------------------------------
-approval_required:
-  patches: true
-  commands: true
 
 # -----------------------------------------------------------------------------
 # Orchestration knobs.
 # -----------------------------------------------------------------------------
 orchestration:
   worker_poll_interval_seconds: 2   # how often the worker checks for new tasks
+  # Optional neutral seats; they must not also be conclave participants.
+  judge_agent: null
+  synthesis_agent: null
 
 # -----------------------------------------------------------------------------
 # DB retention policy per decision 0003.
-# Operational trigger: db size OR completed-task count exceeds budget.
+# Operational trigger: db size OR terminal tasks retaining Tier-3 transcripts exceed budget.
 # Selection: tier-based (decisions and unresolved dissent never auto-trim).
 # -----------------------------------------------------------------------------
 retention:
   enabled: true
   max_db_size_mb: 2048              # trim when SQLite + WAL exceed this (2 GB)
-  max_completed_tasks: 1000         # OR when completed-task count exceeds this
+  max_completed_tasks: 1000         # OR when terminal tasks retaining Tier-3 transcripts exceed this
   min_task_age_days: 90             # never trim tasks newer than this
   check_interval_seconds: 21600     # 6 hours between retention passes
   # Opt-in: drop final_results for tasks already exported to disk
@@ -73,51 +42,35 @@ retention:
   trim_tier2_after_export: false
 
 # -----------------------------------------------------------------------------
-# Dashboard. MVP serves the dashboard on the same port as the API.
-# -----------------------------------------------------------------------------
-dashboard:
-  enabled: true
-
-# -----------------------------------------------------------------------------
 # Agent registry. Each entry maps a canonical agent name to the CLI it wraps.
 # `enabled: false` keeps the adapter registered but causes is_available() to
 # return false; the orchestrator surfaces this as agent_unavailable.
 # -----------------------------------------------------------------------------
 #
 # Per-adapter command_path (DR0017): set to an absolute path of the CLI binary
-# if you want the adapter to skip $PATH lookup entirely. Useful in packaged-app
+# if you want the adapter to skip its built-in $PATH lookup entirely. Useful in packaged-app
 # launches where the GUI process doesn't inherit your shell PATH, or when the
 # CLI lives outside the usual install locations. Leave null (commented out) to
-# fall back to `shutil.which(command)`. Applies to codex / claude-code / gemini.
+# fall back to the adapter's built-in command name. Applies to codex / claude-code / gemini.
 # Example: command_path: "/usr/local/bin/codex"
 #
 agents:
   codex:
     enabled: true
-    command: codex                  # name used for $PATH lookup
     command_path: null              # absolute path override; null = use PATH
-    args: []                        # baseline args; adapter appends prompt-specific flags
     model_slug: "openai/gpt-5.5"         # top-tier general flagship (set `model = "gpt-5.5"` in ~/.codex/config.toml to match)
-    timeout_seconds: 180
 
   claude-code:
     enabled: true
-    command: claude
     command_path: null              # absolute path override; null = use PATH
-    args: []
     model_slug: "anthropic/claude-opus-4.7"   # top-tier reasoning (run `/model opus` in Claude Code to match)
-    timeout_seconds: 180
 
   gemini:
     # Retired by Google 2026-06-18 except on Code Assist Standard/Enterprise
     # licences. Superseded by the `antigravity` seat below.
     enabled: false
-    command: gemini
     command_path: null              # absolute path override; null = use PATH
-    args: []
     model_slug: "google/gemini-2.5-pro"   # OpenRouter slug used for pricing lookup when in API mode
-    supported_task_types: []
-    timeout_seconds: 180
 
   # Antigravity CLI (`agy`) — successor to the Gemini CLI, which Google retired
   # on 2026-06-18 for AI Pro / Ultra / free tiers. Read-only in deliberation via
@@ -125,25 +78,37 @@ agents:
   # conclave prompts exceed the Windows command-line length limit.
   antigravity:
     enabled: true
-    command: agy
     command_path: null              # absolute path override; null = use PATH
     args: []                        # extra flags appended verbatim (e.g. ["--sandbox"])
     model: "gemini-3.1-pro-high"    # `agy models` lists the slugs
     effort: null                    # low | medium | high; null = the CLI's default
     model_slug: "google/gemini-3.1-pro"   # OpenRouter slug used for pricing lookup only
-    timeout_seconds: 180
 
   fake:
     enabled: true                   # used by tests; safe to leave on
-    command: ""                     # not invoked; fake adapter returns canned data
-    args: []
-    timeout_seconds: 5
+    # Fake adapter is selected by tests; it does not invoke a command.
+
+# -----------------------------------------------------------------------------
+# Evidence acquisition. URL fetching is built in and provider-neutral. Search is
+# optional: use an operator-selected API returning
+# {"results": [{"url": "...", "title": "...", "snippet": "..."}]}.
+# -----------------------------------------------------------------------------
+evidence:
+  enabled: true
+  require_https: true
+  max_urls_per_request: 5
+  max_document_bytes: 1000000
+  max_document_chars: 80000
+  timeout_seconds: 12
+  search_endpoint: null
+  search_api_key_env: null
+  search_api_key_header: Authorization
 
 # -----------------------------------------------------------------------------
 # OpenRouter — pluggable open-weight council seats (pay-per-token, no subscription).
 #
 # Each entry registers an extra agent in the dashboard's "New Task" checkbox
-# list, alongside codex / gemini / claude-code. These are non-frontier (well,
+# list, alongside codex / antigravity / claude-code. These are non-frontier (well,
 # somewhat) open-weight models — a different pair of eyes trained on different
 # data. Pricing is metered but tiny: a conclave turn costs about $0.001–$0.02.
 #

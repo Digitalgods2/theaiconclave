@@ -8,10 +8,11 @@ This is the consolidated setup path for The AI Conclave. If you've never run it 
 - **PowerShell** on Windows, or **bash/zsh** on Mac/Linux
 - One or more of the AI CLIs you want to use for real conclaves:
   - **Codex CLI** — `npm install -g @openai/codex-cli` (or whatever the current install path is), then `codex login`
-  - **Gemini CLI** — `npm install -g @google/gemini-cli`, then `gemini /auth`
+  - **Antigravity CLI** — install Google's `agy` CLI and authenticate it; this is the enabled default Google seat
+  - **Gemini CLI** — optional legacy/invocation integration for supported Code Assist licences
   - **Claude Code CLI** — install via the Claude Code installer, then `claude /login`
 
-All three CLIs default to your provider subscription (ChatGPT Plus/Pro, Gemini Advanced, Claude Pro/Max). API-key auth also works but isn't required.
+The real CLI seats can use provider subscriptions or API authentication. See `config.example.yaml` for the enabled defaults.
 
 You can run the AI Conclave Switchboard with **zero** real CLIs installed — the `fake` adapter exists for testing the orchestrator without burning subscription quota.
 
@@ -21,13 +22,13 @@ From the project directory:
 
 ```powershell
 # Install Python dependencies
-pip install -r requirements.txt
+pip install -r requirements.lock
 
 # Run the test suite to confirm everything wires up
 python -m pytest
 ```
 
-Expected: all tests pass (currently 75+). If pytest reports failures, see Troubleshooting below.
+Expected: all tests pass. If pytest reports failures, see Troubleshooting below.
 
 ## Start the service
 
@@ -71,12 +72,12 @@ If you have Claude Code installed and configured with the AI Conclave Switchboar
 
 ## Real conclave (requires real CLIs)
 
-Once Codex, Gemini, and Claude are all installed and authenticated:
+Once Codex, Antigravity, and Claude are installed and authenticated:
 
 1. **Verify each is reachable**:
    ```powershell
    curl.exe -X POST http://127.0.0.1:8787/api/agents/codex/test
-   curl.exe -X POST http://127.0.0.1:8787/api/agents/gemini/test
+   curl.exe -X POST http://127.0.0.1:8787/api/agents/antigravity/test
    curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
    ```
    Each should return `{"available": true, "version": "...", ...}`.
@@ -211,3 +212,39 @@ Two env vars control this behavior:
 - **`docs/CONCLAVE_CHARTER.md`** — the binding agreement (v1.1) embedded in every prompt
 - **`docs/decisions/INDEX.md`** — every ratified design decision with context
 - **`docs/ROADMAP.md`** — shipped, next, and intentionally not built
+
+
+## Reproducible development and verification
+
+Create an isolated virtual environment and install the full hashed development lock:
+
+```shell
+python -m venv .venv
+# Windows: .venv/Scripts/python.exe; POSIX: .venv/bin/python
+python -m pip install --require-hashes -r requirements-dev.txt
+python -m pytest
+python -m ruff check app clients tools tests
+python -m pyright
+python tools/check_javascript.py
+python tools/build_landing.py --check
+python -m playwright install chromium
+python tests/browser_smoke.py
+```
+
+Run these commands using the virtual environment's Python (or activate it first).
+The smoke test starts its own loopback service with an empty temporary database and
+fake seats; it never calls paid agents. Browser screenshots are written to
+`output/playwright/`. CI runs these checks on Windows and Linux.
+
+`requirements.in` and `requirements-dev.in` are editable direct constraints. Regenerate
+both locks intentionally with uv, then run the checks above:
+
+```shell
+uv pip compile requirements.in --universal --python-version 3.13 --generate-hashes -o requirements.lock
+uv pip compile requirements-dev.in --constraint requirements.lock --universal --python-version 3.13 --generate-hashes -o requirements-dev.txt
+```
+
+All transitive versions and distribution hashes are locked, including platform markers.
+For token-protected servers, enter the token under dashboard **Connection access** and
+set `CONCLAVE_API_TOKEN` in the CLI environment. Authentication failure is distinct from
+an unavailable agent. Deleting a pidlock file does not stop a running process.
