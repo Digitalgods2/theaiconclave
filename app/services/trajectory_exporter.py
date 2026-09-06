@@ -29,6 +29,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from app.database import connect
+from app.services.results import serialize_final_result
+from app.services.task_metrics import compute_summary, get_feedback
 from app.protocol.validators import PROTOCOL_VERSION
 from app.utils.paths import trajectories_root
 
@@ -164,27 +166,7 @@ def _build_record(task_id: str) -> dict[str, Any]:
         confidence_aggregate = _parse_json(
             _column_or_none(final_row, "confidence_aggregate_json"), default=None
         )
-        final_payload = {
-            "final_answer":      _column_or_none(final_row, "final_answer"),
-            "agreement_level":   _column_or_none(final_row, "agreement_level"),
-            "resolution_status": _column_or_none(final_row, "resolution_status"),
-            "disagreements":     _parse_json(_column_or_none(final_row, "disagreements_json"), default=[]),
-            "recommended_actions": _parse_json(
-                _column_or_none(final_row, "recommended_actions_json"), default=[]
-            ),
-            "action_plan":       _parse_json(_column_or_none(final_row, "action_plan_json"), default=[]),
-            "risks":             _parse_json(_column_or_none(final_row, "risks_json"), default=[]),
-            "commands_requiring_approval": _parse_json(
-                _column_or_none(final_row, "commands_requiring_approval_json"), default=[]
-            ),
-            "patches_requiring_approval": _parse_json(
-                _column_or_none(final_row, "patches_requiring_approval_json"), default=[]
-            ),
-            "errors":            _parse_json(_column_or_none(final_row, "errors_json"), default=[]),
-            "confidence_aggregate": confidence_aggregate,
-            "failure_cause_tags":   failure_cause_tags,
-            "created_at":        _column_or_none(final_row, "created_at"),
-        }
+        final_payload = serialize_final_result(final_row)
 
     return {
         "task_id":          task_id,
@@ -197,6 +179,8 @@ def _build_record(task_id: str) -> dict[str, Any]:
         "source_agent":     _column_or_none(task_row, "source_agent"),
         "parent_task_id":   _column_or_none(task_row, "parent_task_id"),
         "question":         _column_or_none(task_row, "user_request"),
+        "decision_project_id": _column_or_none(task_row, "decision_project_id"),
+        "context": _parse_json(_column_or_none(task_row, "context_json"), default={}),
         "agents": {
             "primary":     _column_or_none(task_row, "primary_agent"),
             "consultants": consultants,
@@ -204,6 +188,8 @@ def _build_record(task_id: str) -> dict[str, Any]:
         "rounds":              rounds_payload,
         "runs":                runs_payload,
         "final_result":        final_payload,
+        "feedback": get_feedback(task_id),
+        "compute_summary": compute_summary([dict(run) for run in runs]),
         "decision": {
             "text":        _column_or_none(task_row, "user_decision"),
             "decided_at":  _column_or_none(task_row, "user_decided_at"),

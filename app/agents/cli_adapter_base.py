@@ -57,7 +57,7 @@ class CliAdapterBase(BaseAdapter):
     async def _invoke(
         self,
         prompt: str,
-        timeout_seconds: int,
+        timeout_seconds: Optional[int],
         image_paths: Optional[list[Path]] = None,
         sandbox_path: Optional[str] = None,
     ) -> str:
@@ -76,11 +76,13 @@ class CliAdapterBase(BaseAdapter):
         role: str,
         default_message_type: str,
     ) -> dict:
+        self._last_prompt = prompt
         text = await self._invoke(
             prompt, ctx.timeout_seconds,
             image_attachment_paths(ctx.task),
             ctx.task.context.extra.get("sandbox_path"),
         )
+        self._last_raw_response = text
         return parse_and_coerce(
             text, ctx.task_id, self.name,
             role=role, default_message_type=default_message_type,

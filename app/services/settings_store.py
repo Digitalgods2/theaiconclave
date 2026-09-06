@@ -30,7 +30,13 @@ def get_secret(key: str) -> Optional[str]:
         with connect() as conn:
             row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
             return row["value"] if row else None
-    except Exception:  # noqa: BLE001 — DB not initialised, locked, etc.
+    except RuntimeError as e:
+        if "init_database" not in str(e):
+            raise
+        return None
+    except sqlite3.OperationalError as e:
+        if "no such table" not in str(e).lower():
+            raise
         return None
 
 

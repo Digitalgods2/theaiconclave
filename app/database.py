@@ -1,8 +1,4 @@
-"""SQLite connection and schema init for the AI Conclave Switchboard.
-
-For MVP the schema lives inline (SCHEMA_SQL below) rather than in migration
-files. Migration framework is deferred until the schema needs to evolve.
-"""
+"""SQLite connection and base schema for the AI Conclave Switchboard."""
 
 from __future__ import annotations
 
@@ -154,46 +150,8 @@ def init_database(path: str | Path) -> None:
 
     with connect() as conn:
         conn.executescript(SCHEMA_SQL)
-        # Additive migrations — SQLite has no IF NOT EXISTS on ADD COLUMN.
-        _add_column_if_missing(conn, "tasks", "user_decision", "TEXT")
-        _add_column_if_missing(conn, "tasks", "user_decided_at", "TEXT")
-        _add_column_if_missing(conn, "tasks", "parent_task_id", "TEXT")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id)")
-        _add_column_if_missing(conn, "agent_runs", "input_tokens", "INTEGER")
-        _add_column_if_missing(conn, "agent_runs", "output_tokens", "INTEGER")
-        _add_column_if_missing(conn, "agent_runs", "cost_usd", "REAL")
-        # Tier 2 archive tracking — the timestamp when this task's transcript+decision
-        # was exported to disk. NULL means never exported. Used by the inbox filter
-        # and (future) the retention policy's eventual Tier 2 trim-after-export option.
-        _add_column_if_missing(conn, "tasks", "exported_at", "TEXT")
-        _add_column_if_missing(conn, "tasks", "export_path", "TEXT")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_tasks_exported_at ON tasks(exported_at)")
-        # Confidence aggregate {min,max,mean,count,missing_count} stored as JSON.
-        # NULL for tasks that finalized before Phase 2 of the post-DR plan on
-        # tsk_01KRSW6AS3M66B4RRJE3JFAPRV. New tasks: populated by the orchestrator.
-        _add_column_if_missing(conn, "final_results", "confidence_aggregate_json", "TEXT")
-        _add_column_if_missing(conn, "final_results", "action_plan_json", "TEXT")
-        # Prior Art — TF-IDF-matched past decision records, computed at task
-        # creation and frozen so the user sees exactly what the agents saw.
-        # NULL for tasks created before Phase 2.5 of the post-DR plan. Shape:
-        # [{number, title, date, summary, path, score}, ...].
-        _add_column_if_missing(conn, "tasks", "prior_art_json", "TEXT")
-        # Failure-cause tags — rule-based labels describing why this
-        # deliberation was hard. Populated by services.trace_analyzer right
-        # after the orchestrator inserts the final_results row, never blocks
-        # finalization. Empty `[]` for older rows; new tasks land with the
-        # default and get UPDATEd post-hoc. List of FailureCause enum values.
-        _add_column_if_missing(
-            conn, "final_results", "failure_cause_tags_json",
-            "TEXT NOT NULL DEFAULT '[]'",
-        )
-
-
-def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str, type_decl: str) -> None:
-    cursor = conn.execute(f"PRAGMA table_info({table})")
-    existing = {row[1] for row in cursor.fetchall()}
-    if column not in existing:
-        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {type_decl}")
+        from app.schema_migrations import apply_migrations
+        apply_migrations(conn)
 
 
 _BUSY_TIMEOUT_MS = 30_000  # SQLite waits up to 30s on a write lock before returning busy.

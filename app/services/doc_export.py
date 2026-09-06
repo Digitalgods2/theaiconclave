@@ -188,6 +188,10 @@ def render_pdf(task: dict, messages: list[dict], final_result: dict | None,
             story.append(Paragraph(f"<b>Resolution status:</b> {esc(fr.get('resolution_status'))}", BODY))
         story.append(Spacer(1, 4))
         story.append(Paragraph(esc(fr.get("final_answer")), BODY))
+        for key in ("synthesis_agent", "citations", "citation_coverage"):
+            if fr.get(key):
+                story.append(Paragraph(_prettify(key), TURN))
+                story.append(Paragraph(esc(_stringify(fr[key])), BODY))
         action_plan = fr.get("action_plan") or []
         if action_plan:
             story.append(Paragraph("Structured Action Plan", TURN))
@@ -311,6 +315,10 @@ def render_docx(task: dict, messages: list[dict], final_result: dict | None,
             r2.bold = True
             p2.add_run(str(fr.get("resolution_status")))
         _add_multiline(doc, fr.get("final_answer") or "")
+        for key in ("synthesis_agent", "citations", "citation_coverage"):
+            if fr.get(key):
+                doc.add_heading(_prettify(key), level=2)
+                _add_multiline(doc, _stringify(fr[key]))
         action_plan = fr.get("action_plan") or []
         if action_plan:
             doc.add_heading("Structured Action Plan", level=2)

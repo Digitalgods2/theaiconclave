@@ -1,6 +1,6 @@
-<!-- HELP_DOC_VERSION: 1.3.0 -->
+<!-- HELP_DOC_VERSION: 1.4.0 -->
 <!-- HELP_COVERED_APP_VERSION: 0.1.0 -->
-<!-- HELP_LAST_UPDATED: 2026-05-23 -->
+<!-- HELP_LAST_UPDATED: 2026-09-05 -->
 
 <div class="help-doc">
   <header class="help-doc-header">
@@ -192,7 +192,7 @@
           <!-- BEGIN:section-1.2 -->
 <p>The AI Conclave Switchboard runs as a FastAPI service bound to <code>127.0.0.1:8787</code>. It is single-user and local-only. There is no authentication layer because there is no remote surface — the service does not bind to a public interface, and nothing in the design assumes more than one user.</p>
 
-<p>State lives in a SQLite database called <code>switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, exports, draft artifacts, and logs share the same runtime-state root. Running from a repo checkout, that root is <code>&lt;repo&gt;/data/</code>; a packaged install resolves to the platform-conventional user-data directory (e.g. <code>%LOCALAPPDATA%\AI Switchboard\</code> on Windows). See <em>14.4 Where state lives</em> for the full table. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
+<p>State lives in a SQLite database called <code>switchboard.db</code> on your machine, with WAL mode and a 30-second busy timeout for concurrency hardening. Per-task sandboxes, uploads, exports, draft artifacts, and logs share the same runtime-state root. Running from a repo checkout, that root is <code>&lt;repo&gt;/data/</code>; a packaged install resolves to the platform-conventional user-data directory (e.g. <code>%LOCALAPPDATA%\The AI Conclave\</code> on Windows). See <em>14.4 Where state lives</em> for the full table. None of this is committed to git, and none of it leaves your machine unless you explicitly export it.</p>
 
 <p><strong>What this does and doesn't mean for privacy.</strong> The orchestration plane — the service, the dashboard, transcripts, decision records, and API keys — never leaves your machine. The deliberation content itself does: every prompt sent to a CLI seat traverses that CLI's provider (OpenAI for Codex, Anthropic for Claude Code, Google for Gemini), and every prompt to an open-weight seat traverses OpenRouter (and then whichever provider hosts the model). The AI Conclave Switchboard does not <em>add</em> a third party — it uses the providers you already have a relationship with — but it does not <em>remove</em> one either. The meaningful claim here is <strong>control of the audit trail and orchestration state</strong>, not privacy of the prompt content.</p>
 
@@ -204,7 +204,7 @@
           <!-- BEGIN:section-1.3 -->
 <p>Every task carries a <code>source_agent</code> field recording which CLI submitted it — <code>claude-code</code>, <code>codex</code>, <code>gemini</code>, <code>dashboard</code>, or <code>api</code>. Every slash command passes <code>--invoked-by &lt;tool&gt;</code> so provenance is recorded accurately, not guessed.</p>
 
-<p>Inside a task, every prompt and every response is written to <code>agent_messages</code>, with per-call metadata in <code>agent_runs</code> (token counts, USD-equivalent cost where the provider reports it, timing, errors). Every message names its sender, its role, and its message type. Nothing is anonymized; nothing is summarized away.</p>
+<p>Inside a task, every outbound prompt and raw agent response is written to <code>agent_messages</code>, with per-call metadata in <code>agent_runs</code> (token counts, USD-equivalent cost where the provider reports it, timing, errors). OpenRouter tool-call and tool-result events are persisted too. CLI-native file reads and shell activity happen inside the vendor process and cannot be observed by the Switchboard. Every recorded message names its sender, role, and message type.</p>
 
 <p>Decisions you record via <code>/decide</code> are <strong>permanent</strong>. They become the binding artifact on the task, surface in the dashboard's Decision panel, and get auto-injected into any threaded follow-up via <code>/continue</code> so the next conclave sees what you actually chose last time.</p>
 
@@ -240,7 +240,7 @@
   <li>Type your question in the <code>Question</code> textarea.</li>
   <li>Click <code>Submit task</code>.</li>
 </ol>
-<p>The form redirects you into the <code>Detail</code> view for the new task. While the conclave is in flight, the <code>live activity</code> banner at the top of the detail panel shows which agent is currently being called and how long the current call has been running. The transcript fills in below as each agent responds. When the conclave converges (or a backstop fires), a <code>Final result</code> panel appears.</p>
+<p>The form redirects you into the <code>Detail</code> view for the new task. While the conclave is in flight, the <code>live activity</code> banner at the top of the detail panel shows which agent is currently being called and how long the current call has been running. Completed-call token use appears as each response arrives, before the task finishes. The transcript fills in below as each agent responds. Use <strong>Abort task</strong> to interrupt the active call immediately; no further calls are started. When the conclave converges (or a backstop fires), a <code>Final result</code> panel appears.</p>
 <!-- END:section-2.2 -->
         </section>
         <section id="help-quickstart-decide" class="help-subsection">
@@ -286,7 +286,7 @@
   <li><code>cannot_resolve</code> — primary determined the task cannot be solved with available tools, permissions, or info. The loop terminates immediately.</li>
 </ul>
 
-<p>Termination is goal-based, not turn-capped — but there are three backstops to bound cost: <code>max_seconds</code> (total task wall time), <code>max_rounds</code> (round count), and a <strong>repetition guard</strong> that stops the loop if agents start repeating prior content.</p>
+<p>Termination is goal-based. The <code>max_rounds</code> limit and <strong>repetition guard</strong> remain safety backstops; <code>notify_after_seconds</code> is the preferred elapsed-time threshold for a dashboard notification. Legacy <code>timeout_seconds</code> and <code>max_seconds</code> values are accepted as notification aliases. Elapsed time never auto-fails a job: the user can inspect progress and choose Abort.</p>
 
 <p>Use <code>resolve</code> when you want one agent to drive ("let Codex handle this") and the others to act as checks per round. It's the right mode for debugging, deep dives, and tasks where you expect iteration toward a real answer rather than a vote.</p>
 <!-- END:section-3.2 -->
@@ -893,7 +893,7 @@
         <section id="help-ops-cost" class="help-subsection">
           <h4>11.1 Per-message and aggregate cost</h4>
           <!-- BEGIN:section-11.1 -->
-<p>Every agent invocation writes an <code>agent_run</code> row that records the input and output token counts the provider returns, plus a USD-equivalent cost when the provider exposes one. The Detail view shows these per-message inline (alongside each turn in the transcript) and totals them on the post-task bar once a task reaches a terminal state, so you can see at a glance what a deliberation actually cost.</p>
+<p>Every completed agent invocation writes an <code>agent_run</code> row that records the input and output token counts the provider returns, plus a USD-equivalent cost when the provider exposes one. The Detail view shows completed-call usage inline as responses arrive (including while the task is still running) and totals it on the post-task bar once a task reaches a terminal state.</p>
 <p>OpenRouter is the seat that reports money directly: each call is metered and lands in the roughly <code>$0.001</code> to <code>$0.02</code> per turn range for the four open-weight models bundled in <code>config.example.yaml</code> (<code>deepseek</code>, <code>glm</code>, <code>qwen</code>, <code>kimi</code>). Those numbers show up verbatim in the per-run accounting.</p>
 <p>The CLI seats (<code>codex</code>, <code>gemini</code>, <code>claude-code</code>) default to subscription auth — your ChatGPT Plus/Pro, Gemini Advanced, or Claude Pro/Max session — so the underlying CLI does not return a per-call USD figure. Token counts may still be recorded where the CLI emits them, but the cost column will be blank. If a task mixes CLI seats and OpenRouter seats, the aggregate at the bottom reflects only the OpenRouter portion; the CLI portion is already accounted for inside your subscription. Exports include the same per-run table, so a saved decision record carries the cost breakdown forward.</p>
 <!-- END:section-11.1 -->
@@ -901,7 +901,7 @@
         <section id="help-ops-retention" class="help-subsection">
           <h4>11.2 Tier-based retention</h4>
           <!-- BEGIN:section-11.2 -->
-<p>Retention runs in the background on a fixed cadence — every <code>21600</code> seconds (6 hours) — via the worker started at service launch. Each pass is a no-op unless an operational trigger fires: either the on-disk database (SQLite file plus its WAL and SHM sidecars) exceeds <code>max_db_size_mb</code> (default <code>2048</code> MB, i.e. 2 GB), or the count of terminal tasks (<code>completed</code>, <code>failed</code>, <code>cancelled</code>) exceeds <code>max_completed_tasks</code> (default <code>1000</code>). Either condition alone is enough to trigger a pass.</p>
+<p>Retention runs in the background on a fixed cadence — every <code>21600</code> seconds (6 hours) — via the worker started at service launch. Each pass is a no-op unless an operational trigger fires: either the on-disk database (SQLite file plus its WAL and SHM sidecars) exceeds <code>max_db_size_mb</code> (default <code>2048</code> MB, i.e. 2 GB), or the count of terminal tasks that still retain Tier 3 transcript rows exceeds <code>max_completed_tasks</code> (default <code>1000</code>). Task rows and decisions remain retained even when their Tier 3 messages are trimmed. Either condition alone is enough to trigger a pass.</p>
 <p>Selection is tier-based, not time-based. Tier 1 — decisions, charter amendments, and unresolved dissent — is never auto-trimmed. Tier 2 — the <code>final_results</code> row carrying the conclave's verdict and agreement level — is retained until you explicitly export it. Tier 3 — the <code>agent_messages</code> rows holding the per-turn transcript — is what gets trimmed first, oldest task first, only for tasks that are terminal, summarized, unreferenced by any child thread, and either reached consensus or have a user decision recorded.</p>
 <p>An absolute minimum age applies on top: tasks newer than <code>min_task_age_days</code> (default <code>90</code>) are never trimmed regardless of triggers or tier. After a trim, <code>VACUUM</code> runs so SQLite actually returns the space to disk.</p>
 <p><strong>Opt-in Tier 2 trim after export.</strong> Setting <code>retention.trim_tier2_after_export: true</code> in <code>config.yaml</code> lets the worker also drop <code>final_results</code> rows for tasks whose markdown export already exists on disk (the export is the long-term archive). Tier 2 only kicks in if Tier 3 trimming was insufficient to bring the database back under budget. The flag is off by default — turn it on once you trust your export workflow.</p>
@@ -956,7 +956,7 @@
 <p><strong>How to toggle.</strong> In <code>config.yaml</code>, under <code>openrouter.models[]</code>, set <code>tool_loop: true</code> (or <code>false</code> to revert) on the specific seat. Submit a task with that seat included and watch the transcript: each tool call and its result appears as a compact ribbon entry under the agent's row, click-to-expand for the full payload. If the model behaves cleanly (no infinite loops, no malformed calls, the structured turn JSON looks right), keep it on. If something looks off, flip it back to <code>false</code> — no code change, just a restart.</p>
 <p><strong>Bounds.</strong> Per-turn: maximum 8 tool calls, maximum 256 KiB cumulative tool-response bytes, and maximum 3 consecutive malformed tool calls. Any one of these fires a forced final-turn POST instructing the model to emit its structured turn now with whatever it has. The forced-final case is logged so you can spot a seat that's chronically running into a cap (and tune the bounds in code, or disable the seat). Per-call: <code>read_file</code> caps content at 80,000 chars with a truncation signal; <code>glob</code> caps results at 200 paths.</p>
 <p><strong>Safety.</strong> Read-only access to the same sandbox the seat already had inlined under DR0012 — no capability expansion. Path-traversal attempts (<code>../</code>, absolute paths escaping the sandbox, symlinks pointing out) are refused with an error returned to the model so it can self-correct. The same ignore set the sandbox already applies (<code>.git</code>, <code>node_modules</code>, <code>__pycache__</code>, build outputs, binaries, …) is honored by all three tools.</p>
-<p><strong>Audit trail.</strong> Every <code>tool_call</code> and <code>tool_result</code> is persisted as its own row in <code>agent_messages</code>, linked to the same <code>agent_run</code> as the structured turn that followed. Exports (markdown / PDF / DOCX / TXT) include them. You can post-hoc reconstruct exactly which files an agent read, the order it read them in, how big each result was, and whether any call failed.</p>
+<p><strong>Audit trail.</strong> Every <code>tool_call</code> and <code>tool_result</code> is persisted as its own row in <code>agent_messages</code>, linked to the same <code>agent_run</code> as the structured turn that followed. Exports (markdown / PDF / DOCX / TXT) include them. For OpenRouter tool-loop calls, you can reconstruct exactly which paths were requested, their order, result sizes, and failures. CLI-native file reads are outside the Switchboard process and cannot be observed; the exact outbound prompts and raw agent text remain persisted.</p>
 <p><strong>Fallback.</strong> When <code>tool_loop: false</code> (set per seat to opt out) the seat uses the DR0012 inlined-sandbox path unchanged. If a seat is configured <code>tool_loop: true</code> but the task has no sandbox attached, the adapter quietly falls back to the prompt-only path for that task. If a model is configured for tool-loop but doesn't implement function-calls cleanly, the loop will likely produce content immediately without ever emitting <code>tool_calls</code> — which is still a valid (if degraded) outcome; the adapter accepts it as the final turn.</p>
 <!-- END:section-11.8 -->
         </section>
@@ -1019,7 +1019,7 @@
   <li>A new <strong>Trajectories</strong> sidebar tab (shipped as a plugin at <code>app/dashboard/plugins/trajectory-tools.js</code>) with a one-click <em>Export all terminal-task trajectories</em> button that calls <code>POST /api/trajectories/export-all</code>.</li>
   <li>A per-row <strong>Export trajectory</strong> button in the Inbox actions column (same plugin) — only meaningful for terminal tasks; non-terminal status returns a friendly alert.</li>
 </ul>
-<p>The HTTP endpoints behind those: <code>POST /api/tasks/{task_id}/trajectory/export</code> returns <code>{task_id, path, bytes}</code> (404 for an unknown task), and <code>POST /api/trajectories/export-all</code> iterates terminal tasks with per-task error isolation and returns a summary. The on-disk location follows the same <code>user_data_root()</code> resolution as the rest of <code>exports/</code> — dev mode resolves to <code>&lt;repo&gt;/data/exports/trajectories/</code>, packaged installs follow the platform-conventional path.</p>
+<p>The HTTP endpoints behind those: <code>POST /api/tasks/{task_id}/trajectory/export</code> returns <code>{task_id, path, bytes}</code> (404 for an unknown task), and <code>POST /api/trajectories/export-all</code> iterates terminal tasks with per-task error isolation and returns <code>{exported_count, error_count, exported, errors}</code>. The on-disk location follows the same <code>user_data_root()</code> resolution as the rest of <code>exports/</code> — dev mode resolves to <code>&lt;repo&gt;/data/exports/trajectories/</code>, packaged installs follow the platform-conventional path.</p>
 <p>Note: trajectories accumulate under <code>exports/trajectories/</code> without a retention budget today. That is acceptable for v1 because the files are small, you own the directory, and clearing it is a plain file-system delete.</p>
 <!-- END:section-12.4 -->
         </section>
@@ -1080,6 +1080,20 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
 <p>If you genuinely need a larger sandbox, raising the cap is a code change in <code>app/services</code> rather than a config knob; the 200 MiB ceiling was set deliberately to keep per-task disk usage bounded and the orphan-sweep cleanup tractable.</p>
 <!-- END:section-13.5 -->
         </section>
+      </section>
+
+      <section id="help-decision-value" class="help-section">
+        <h3>Decision value, evidence, and recovery</h3>
+        <p>Terminal tasks include optional feedback about whether review changed your decision,
+        found a missed risk, or was worth the extra compute. Saving feedback never calls an agent.
+        Usage &amp; Spend shows per-mode outcomes and reporting coverage; unreported costs are unknown.</p>
+        <p>Use Decision project → Inspect / edit to maintain instructions, inspect related tasks,
+        archive or restore a project, and suggest source URLs. Select frozen evidence explicitly
+        with the checkboxes. Follow-ups retain the selection. Task details show exact presented
+        excerpt sizes, hashes, and omissions.</p>
+        <p>Connection access at the top of the page accepts your configured API token for this tab.
+        After a restart, interrupted tasks become failed with their history intact. Retry as linked
+        task creates an explicit new attempt; it does not overwrite the interrupted task.</p>
       </section>
 
       <section id="help-reference" class="help-section">
@@ -1206,7 +1220,7 @@ curl.exe -X POST http://127.0.0.1:8787/api/agents/claude-code/test
   <li><code>inboxFilters</code> — <code>{id, label, options: [{value, label}], onChange(value, api), defaultValue?}</code> appends a labeled <code>&lt;select&gt;</code> to the Inbox filters bar.</li>
   <li><code>detailPanels</code> — <code>{id, title, render(taskData, rootEl, api)}</code> appends a panel to the Detail view.</li>
 </ul>
-<p>Each plugin receives an <code>api</code> object with <code>el</code>, <code>fetchJSON</code>, <code>refreshInbox</code>, <code>openDetail</code>, read-only <code>state.currentTaskId</code> and <code>state.view</code>, and a namespaced <code>log</code>. Plugins live as files under <code>app/dashboard/plugins/&lt;name&gt;.js</code> and are listed in <code>app/dashboard/plugins/manifest.json</code>. An empty manifest yields byte-identical pre-plugin dashboard behavior. The three plugins that ship in-tree are <code>example-hello.js</code> (a minimal demo and copy-paste template), <code>failure-cause-detail-panel.js</code> (the Detail-view panel for <em>11.9 Failure-cause tags</em>), and <code>trajectory-tools.js</code> (the sidebar tab and per-row button for <em>12.4 Trajectory exporter</em>).</p>
+<p>Each plugin receives an <code>api</code> object with <code>el</code>, <code>fetchJSON</code>, <code>refreshInbox</code>, <code>openDetail</code>, read-only <code>state.currentTaskId</code> and <code>state.view</code>, and a namespaced <code>log</code>. Plugins live as files under <code>app/dashboard/plugins/&lt;name&gt;.js</code> and are listed in <code>app/dashboard/plugins/manifest.json</code>. An empty manifest yields byte-identical pre-plugin dashboard behavior. The two production plugins that ship in-tree are <code>failure-cause-detail-panel.js</code> (the Detail-view panel for <em>11.9 Failure-cause tags</em>) and <code>trajectory-tools.js</code> (the sidebar tab and per-row button for <em>12.4 Trajectory exporter</em>). The unlisted <code>example-hello.js</code> file remains as a copy-paste template.</p>
 <p><strong>v1 limits.</strong> The system is frontend-only — plugins cannot register backend routes today (deferred). They share the JS realm with the dashboard with no sandboxing, which is acceptable for a single-user local tool but means a buggy plugin can break the page; recovery is removing the filename from <code>manifest.json</code> and reloading. To write a new plugin, copy <code>app/dashboard/plugins/example-hello.js</code>, edit it, then add the filename to <code>manifest.json</code>. The deeper rationale and design constraints live in <code>docs/decisions/0024_dashboard_plugin_system.md</code>.</p>
 <!-- END:section-14.6 -->
         </section>

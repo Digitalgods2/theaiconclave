@@ -105,6 +105,40 @@ def test_copy_preserves_source_skips_ignored(src_project, task_id):
     assert not (sandbox / "lib.so").exists()
 
 
+def test_copy_skips_file_symlinks_even_when_target_is_readable(
+    src_project, task_id, tmp_path
+):
+    """A project symlink must not smuggle an out-of-tree file into a sandbox."""
+    outside = tmp_path / "outside-secret.txt"
+    outside.write_text("do not copy me", encoding="utf-8")
+    link = src_project / "innocent-name.txt"
+    try:
+        link.symlink_to(outside)
+    except OSError as exc:
+        pytest.skip(f"symlinks are unavailable for this test user: {exc}")
+
+    sandbox = prepare_sandbox(src_project, task_id, _make_default_perms())
+
+    assert sandbox is not None
+    assert not (sandbox / link.name).exists()
+
+
+def test_copy_skips_directory_symlinks(src_project, task_id, tmp_path):
+    outside = tmp_path / "outside-tree"
+    outside.mkdir()
+    (outside / "secret.txt").write_text("do not copy me", encoding="utf-8")
+    link = src_project / "linked-source"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks are unavailable for this test user: {exc}")
+
+    sandbox = prepare_sandbox(src_project, task_id, _make_default_perms())
+
+    assert sandbox is not None
+    assert not (sandbox / link.name).exists()
+
+
 # ---------------------------------------------------------------------------
 # Permission gates: .env requires can_read_env_files, secrets require can_read_secrets
 # ---------------------------------------------------------------------------

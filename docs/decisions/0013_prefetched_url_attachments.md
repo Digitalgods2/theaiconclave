@@ -1,10 +1,10 @@
-# Decision Record 0013 — Pre-fetched URL attachments (network access for the conclave, scoped)
+# Decision Record 0013 — Pre-fetched URL attachments (superseded by DR0027)
 
 **Date**: 2026-05-16
 **Mode**: Glen-directed (proposal-and-spec; ratification pending)
 **Keeper**: claude-code
 
-> **Status: NOT RATIFIED — pending v2 rework.** This proposal was pressure-tested in `tsk_01KRR4B0MWTCN95TEAPYQ2RS4M` (conclave mode, codex + gemini + claude-code, minor_disagreement). All three participants refused to ratify as written. The conclave's verdict is summarized in `docs/ROADMAP.md` § "Next" item 1 and is the input to a v2 rework. Reading this document for current direction: jump to the ROADMAP entry. Reading it for audit history: the original proposal text below is preserved verbatim.
+> **Status: SUPERSEDED by [DR0027](0027_projects_evidence_and_neutral_synthesis.md).** This unratified proposal remains audit history. DR0027 implements the shared-snapshot principle with SSRF controls, immutable hashes, explicit untrusted-content boundaries, evidence quality signals, citations, and persistent Decision Projects; the file paths and schema proposed below were never the production contract.
 
 ## What Was Chosen
 

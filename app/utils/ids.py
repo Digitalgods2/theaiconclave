@@ -54,3 +54,11 @@ def log_id() -> str:
 
 def artifact_id() -> str:
     return f"art_{_ulid()}"
+
+
+def project_id() -> str:
+    return f"prj_{_ulid()}"
+
+
+def evidence_id() -> str:
+    return f"evd_{_ulid()}"

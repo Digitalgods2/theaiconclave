@@ -14,7 +14,7 @@ class AdapterContext(BaseModel):
     task_id: str
     prior_messages: list[dict]   # serialized protocol messages, chronological
     permissions: Permissions
-    timeout_seconds: int
+    timeout_seconds: Optional[int]  # None for normal user-controlled calls
     working_directory: str       # absolute path
 
 class AdapterTestResult(BaseModel):
@@ -51,7 +51,7 @@ Every method returns a fully-validated protocol message. Adapters that cannot pr
 
 1. **Never write files or run host commands directly.** Adapters call CLI subprocesses; those subprocesses are governed by the safety layer.
 2. **Never mutate `prior_messages` or `task`.** Treat them as read-only.
-3. **Honor the timeout.** If the underlying CLI exceeds `timeout_seconds`, the adapter terminates the process group and raises `AdapterError(code="agent_timeout")`.
+3. **Honor coroutine cancellation.** Normal calls have no wall-clock timeout. If the user chooses Abort, the adapter must terminate and reap the complete CLI process tree before propagating cancellation. `agent_timeout` remains a compatibility error for callers that explicitly supply a transport deadline.
 4. **Parse defensively.** If the CLI returns prose instead of structured JSON, the adapter either reformats it or raises `AdapterError(code="agent_error")`. Silently inventing structure is forbidden.
 5. **Never retry.** The orchestrator owns retry policy.
 
@@ -93,7 +93,7 @@ A typical implementation invokes the CLI's `--version` flag, parses the output, 
 
 Adapters raise `AdapterError(code, message, details)` where `code` is one of:
 
-- `agent_timeout` — CLI exceeded `timeout_seconds`
+- `agent_timeout` — CLI exceeded its transport-level call timeout (distinct from the user's elapsed-time notification threshold)
 - `agent_unavailable` — adapter is disabled or `is_available()` was false
 - `agent_error` — CLI returned non-zero exit, unparseable output, or schema-invalid JSON
 
@@ -140,10 +140,6 @@ Covered by `tests/test_cli_adapter_base.py`, which asserts behavior (the prompt 
   - **A failed run still exits 0.** Timeouts and model errors arrive as `status: "ERROR"` in the result envelope with return code 0, so `status` is the authoritative success signal.
   - **`--mode plan` is the read-only guarantee** (the analogue of Gemini's `--approval-mode plan`) and is mutually exclusive with `--disable-slash-commands` — passing both makes `agy` warn and silently drop plan mode. The adapter never passes the latter.
 - Cost: the envelope reports tokens but no dollar figure, and default Google-account auth bills against an AI Pro/Ultra subscription. Token counts are recorded; `cost_usd` never is.
-
-### `openclaw_adapter`
-- MVP status: stub returning `agent_unavailable`
-- Eventual support: gateway mode (OpenClaw routes to provider X), agent mode (OpenClaw runs a local agent), OAuth-backed providers, configured model aliases.
 
 ### `fake_adapter`
 - Returns canned, deterministic responses keyed by task type.

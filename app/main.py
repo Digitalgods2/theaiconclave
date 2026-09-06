@@ -3,23 +3,29 @@
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 from contextlib import asynccontextmanager
 
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api import metrics as metrics_api
+from app.api import task_feedback as feedback_api
 from app.api import agents as agents_api
+from app.api import evidence as evidence_api
 from app.api import git as git_api
 from app.api import health as health_api
 from app.api import help as help_api
+from app.api import projects as projects_api
 from app.api import settings as settings_api
+from app.api import task_artifacts as task_artifacts_api
 from app.api import tasks as tasks_api
 from app.api import uploads as uploads_api
-from app.config import get_config
+from app.config import api_token, get_config, validate_server_boundary
 from app.database import init_database
 from app.services import agent_registry
 from app.services import migration
@@ -68,6 +74,7 @@ async def lifespan(app: FastAPI):
 
     # Step 3 — resolve config (lazy), reapply logging level.
     config = get_config()
+    validate_server_boundary(config)
     logging.getLogger().setLevel(getattr(logging, config.logging.level.upper(), logging.INFO))
 
     # Step 4 — single-instance enforcement. Pidlock lives in user_data_root()
@@ -79,39 +86,44 @@ async def lifespan(app: FastAPI):
         logger.error("Refusing to start — another AI Conclave Switchboard is running.\n%s", e)
         raise SystemExit(2) from e
 
-    # Step 5 — initialize the DB. config.database.path = None means "use
-    # default_db_path()" per DR0016. An explicit string in config.yaml still wins.
-    db_path = Path(config.database.path) if config.database.path else default_db_path()
-    init_database(db_path)
-
-    help_api.sync_help_metadata_from_file()
-    agent_registry.clear()
-    agent_registry.init_registry(config)
-    agent_registry.register_openrouter_models(config)
-
-    # Reap any tasks left in `running` from a previous crashed worker.
-    # See app/services/orphan_reaper.py — Phase 1 of post-DR plan
-    # (tsk_01KRSW6AS3M66B4RRJE3JFAPRV). No-op when there are no orphans.
-    from app.services.orphan_reaper import reap_orphans
     try:
-        reap_orphans()
-    except Exception as e:  # noqa: BLE001 — never block startup on reaper failure
-        logger.warning("orphan reaper failed: %s", e)
+        # Step 5 — initialize the DB. config.database.path = None means "use
+        # default_db_path()" per DR0016. An explicit string in config.yaml still wins.
+        db_path = Path(config.database.path) if config.database.path else default_db_path()
+        init_database(db_path)
 
-    # Sweep orphan sandboxes left over from crashed/aborted tasks.
-    from app.database import connect
-    from app.services.sandbox import sweep_orphan_sandboxes
-    with connect() as conn:
-        active = {
-            row["id"] for row in conn.execute(
-                "SELECT id FROM tasks WHERE status IN ('pending','running','awaiting_user_input','waiting_for_user')"
-            ).fetchall()
-        }
-    sweep_orphan_sandboxes(active)
+        help_api.sync_help_metadata_from_file()
+        agent_registry.clear()
+        agent_registry.init_registry(config)
+        agent_registry.register_openrouter_models(config)
 
-    worker_task = asyncio.create_task(worker_loop(config))
-    retention_task = asyncio.create_task(retention_loop(config))
-    logger.info("AI Conclave Switchboard service started on %s:%d", config.server.host, config.server.port)
+        # Reap any tasks left in `running` from a previous crashed worker.
+        # See app/services/orphan_reaper.py — Phase 1 of post-DR plan
+        # (tsk_01KRSW6AS3M66B4RRJE3JFAPRV). No-op when there are no orphans.
+        from app.services.orphan_reaper import reap_orphans
+        try:
+            reap_orphans(previous_instance=True)
+        except Exception as e:  # noqa: BLE001 — never block startup on reaper failure
+            logger.warning("orphan reaper failed: %s", e)
+
+        # Sweep orphan sandboxes left over from crashed/aborted tasks.
+        from app.database import connect
+        from app.services.sandbox import sweep_orphan_sandboxes
+        with connect() as conn:
+            active = {
+                row["id"] for row in conn.execute(
+                    "SELECT id FROM tasks WHERE status IN ('pending','running','awaiting_user_input','waiting_for_user')"
+                ).fetchall()
+            }
+        sweep_orphan_sandboxes(active)
+
+        worker_task = asyncio.create_task(worker_loop(config))
+        retention_task = asyncio.create_task(retention_loop(config))
+        logger.info("AI Conclave Switchboard service started on %s:%d", config.server.host, config.server.port)
+
+    except BaseException:
+        pidlock.release(lock_path)
+        raise
 
     try:
         yield
@@ -119,12 +131,13 @@ async def lifespan(app: FastAPI):
         logger.info("Shutting down.")
         for t in (worker_task, retention_task):
             t.cancel()
-        for t in (worker_task, retention_task):
-            try:
-                await t
-            except asyncio.CancelledError:
-                pass
-        pidlock.release(lock_path)
+        try:
+            outcomes = await asyncio.gather(worker_task, retention_task, return_exceptions=True)
+            for outcome in outcomes:
+                if isinstance(outcome, Exception):
+                    logger.error("Background worker stopped with an error: %s", outcome)
+        finally:
+            pidlock.release(lock_path)
 
 
 app = FastAPI(
@@ -132,14 +145,38 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+
+@app.middleware("http")
+async def require_api_token(request: Request, call_next):
+    """Authenticate API calls whenever an operator configures a token."""
+    if request.url.path.startswith("/api/"):
+        expected = api_token(get_config())
+        if expected:
+            supplied = request.headers.get("x-conclave-token", "")
+            auth = request.headers.get("authorization", "")
+            if auth.lower().startswith("bearer "):
+                supplied = auth[7:].strip()
+            if not supplied or not hmac.compare_digest(supplied, expected):
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "missing or invalid Conclave API token"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+    return await call_next(request)
+app.include_router(metrics_api.router)
+app.include_router(feedback_api.router)
 app.include_router(health_api.router)
 app.include_router(tasks_api.router)
+app.include_router(task_artifacts_api.router)
 app.include_router(tasks_api.trajectories_router)
 app.include_router(agents_api.router)
+app.include_router(evidence_api.router)
 app.include_router(uploads_api.router)
 app.include_router(git_api.router)
 app.include_router(settings_api.router)
 app.include_router(help_api.router)
+app.include_router(projects_api.router)
 
 _DASHBOARD_DIR = Path(__file__).resolve().parent / "dashboard"
 app.mount("/static", StaticFiles(directory=str(_DASHBOARD_DIR)), name="static")

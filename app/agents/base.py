@@ -12,6 +12,7 @@ See docs/AGENT_ADAPTERS.md for the full contract.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -33,7 +34,9 @@ class AdapterContext(BaseModel):
     task_id: str
     prior_messages: list[dict[str, Any]] = Field(default_factory=list)
     permissions: Permissions
-    timeout_seconds: int
+    # Legacy requests may carry a timeout threshold for UI notification, but
+    # active calls are user-cancelled rather than failed on elapsed wall time.
+    timeout_seconds: Optional[int] = None
     working_directory: str
 
     model_config = ConfigDict(frozen=True)
@@ -93,10 +96,86 @@ class BaseAdapter(ABC):
     max_context_chars: int = 800_000  # conservative ~200K-token equivalent; subclasses override
 
     def __init__(self) -> None:
-        # Per-call usage stash, populated by _invoke and read by the orchestrator
-        # so we can persist (input_tokens, output_tokens, cost_usd) on agent_runs
-        # without restructuring every run_* method signature.
-        self._last_usage: dict[str, Any] = {}
+        # Context-local telemetry preserves the existing adapter contract while
+        # making a long-lived adapter safe when conclave turns run in parallel.
+        self._usage_var: ContextVar[Optional[dict[str, Any]]] = ContextVar(
+            f"{type(self).__name__}.usage.{id(self)}", default=None
+        )
+        self._tool_events_var: ContextVar[Optional[list[dict[str, Any]]]] = ContextVar(
+            f"{type(self).__name__}.tool_events.{id(self)}", default=None
+        )
+        self._prompt_var: ContextVar[Optional[str]] = ContextVar(
+            f"{type(self).__name__}.prompt.{id(self)}", default=None
+        )
+        self._raw_response_var: ContextVar[Optional[str]] = ContextVar(
+            f"{type(self).__name__}.raw_response.{id(self)}", default=None
+        )
+
+    @property
+    def _last_usage(self) -> dict[str, Any]:
+        var = getattr(self, "_usage_var", None)
+        if var is None:
+            var = ContextVar(f"{type(self).__name__}.usage.{id(self)}", default=None)
+            self._usage_var = var
+        value = var.get()
+        if value is None:
+            value = {}
+            var.set(value)
+        return value
+
+    @_last_usage.setter
+    def _last_usage(self, value: dict[str, Any]) -> None:
+        var = getattr(self, "_usage_var", None)
+        if var is None:
+            var = ContextVar(f"{type(self).__name__}.usage.{id(self)}", default=None)
+            self._usage_var = var
+        var.set(dict(value or {}))
+
+    @property
+    def _last_tool_events(self) -> list[dict[str, Any]]:
+        var = getattr(self, "_tool_events_var", None)
+        if var is None:
+            var = ContextVar(f"{type(self).__name__}.tool_events.{id(self)}", default=None)
+            self._tool_events_var = var
+        value = var.get()
+        if value is None:
+            value = []
+            var.set(value)
+        return value
+
+    @_last_tool_events.setter
+    def _last_tool_events(self, value: list[dict[str, Any]]) -> None:
+        var = getattr(self, "_tool_events_var", None)
+        if var is None:
+            var = ContextVar(f"{type(self).__name__}.tool_events.{id(self)}", default=None)
+            self._tool_events_var = var
+        var.set(list(value or []))
+
+    @property
+    def _last_prompt(self) -> Optional[str]:
+        var = getattr(self, "_prompt_var", None)
+        return var.get() if var is not None else None
+
+    @_last_prompt.setter
+    def _last_prompt(self, value: Optional[str]) -> None:
+        var = getattr(self, "_prompt_var", None)
+        if var is None:
+            var = ContextVar(f"{type(self).__name__}.prompt.{id(self)}", default=None)
+            self._prompt_var = var
+        var.set(value)
+
+    @property
+    def _last_raw_response(self) -> Optional[str]:
+        var = getattr(self, "_raw_response_var", None)
+        return var.get() if var is not None else None
+
+    @_last_raw_response.setter
+    def _last_raw_response(self, value: Optional[str]) -> None:
+        var = getattr(self, "_raw_response_var", None)
+        if var is None:
+            var = ContextVar(f"{type(self).__name__}.raw_response.{id(self)}", default=None)
+            self._raw_response_var = var
+        var.set(value)
 
     @abstractmethod
     async def is_available(self) -> bool:
@@ -120,6 +199,14 @@ class BaseAdapter(ABC):
     @abstractmethod
     async def test_connection(self) -> AdapterTestResult:
         """Side-effect-free probe. Reports version and elapsed time."""
+
+    async def _invoke(self, prompt: str, timeout_seconds: Optional[int]) -> str:
+        """Low-level text call used only by neutral judge/synthesis roles.
+
+        Production adapters override this. The default keeps test-only adapters
+        source-compatible while failing clearly if selected as a neutral seat.
+        """
+        raise NotImplementedError(f"adapter {self.name!r} does not support neutral text invocation")
 
     @abstractmethod
     async def run_primary(self, ctx: AdapterContext) -> PrimaryResponse:

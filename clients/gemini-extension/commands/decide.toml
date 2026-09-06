@@ -16,5 +16,5 @@ If only a task_id was provided with no decision text, ask the user briefly what 
 
 For significant AI Conclave Switchboard capability or infrastructure decisions, Charter v1.2 also requires an Operability Impact section in the decision. If the topic looks AI Conclave Switchboard-related, suggest that addendum.
 
-!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini decide {{args}}}
+!{python -m switchboard_conclave --invoked-by gemini decide {{args}}}
 """

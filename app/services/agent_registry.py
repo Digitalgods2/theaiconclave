@@ -35,8 +35,8 @@ def clear() -> None:
 def init_registry(config=None) -> None:
     """Register the static CLI adapters. Called once at startup.
 
-    When `config` is provided, each CLI adapter is instantiated with its
-    configured `command_path` (DR0017). Without `config`, adapters fall
+    When `config` is provided, only enabled CLI seats are registered and
+    adapters receive their configured options. Without `config`, adapters fall
     back to `shutil.which()` lookup of their default command name —
     correct behavior for tests that call init_registry() with no args.
 
@@ -54,16 +54,30 @@ def init_registry(config=None) -> None:
     def _cmd_path(name: str):
         return _agent_attr(name, "command_path")
 
+    def _enabled(name: str) -> bool:
+        if config is None:
+            return True
+        agents = getattr(config, "agents", None) or {}
+        entry = agents.get(name) if isinstance(agents, dict) else None
+        return bool(getattr(entry, "enabled", False))
+
     register(FakeAdapter())
-    register(CodexAdapter(command_path=_cmd_path("codex")))
-    register(GeminiAdapter(command_path=_cmd_path("gemini")))
-    register(ClaudeCodeAdapter(command_path=_cmd_path("claude-code")))
-    register(AntigravityAdapter(
-        command_path=_cmd_path("antigravity"),
-        model=_agent_attr("antigravity", "model"),
-        effort=_agent_attr("antigravity", "effort"),
-        extra_args=_agent_attr("antigravity", "args") or [],
-    ))
+    if _enabled("codex"):
+        register(CodexAdapter(command_path=_cmd_path("codex")))
+    if _enabled("gemini"):
+        register(GeminiAdapter(command_path=_cmd_path("gemini")))
+    if _enabled("claude-code"):
+        register(ClaudeCodeAdapter(
+            model=_agent_attr("claude-code", "model"),
+            command_path=_cmd_path("claude-code"),
+        ))
+    if _enabled("antigravity"):
+        register(AntigravityAdapter(
+            command_path=_cmd_path("antigravity"),
+            model=_agent_attr("antigravity", "model"),
+            effort=_agent_attr("antigravity", "effort"),
+            extra_args=_agent_attr("antigravity", "args") or [],
+        ))
 
 
 def register_openrouter_models(config) -> None:

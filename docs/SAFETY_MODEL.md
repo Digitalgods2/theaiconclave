@@ -61,9 +61,11 @@ A blocked command does not produce a clarifying error to the agent; it produces 
 - Any command writing outside `project_path`
 - Any command reaching the network when `can_access_network` is false
 
-## 4. Approval Gate
+## 4. Future Approval Gate (Reserved)
 
-The AI Conclave Switchboard pauses tasks (status → `waiting_for_user`) when an agent's recommended action requires approval. Triggers:
+The original design reserved `waiting_for_user`, approval rows, and resolution
+endpoints for an executable workflow. That workflow is not implemented. The
+following remain policy requirements if execution is added later:
 
 - Any action with `requires_approval: true` in `recommended_actions`
 - Any command on the soft list above
@@ -72,19 +74,31 @@ The AI Conclave Switchboard pauses tasks (status → `waiting_for_user`) when an
 - Any deletion of files in version control
 - Any modification of CI/CD config, deployment scripts, or `.github/`
 
-The pause writes an `approvals` row with `status: pending`. The user resolves it via dashboard or `POST /api/approvals/{id}/approve|reject`. On approve: the task resumes and the action becomes runnable. On reject: the task continues with the action removed from the recommendation list and the rejection logged.
+Current production code does not create `approvals` rows, pause on recommended
+actions, or expose approve/reject endpoints. It compiles an advisory action plan
+and leaves execution to an explicit user action outside the deliberation loop.
 
 ### Structured Action Plan advisory pass
 
 The Structured Action Plan is a policy-checked operational handoff compiled from the final synthesized `recommended_actions`. In v1 it is advisory only. It annotates each step with an action type, required permissions, policy status, and reasons so the user can see what would be allowed, require approval, or be blocked before acting.
 
-This pass does not execute commands, apply patches, access the network, read secrets, create `approvals` rows, pause tasks, or remove blocked steps. The approval gate above remains authoritative for any future executable workflow.
+This pass does not execute commands, apply patches, access the network, read secrets, create `approvals` rows, pause tasks, or remove blocked steps. The reserved policy above remains the requirement for any future executable workflow.
 
 ### Draft artifacts and explicit apply
 
 Agents still do not write to the user's project in v1. When a final recommendation contains a draft file, search/replace edit, or patch, the AI Conclave Switchboard may store it under the app-owned runtime artifact directory for review. This is a product handoff surface, not an execution grant and not a bypass of task permissions.
 
-The dashboard/API can explicitly apply supported artifacts after the task completes. That apply action is user-initiated, constrained to the task's `project_path`, and rejects paths that escape the project root. Patch artifacts are review/download-only in v1; direct patch application remains governed by the patch rules below.
+The dashboard/API can explicitly apply supported artifacts after the task completes. Apply is two-phase: the server first returns a diff plus the current target SHA-256, then requires confirmation of that exact hash. Existing-file overwrites require a separate flag and create an app-owned backup. Writes use a same-directory temporary file plus atomic replace and emit an `artifact_applied` audit event. Patch artifacts remain review/download-only in v1.
+
+### Evidence acquisition
+
+Evidence fetching is a server-owned preprocessing action, not a network tool granted to each agent. HTTPS is required by default; URL credentials and non-public DNS results are rejected, redirects are revalidated, and time/byte/character limits are enforced. HTML scripts and styles are excluded, while PDF and text sources are extracted into immutable, hashed snapshots.
+
+Remote source text is always marked as untrusted data in prompts. Instruction-like phrases are retained for audit but counted in quality metadata, and agents are explicitly prohibited from following them. Participants cite only snapshot IDs; invalid IDs are surfaced in final citation coverage.
+
+### Service network boundary
+
+The default bind host is loopback. A non-loopback host cannot start unless `server.allow_remote=true` and a 16-character-or-longer token is supplied through `CONCLAVE_API_TOKEN` or `server.api_token`. When a token is configured, all `/api/` requests require it as `Authorization: Bearer ...` or `X-Conclave-Token`.
 
 ## 5. Patch Handling
 
@@ -138,12 +152,26 @@ When a safety check fails, the task does **not** silently degrade. The orchestra
 
 The agent never receives a "successful" signal for a denied action.
 
-## 10. Round and Time Limits as a Safety Mechanism
+## 10. Round Limits and User-Controlled Elapsed Time
 
-Although they live in `limits` rather than `permissions`, the round count and timeout are safety controls:
+Although it lives in `limits` rather than `permissions`, the round count is a safety control. Elapsed time is an observability signal controlled by the user:
 
 - `max_rounds` prevents agents from looping or accumulating cost without bound.
-- `timeout_seconds` per agent call prevents a hung adapter from holding the worker.
+- `notify_after_seconds` (preferred; legacy `timeout_seconds` / `max_seconds` aliases) notifies the user but never auto-fails a job. Abort interrupts the active coroutine and terminates the complete CLI process tree.
 - Repetition detection (>80% n-gram overlap between consecutive primary responses) terminates the debate with `loop_detected` even when `max_rounds` is not exhausted.
 
 These limits cannot be raised by an agent, only by the user submitting the task.
+
+
+## Evidence and archive integrity updates
+
+Evidence HTTP transport pins each connection to a validated global IP address and
+preserves the original hostname for TLS certificate verification and Host routing.
+Redirects receive the same validation; environment proxies are disabled. Connections
+are not reused across rewritten IP origins. Search response bodies are capped too.
+Snapshot text is untrusted source content. The task records which exact excerpts were
+presented, including sources omitted due to the 60,000-character evidence budget.
+
+Retention uses live SQLite pages instead of pre-vacuum physical size to stop trimming
+once enough data is reclaimed. Tier-2 deletion additionally requires the recorded archive
+to be a nonempty existing file. This is an existence check, not a full restore test.

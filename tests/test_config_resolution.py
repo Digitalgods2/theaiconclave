@@ -64,7 +64,7 @@ def test_first_run_seeds_user_config_from_packaged_example(tmp_path, monkeypatch
     # The seed should have produced a copy at user_config_path()
     assert paths.user_config_path().exists()
     # And the loaded config should have come from the example file.
-    assert cfg.protocol_version == "1.0"
+    assert not hasattr(cfg, "protocol_version")
 
 
 def test_dev_mode_prefers_repo_config_yaml(tmp_path, monkeypatch):

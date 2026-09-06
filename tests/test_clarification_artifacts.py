@@ -21,7 +21,7 @@ from app.protocol.validators import (
     RiskSeverity,
 )
 from app.services import agent_registry
-from app.services.artifacts import apply_artifact_to_project, list_artifacts
+from app.services.artifacts import apply_artifact_to_project, list_artifacts, preview_artifact_apply
 from app.services.orchestrator import run_task
 from app.utils.ids import message_id, task_id as new_task_id
 
@@ -230,8 +230,49 @@ async def test_final_recommendations_create_applyable_artifacts(temp_db, tmp_pat
     assert css["metadata"]["target_path"] == "crisp.css"
     assert "body { color" in css["content"]
 
-    apply_artifact_to_project(tid, css["id"])
-    apply_artifact_to_project(tid, edit["id"])
+    css_preview = preview_artifact_apply(tid, css["id"])
+    apply_artifact_to_project(
+        tid, css["id"], confirm=True,
+        expected_target_sha256=css_preview["expected_target_sha256"],
+    )
+    edit_preview = preview_artifact_apply(tid, edit["id"])
+    apply_artifact_to_project(
+        tid, edit["id"], confirm=True,
+        expected_target_sha256=edit_preview["expected_target_sha256"],
+    )
 
     assert (project / "crisp.css").read_text(encoding="utf-8") == "body { color: #111; }\n"
     assert 'href="crisp.css"' in (project / "index.html").read_text(encoding="utf-8")
+
+
+async def test_artifact_apply_rejects_stale_preview_and_backs_up_overwrite(temp_db, tmp_path):
+    project = tmp_path / "site-stale"
+    project.mkdir()
+    (project / "index.html").write_text("<html><head></head><body></body></html>", encoding="utf-8")
+    (project / "crisp.css").write_text("old css", encoding="utf-8")
+    agent_registry.register(ArtifactPrimary())
+    tid = _create_consult_task("artifact-primary", "fake", str(project))
+    await run_task(tid)
+    css = next(a for a in list_artifacts(tid) if a["kind"] == "file")
+
+    with pytest.raises(ValueError, match="confirmation"):
+        apply_artifact_to_project(tid, css["id"])
+
+    preview = preview_artifact_apply(tid, css["id"])
+    (project / "crisp.css").write_text("changed after preview", encoding="utf-8")
+    with pytest.raises(ValueError, match="changed after preview"):
+        apply_artifact_to_project(
+            tid, css["id"], confirm=True,
+            expected_target_sha256=preview["expected_target_sha256"],
+            allow_overwrite=True,
+        )
+
+    refreshed = preview_artifact_apply(tid, css["id"])
+    result = apply_artifact_to_project(
+        tid, css["id"], confirm=True,
+        expected_target_sha256=refreshed["expected_target_sha256"],
+        allow_overwrite=True,
+    )
+    assert result["backup_path"]
+    from app.utils.paths import user_data_root
+    assert (user_data_root() / result["backup_path"]).is_file()

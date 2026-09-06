@@ -46,7 +46,7 @@ The `claude-code-commands/` and `gemini-extension/commands/` directories therefo
 
 ## Provenance
 
-Every command/skill passes `--invoked-by <tool-name>` to `switchboard.py`. The CLI helper sets the `source_agent` column on the resulting task, so the dashboard's inbox can show which CLI submitted each task.
+Every command/skill passes `--invoked-by <tool-name>` to `python -m switchboard_conclave`. The CLI helper sets the `source_agent` column on the resulting task, so the dashboard's inbox can show which CLI submitted each task.
 
 The full provenance values are:
 
@@ -90,3 +90,11 @@ Edit files **here, in `clients/`**, then rerun `install.py`. Do not edit the ins
 Per the *Operability before capability* principle, additions to this directory that expand capability (new modes, new agent types, new permission layers) must be assessed against operability foundations. The current shape (slash commands as thin clients over a stable AI Conclave Switchboard service + DB) does not degrade observability, durability, recoverability, audit trail, retention, or export — adding new slash commands here is generally an operability-neutral capability addition.
 
 If a future client surface DOES affect those foundations (e.g., a client that writes locally without going through the service, or one that adds a new persistence layer), the Decision Record for the change must include an Operability Impact field per Charter v1.2 §Decision Records.
+
+
+## Authenticated servers and follow-ups
+
+The portable helper reads `CONCLAVE_API_TOKEN` and sends it with every request.
+`SWITCHBOARD_ENDPOINT` selects the service. Follow-ups inherit the parent's decision
+project, project path, permissions, limits, independent review seats, evidence selection,
+and attachments; transient sandbox paths and generated context are reconstructed.

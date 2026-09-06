@@ -20,6 +20,10 @@ from app.services.orchestrator import run_task
 from app.utils.ids import task_id as new_task_id
 
 
+class _ResolveConsultantFake(FakeAdapter):
+    name = "resolve-consultant-fake"
+
+
 @pytest.fixture
 def temp_db():
     with tempfile.TemporaryDirectory() as tmp:
@@ -27,10 +31,16 @@ def temp_db():
         init_database(str(db_path))
         agent_registry.clear()
         agent_registry.init_registry()
+        agent_registry.register(_ResolveConsultantFake())
         yield db_path
 
 
-def _create_resolve_task(extra: dict | None = None, max_seconds: int = 60, max_rounds: int = 20) -> str:
+def _create_resolve_task(
+    extra: dict | None = None,
+    max_seconds: int = 60,
+    max_rounds: int = 20,
+    consultants: list[str] | None = None,
+) -> str:
     tid = new_task_id()
     now = now_iso()
     permissions = Permissions(
@@ -48,9 +58,9 @@ def _create_resolve_task(extra: dict | None = None, max_seconds: int = 60, max_r
              user_request, primary_agent, consultants, project_path,
              context_json, permissions_json, limits_json)
             VALUES (?, ?, ?, 'pending', 'api', NULL, 'resolve', 'general_consultation',
-                    'Test resolve request', 'fake', '["fake"]', NULL, ?, ?, ?)""",
+                    'Test resolve request', 'fake', ?, NULL, ?, ?, ?)""",
             (
-                tid, now, now,
+                tid, now, now, json.dumps(consultants or []),
                 json.dumps(context, sort_keys=True),
                 json.dumps(permissions.model_dump(), sort_keys=True),
                 json.dumps(limits.model_dump(), sort_keys=True),
@@ -241,7 +251,10 @@ async def test_loop_detection(temp_db):
 # ---------------------------------------------------------------------------
 
 async def test_consultant_drives_continuation(temp_db):
-    tid = _create_resolve_task(extra={"fake_behavior": "consultant_blocks"})
+    tid = _create_resolve_task(
+        extra={"fake_behavior": "consultant_blocks"},
+        consultants=["resolve-consultant-fake"],
+    )
     await run_task(tid)
 
     assert _task_status(tid) == "completed"

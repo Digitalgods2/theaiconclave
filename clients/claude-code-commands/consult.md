@@ -11,7 +11,7 @@ If `$ARGUMENTS` doesn't name an agent, use `codex` by default.
 Use the `switchboard-conclave` skill in `consult` mode. Run:
 
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code run consult claude-code,<agent> "<question>"
+python -m switchboard_conclave --invoked-by claude-code run consult claude-code,<agent> "<question>"
 ```
 
 Where `claude-code` is the primary (drafts the answer) and `<agent>` is the consultant (critiques it). Render the result. The final answer reflects the primary's response after considering the consultant's critique — so lead with that, then surface where the consultant disagreed.

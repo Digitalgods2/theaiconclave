@@ -15,5 +15,5 @@ After the task completes, render the result. The conclave's participants will se
 
 If the user wants to inspect the thread genealogy first, suggest /thread <task_id>.
 
-!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini continue {{args}}}
+!{python -m switchboard_conclave --invoked-by gemini continue {{args}}}
 """

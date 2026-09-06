@@ -20,6 +20,8 @@ import pytest
 from app.database import connect, init_database, now_iso
 from app.services import agent_registry
 from app.services.retention import (
+    completed_task_count,
+    effective_db_path,
     find_trimmable_tasks,
     trim_to_budget,
 )
@@ -223,3 +225,31 @@ def test_triggers_reported(temp_db):
     # Both triggers should fire given the tiny budgets.
     assert any("db_size" in t for t in result["triggers"])
     assert any("task_count" in t for t in result["triggers"])
+
+
+def test_task_count_budget_counts_and_reduces_retained_transcripts(temp_db):
+    """The count cap is reachable without deleting protected Tier-1 rows."""
+    oldest = _insert_task(age_days=220, agreement_level="consensus")
+    middle = _insert_task(age_days=200, agreement_level="consensus")
+    newest = _insert_task(age_days=180, agreement_level="consensus")
+    assert completed_task_count() == 3
+
+    result = trim_to_budget(
+        max_db_size_bytes=10 * 1024 * 1024,
+        max_task_count=1,
+        min_age_days=90,
+        db_path=temp_db,
+    )
+
+    assert result["after"]["completed_task_count"] == 1
+    assert result["trimmed_task_ids"] == [oldest, middle]
+    assert _message_count_for(oldest) == 0
+    assert _message_count_for(middle) == 0
+    assert _message_count_for(newest) == 3
+    assert all(_task_exists(tid) for tid in (oldest, middle, newest))
+
+
+def test_effective_db_path_uses_runtime_default_for_none(tmp_path):
+    assert effective_db_path(None) == tmp_path / "switchboard.db"
+    assert effective_db_path("") == tmp_path / "switchboard.db"
+    assert effective_db_path("custom.db") == Path("custom.db")

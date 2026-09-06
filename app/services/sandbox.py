@@ -83,6 +83,25 @@ def _should_skip_dir(dirname: str) -> bool:
     return dirname in _SKIP_DIRS
 
 
+def _is_linklike(path: Path) -> bool:
+    """Return True for filesystem entries that can redirect outside the tree.
+
+    File symlinks are followed by ``stat()`` and ``shutil.copy2()`` by default,
+    which would let a project entry point at a credential or other file outside
+    the selected project.  Windows junctions are the directory equivalent and
+    need the same treatment.  Sandboxes are snapshots, so omitting links is
+    both safer and less surprising than preserving or dereferencing them.
+    """
+    try:
+        if path.is_symlink():
+            return True
+        is_junction = getattr(path, "is_junction", None)
+        return bool(is_junction and is_junction())
+    except OSError:
+        # An unreadable or racing entry is not safe to copy.
+        return True
+
+
 def _should_skip_file(name: str, permissions: Permissions) -> bool:
     if _matches_any(name, _SKIP_FILES_GLOB):
         return True
@@ -123,21 +142,37 @@ def prepare_sandbox(
     copied = 0
     cap_reached = False
 
-    for root, dirs, files in os.walk(src):
-        # Filter directories in-place so os.walk doesn't descend into skipped ones.
-        dirs[:] = [d for d in dirs if not _should_skip_dir(d)]
+    for root, dirs, files in os.walk(src, followlinks=False):
+        # Filter directories in-place so os.walk doesn't descend into skipped
+        # ones or through symlinks / Windows junctions.  The explicit link
+        # check is defense in depth: followlinks=False covers ordinary POSIX
+        # directory symlinks, but not every reparse-point variant on Windows.
+        root_path = Path(root)
+        dirs[:] = [
+            d for d in dirs
+            if not _should_skip_dir(d) and not _is_linklike(root_path / d)
+        ]
         if cap_reached:
             break
 
-        root_path = Path(root)
         for fname in files:
             if _should_skip_file(fname, permissions):
                 skipped += 1
                 continue
             src_file = root_path / fname
+            if _is_linklike(src_file):
+                skipped += 1
+                continue
             try:
-                size = src_file.stat().st_size
+                resolved_file = src_file.resolve(strict=True)
+                # A second boundary check protects against less conventional
+                # link-like filesystem entries that Path does not classify.
+                resolved_file.relative_to(src)
+                size = resolved_file.stat().st_size
             except OSError:
+                skipped += 1
+                continue
+            except ValueError:
                 skipped += 1
                 continue
             if size > _MAX_FILE_BYTES:
@@ -154,7 +189,7 @@ def prepare_sandbox(
             dest_file = dest / rel
             dest_file.parent.mkdir(parents=True, exist_ok=True)
             try:
-                shutil.copy2(src_file, dest_file)
+                shutil.copy2(resolved_file, dest_file)
                 total_bytes += size
                 copied += 1
             except OSError as e:

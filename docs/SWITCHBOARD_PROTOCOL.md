@@ -20,7 +20,7 @@ Every top-level message carries `protocol_version` as a `MAJOR.MINOR` string. Cu
 ## 3. Common Enums
 
 ### Status (task)
-`pending` · `running` · `waiting_for_user` (action approval) · `awaiting_user_input` (info needed from the user) · `completed` · `failed` · `cancelled`
+`pending` · `running` · `waiting_for_user` (reserved; not currently reached) · `awaiting_user_input` (info needed from the user) · `completed` · `failed` · `cancelled`
 
 ### Mode (task)
 `resolve` — **default for non-trivial tasks.** Open-ended primary-driven loop until the primary signals `resolved` or `cannot_resolve`, with cost/time/repetition backstops. The primary may pause to ask the user a question (`needs_user_input`) and resume after the user answers.
@@ -87,8 +87,7 @@ Sent by a caller (dashboard, agent, webhook) to create a new task.
   },
   "limits": {
     "max_rounds": 50,
-    "timeout_seconds": 180,
-    "max_seconds": 600,
+    "notify_after_seconds": 180,
     "max_context_tokens": null
   }
 }
@@ -105,9 +104,12 @@ Sent by a caller (dashboard, agent, webhook) to create a new task.
 | `primary_agent` | conditional | Required for `resolve` and `consult`. Omitted for `conclave`. |
 | `consultants` | conditional | Array of agent names. Required for `consult` (≥1) and `conclave` (≥2). Optional in `resolve`. |
 | `project_path` | no | Absolute path; gates file access |
+| `decision_project_id` | no | Persistent Decision Project that contributes instructions and frozen project evidence |
+| `judge_agent` | no | Optional semantic-equivalence judge; must not be a participant |
+| `synthesis_agent` | no | Optional final synthesizer; must not be a participant |
 | `context` | no | Compact, relevant context. Free-form sub-object; the orchestrator does not interpret `extra`. |
 | `permissions` | yes | All eight booleans must be present and explicit |
-| `limits` | yes | `max_rounds` (backstop in resolve, primary cap in consult), `timeout_seconds` (per agent call), `max_seconds` (total task time, used by resolve mode) |
+| `limits` | yes | `max_rounds` (round cap), `notify_after_seconds` (preferred elapsed-time notification threshold; legacy `timeout_seconds` / `max_seconds` are accepted aliases) |
 
 ## 5. Agent Response (Primary)
 
@@ -256,6 +258,12 @@ Task detail responses include `artifacts: [...]` with metadata and text previews
 
 Applying an artifact is explicit user action. It writes only inside the task's `project_path`; `file` artifacts write the target file, and `edit` artifacts perform one search/replace. Patch artifacts remain review/download-only in v1.
 
+Application requires a prior `GET .../apply-preview`, then a POST body containing `confirm: true`, the returned `expected_target_sha256`, and `allow_overwrite: true` only for a reviewed existing-file overwrite. A target change invalidates the preview.
+
+## Frozen evidence and citations
+
+Task context may contain `extra.evidence_snapshot_ids`, populated by the evidence API or inherited from a Decision Project. The orchestrator resolves these to immutable snapshots and presents the same bounded content to every seat. Primary, consultant, and conclave-turn responses may return `citation_ids`. The final result resolves valid IDs to citation records and reports unavailable, uncited, and invalid IDs in `citation_coverage`.
+
 ## 9. Errors
 
 Errors are objects, not strings.
@@ -263,8 +271,8 @@ Errors are objects, not strings.
 ```json
 {
   "code": "agent_timeout",
-  "message": "Consultant 'gemini' did not respond within 180 seconds.",
-  "details": {"agent": "gemini", "elapsed_ms": 180000}
+  "message": "Consultant 'gemini' has been running for 180 seconds.",
+  "details": {"agent": "gemini", "elapsed_ms": 180000, "notification": true}
 }
 ```
 
@@ -274,14 +282,14 @@ Stable error codes:
 |---|---|
 | `protocol_version_mismatch` | Major version not supported |
 | `agent_unavailable` | Named agent is disabled or failed connection test |
-| `agent_timeout` | Agent exceeded `limits.timeout_seconds` |
+| `agent_timeout` | An individual adapter call timed out at the transport level; elapsed-time notification thresholds do not auto-fail tasks |
 | `agent_error` | Adapter returned a non-zero exit or unparseable output |
 | `permission_denied` | Action requires a permission that the task does not grant |
-| `approval_required` | Task is paused awaiting user approval |
+| `approval_required` | Reserved compatibility code for a future executable approval gate |
 | `rounds_exhausted` | Debate hit `limits.max_rounds` without convergence |
 | `loop_detected` | Agents repeating prior content; orchestrator stopped |
 | `invalid_request` | Task request failed schema validation |
-| `resolve_timeout` | Resolve loop exceeded `limits.max_seconds` |
+| `resolve_timeout` | Legacy compatibility code for an explicit resolve timeout; current elapsed-time thresholds only notify and never auto-fail a job |
 
 ## 10. Status Transitions
 
@@ -289,10 +297,33 @@ Stable error codes:
 pending → running → completed
                  ↘ failed
                  ↘ cancelled
-                 ↘ waiting_for_user      → running → ...    (action approval)
+                 ↘ waiting_for_user      → running → ...    (reserved; not implemented)
                  ↘ awaiting_user_input   → pending → running → ...  (user clarification)
 ```
 
 `waiting_for_user` and `awaiting_user_input` are both reachable from `running` only. They differ in semantics:
-- `waiting_for_user` — orchestrator paused on an approval gate (action requires user OK).
+- `waiting_for_user` — reserved protocol state; current production code does not create approval rows or enter it.
 - `awaiting_user_input` — the primary or consultants asked the user a clarifying question; resumes when the user POSTs an answer to `/api/tasks/{id}/answer`, which moves the task back to `pending` for the worker to re-claim.
+
+
+## Decision-value and project workflow additions
+
+- `PUT /api/tasks/{id}/feedback`: full idempotent upsert of nullable booleans
+  `decision_changed`, `material_risk_found`, `extra_review_worth_it`, plus `note` (max
+  4,000 chars). Existing terminal task required (404 missing; 409 active; 422 invalid).
+  This operation does not enqueue work or alter task status.
+- `GET /api/tasks/{id}` adds `feedback` and computed `compute_summary`.
+- `GET /api/metrics` returns aggregates for each mode and denominator definitions.
+  It contains no task content, identifiers, decisions, or feedback notes. Completion
+  rate uses terminal tasks; value rate uses feedback rows; unknown costs are not zero.
+- `POST /api/tasks/{id}/retry`: failed/cancelled and fully stopped tasks only. Creates
+  a pending linked task with preserved input context, permissions, and review seats.
+  The original task is unchanged; 409 when retry would race active execution.
+- `context.extra.evidence_snapshot_ids` explicitly selects evidence. An explicit empty
+  array selects none; omission retains the legacy latest-project-evidence behavior.
+- Project PATCH fields may be omitted but cannot be null. Names are trimmed and
+  cannot be blank. Archived projects remain inspectable and can be restored.
+- Citation coverage includes `presented_excerpts` with per-source hashes, sizes,
+  truncation and omission flags. Stored text and presented text have distinct hashes.
+
+All API operations use the configured token through `X-Conclave-Token` or Bearer auth.

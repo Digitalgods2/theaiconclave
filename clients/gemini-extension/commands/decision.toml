@@ -11,5 +11,5 @@ After displaying the output, if a decision is present and the user appears to wa
 
 If no decision is recorded yet, point the user to /decide or the dashboard. Do not assume what they would have decided.
 
-!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini decision {{args}}}
+!{python -m switchboard_conclave --invoked-by gemini decision {{args}}}
 """

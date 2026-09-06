@@ -24,10 +24,10 @@ Invariants (DR0016):
   produces a single consistent file even if the source had a non-empty WAL.
   File-level `copy` of `.db + .db-wal + .db-shm` would risk a corrupt
   snapshot.
-- **Atomic batch**: every destination artifact is written to a `.tmp` sibling
-  and atomic-renamed after the whole batch succeeds. On any mid-migration
-  failure, tmps are cleaned up; originals are untouched; the migration
-  retries on next launch.
+- **Recoverable batch**: every destination artifact is staged before commit,
+  then atomic-renamed under a crash-recovery journal. On any mid-migration
+  failure, visible artifacts are rolled back; originals are untouched; the
+  migration retries on next launch.
 - **Idempotent**: subsequent launches see the destination DB exists and skip
   the whole block (no per-file re-check, which would be a footgun if the
   user intentionally deleted some sandbox).
@@ -35,6 +35,7 @@ Invariants (DR0016):
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -56,6 +57,12 @@ logger = logging.getLogger("switchboard.migration")
 _OLD_DATA_DIR = Path("data")             # repo-relative source root
 _OLD_DB_NAME = "switchboard.db"
 _OLD_PID_NAME = "switchboard.pid"
+
+# All artifacts are staged before commit. The manifest is also a crash
+# recovery journal: a later launch can roll back a partially renamed batch
+# before destination-DB existence is used as the idempotence signal.
+_STAGING_DIR_NAME = ".switchboard-migration-staging"
+_STAGING_MANIFEST_NAME = "ready.json"
 
 # Subdirectory trees we migrate verbatim.
 _SUBDIRS = ("sandboxes", "exports", "uploads", "artifacts")
@@ -89,6 +96,8 @@ def maybe_migrate() -> Optional[dict]:
     if src_root == dst_root:
         # Defensive: shouldn't happen outside dev mode, but skip safely.
         return None
+
+    _recover_interrupted_batch(dst_root)
 
     dst_db = dst_root / _OLD_DB_NAME
     if dst_db.exists():
@@ -165,44 +174,63 @@ def _do_migration(
     has_db: bool,
     subdirs: list[str],
 ) -> dict:
-    """Execute the migration with `.tmp` staging and partial-copy cleanup.
+    """Execute a fully staged, recoverable migration batch.
 
-    On any exception, every `.tmp` artifact created in this run is removed
-    before the exception propagates. The source tree is never touched.
+    All copies complete before any destination becomes visible. If a commit
+    rename fails, artifacts already committed by this run are rolled back.
+    The staging manifest provides the same rollback after a process crash.
+    The source tree is never touched.
     """
-    tmps_created: list[Path] = []
     summary: dict = {"src": str(src_root), "dst": str(dst_root), "db_bytes": 0, "subdirs": {}}
+    staging_root = dst_root / _STAGING_DIR_NAME
+    artifact_names = ([_OLD_DB_NAME] if has_db else []) + list(subdirs)
+    committed: list[str] = []
 
     try:
+        conflicts = [name for name in artifact_names if (dst_root / name).exists()]
+        if conflicts:
+            raise MigrationBlocked(
+                f"Migration destination already contains: {', '.join(conflicts)}. "
+                "The source was left untouched; reconcile those paths and retry."
+            )
+
+        if staging_root.exists():
+            shutil.rmtree(staging_root)
+        staging_root.mkdir(parents=True)
+
         if has_db:
-            tmp_db = dst_root / f"{_OLD_DB_NAME}.tmp"
-            tmps_created.append(tmp_db)
-            db_bytes = _vacuum_into(src_root / _OLD_DB_NAME, tmp_db)
+            staged_db = staging_root / _OLD_DB_NAME
+            db_bytes = _vacuum_into(src_root / _OLD_DB_NAME, staged_db)
             summary["db_bytes"] = db_bytes
-            # Atomic rename — Path.replace is atomic on Windows and POSIX.
-            tmp_db.replace(dst_root / _OLD_DB_NAME)
-            tmps_created.pop()
-            logger.info("migration: DB transferred (%d bytes) to %s", db_bytes, dst_root / _OLD_DB_NAME)
 
         for sub in subdirs:
             src_sub = src_root / sub
-            tmp_sub = dst_root / f"{sub}.tmp"
-            tmps_created.append(tmp_sub)
-            if tmp_sub.exists():
-                shutil.rmtree(tmp_sub)
-            shutil.copytree(src_sub, tmp_sub)
-            file_count = sum(1 for _ in tmp_sub.rglob("*") if _.is_file())
+            staged_sub = staging_root / sub
+            shutil.copytree(src_sub, staged_sub)
+            file_count = sum(1 for item in staged_sub.rglob("*") if item.is_file())
             summary["subdirs"][sub] = file_count
-            # Directory rename is atomic on POSIX; on Windows, atomic when the
-            # destination doesn't exist (which we know — we checked dst_db above
-            # and these are first-time copies).
-            tmp_sub.replace(dst_root / sub)
-            tmps_created.pop()
-            logger.info("migration: %s/ transferred (%d files) to %s", sub, file_count, dst_root / sub)
+
+        # This is written only after every copy succeeds. Its presence means
+        # recovery may safely remove these exact destination paths: none of
+        # them existed before this transaction (validated above).
+        manifest = staging_root / _STAGING_MANIFEST_NAME
+        manifest.write_text(json.dumps({"artifacts": artifact_names}), encoding="utf-8")
+
+        for name in artifact_names:
+            _commit_staged_artifact(staging_root, dst_root, name)
+            committed.append(name)
+            logger.info("migration: committed %s to %s", name, dst_root / name)
 
     except Exception:
-        _cleanup_tmps(tmps_created)
+        rollback_complete = _remove_committed_artifacts(dst_root, committed)
+        if rollback_complete:
+            _cleanup_path(staging_root)
         raise
+
+    # Every artifact is now visible. Removing the journal is the commit point.
+    # If interrupted, startup recovery recognizes an empty staged set as a
+    # complete batch and only removes the leftover journal directory.
+    _cleanup_path(staging_root)
 
     logger.info("migration: complete | %s", summary)
     return summary
@@ -236,21 +264,86 @@ def _vacuum_into(src_db: Path, dst_db: Path) -> int:
     return dst_db.stat().st_size
 
 
-def _cleanup_tmps(tmps: list[Path]) -> None:
-    """Best-effort removal of `.tmp` artifacts. Used on migration failure.
+def _commit_staged_artifact(staging_root: Path, dst_root: Path, name: str) -> None:
+    """Atomically rename one fully staged artifact into the destination."""
+    (staging_root / name).replace(dst_root / name)
 
-    Each entry may be a file (tmp DB) or a directory (tmp sandbox tree).
-    Swallows OSError so the original exception (the real failure) is what
-    propagates.
-    """
-    for p in tmps:
+
+def _remove_committed_artifacts(dst_root: Path, artifact_names: list[str]) -> bool:
+    """Remove artifacts created by an incomplete migration transaction."""
+    complete = True
+    for name in reversed(artifact_names):
+        target = dst_root / name
         try:
-            if p.is_dir():
-                shutil.rmtree(p)
-            elif p.exists():
-                p.unlink()
+            if target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
         except OSError as e:
-            logger.warning("migration cleanup: failed to remove %s: %s", p, e)
+            complete = False
+            logger.warning("migration rollback: failed to remove %s: %s", target, e)
+    return complete
+
+
+def _cleanup_path(path: Path) -> None:
+    """Best-effort removal of one staging path."""
+    try:
+        if path.is_dir():
+            shutil.rmtree(path)
+        elif path.exists():
+            path.unlink()
+    except OSError as e:
+        logger.warning("migration cleanup: failed to remove %s: %s", path, e)
+
+
+def _recover_interrupted_batch(dst_root: Path) -> None:
+    """Roll back a journaled partial commit before idempotence checks.
+
+    A staging directory without a manifest contains only invisible staged
+    copies and can be discarded. With a manifest, some listed paths may have
+    been renamed into place. If staged artifacts remain, commit was partial
+    and those destinations are rolled back. If none remain, every rename
+    completed and only journal cleanup was interrupted.
+    """
+    staging_root = dst_root / _STAGING_DIR_NAME
+    if not staging_root.exists():
+        return
+
+    manifest = staging_root / _STAGING_MANIFEST_NAME
+    if not manifest.is_file():
+        _cleanup_path(staging_root)
+        return
+
+    try:
+        raw = json.loads(manifest.read_text(encoding="utf-8"))
+        artifacts = raw.get("artifacts", [])
+        if not isinstance(artifacts, list) or not all(isinstance(v, str) for v in artifacts):
+            raise ValueError("artifacts must be a list of strings")
+        allowed = {_OLD_DB_NAME, *_SUBDIRS}
+        if len(artifacts) != len(set(artifacts)) or not set(artifacts).issubset(allowed):
+            raise ValueError("artifacts contains an unknown or duplicate name")
+    except (OSError, ValueError, json.JSONDecodeError) as e:
+        raise MigrationBlocked(
+            f"Interrupted migration journal {manifest} is unreadable ({e}). "
+            "The source and destination were left untouched for manual review."
+        ) from e
+
+    staged_remaining = any((staging_root / name).exists() for name in artifacts)
+    destinations_complete = all((dst_root / name).exists() for name in artifacts)
+    if (staged_remaining or not destinations_complete) and not _remove_committed_artifacts(
+        dst_root, artifacts
+    ):
+        raise MigrationBlocked(
+            f"Could not roll back an interrupted migration under {dst_root}. "
+            "Close programs using those files and retry."
+        )
+
+    _cleanup_path(staging_root)
+    if staging_root.exists():
+        raise MigrationBlocked(
+            f"Could not clear interrupted migration staging at {staging_root}. "
+            "Close programs using it and retry."
+        )
 
 
 def _dir_has_state(root: Path) -> bool:

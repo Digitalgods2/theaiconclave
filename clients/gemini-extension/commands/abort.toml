@@ -1,0 +1,7 @@
+description = "Abort a running AI Conclave task by ID, or abort the latest task."
+
+prompt = """
+Abort the specified task when its elapsed time or token use is no longer worthwhile.
+"""
+
+!{python -m switchboard_conclave --invoked-by gemini abort {{args}}}

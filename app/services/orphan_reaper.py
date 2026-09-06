@@ -25,7 +25,7 @@ logger = logging.getLogger("switchboard.reaper")
 DEFAULT_THRESHOLD_HOURS = 1.0
 
 
-def reap_orphans(threshold_hours: float = DEFAULT_THRESHOLD_HOURS) -> int:
+def reap_orphans(threshold_hours: float = DEFAULT_THRESHOLD_HOURS, *, previous_instance: bool = False) -> int:
     """Mark `running` tasks idle for >threshold_hours as `failed`.
 
     Returns the number of tasks reaped. Idempotent — if no orphans exist
@@ -33,13 +33,17 @@ def reap_orphans(threshold_hours: float = DEFAULT_THRESHOLD_HOURS) -> int:
     """
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=threshold_hours)).isoformat()
     reason = f"orphaned: no progress for >{threshold_hours:g}h; marked failed by startup reaper"
+    if previous_instance:
+        reason = "orphaned: interrupted by service restart; retry explicitly to create a linked task"
     now = now_iso()
     reaped = 0
 
     with connect() as conn:
+        conn.execute("BEGIN IMMEDIATE")
         rows = conn.execute(
-            "SELECT id, updated_at FROM tasks WHERE status = 'running' AND updated_at < ?",
-            (cutoff,),
+            "SELECT id, updated_at FROM tasks WHERE status = 'running'"
+            + ("" if previous_instance else " AND updated_at < ?"),
+            () if previous_instance else (cutoff,),
         ).fetchall()
 
         for row in rows:
@@ -47,6 +51,10 @@ def reap_orphans(threshold_hours: float = DEFAULT_THRESHOLD_HOURS) -> int:
             conn.execute(
                 "UPDATE tasks SET status = 'failed', updated_at = ?, error_message = ? WHERE id = ?",
                 (now, reason, tid),
+            )
+            conn.execute(
+                "UPDATE agent_runs SET status = 'failed', finished_at = ?, error_message = ? "
+                "WHERE task_id = ? AND status = 'running'", (now, reason, tid),
             )
             conn.execute(
                 """INSERT INTO logs (id, task_id, level, event_type, message, metadata_json, created_at)
@@ -62,6 +70,7 @@ def reap_orphans(threshold_hours: float = DEFAULT_THRESHOLD_HOURS) -> int:
                 ),
             )
             reaped += 1
+        conn.execute("COMMIT")
 
     if reaped:
         logger.warning("Reaped %d orphaned task(s) (>%gh idle)", reaped, threshold_hours)

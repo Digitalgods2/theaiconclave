@@ -19,7 +19,7 @@ judge call fails or is inconclusive, the original `minor_disagreement` stands.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from app.agents.base import BaseAdapter
 from app.protocol.validators import TaskRequest
@@ -71,7 +71,7 @@ async def judge_convergence(
     task: TaskRequest,
     task_id: str,
     judge_adapter: BaseAdapter,
-    timeout_seconds: int = 60,
+    timeout_seconds: Optional[int] = None,
 ) -> dict[str, Any]:
     """Ask one adapter to rate semantic equivalence of the given positions.
 
@@ -87,6 +87,8 @@ async def judge_convergence(
         question=task.user_request,
         positions=_format_positions_for_judge(positions),
     )
+    judge_adapter._last_prompt = prompt
+    judge_adapter._last_raw_response = None
 
     try:
         # We use the adapter's _invoke directly rather than going through one of
@@ -96,6 +98,8 @@ async def judge_convergence(
         logger.warning("judge_convergence: adapter failed: %s", e)
         return {"equivalent": None, "reasoning": f"judge_failed: {e}",
                 "judge": judge_adapter.name}
+
+    judge_adapter._last_raw_response = text
 
     try:
         data = extract_json_object(text)

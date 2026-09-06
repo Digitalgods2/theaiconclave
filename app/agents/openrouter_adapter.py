@@ -96,7 +96,6 @@ _CEILING_SAFETY = 0.85
 # DR0015 tool-loop bounds. Honored per-turn; either fires → forced final turn.
 MAX_TOOL_ITERATIONS = 8           # cap on read_file / list_dir / glob calls per turn
 MAX_TOOL_BYTES = 256 * 1024       # cumulative tool-response bytes per turn
-TOOL_LOOP_TIMEOUT_SECONDS = 300   # raised from the default 180s for multi-round inference
 MAX_CONSECUTIVE_BAD_CALLS = 3     # malformed tool calls allowed before forced final turn
 
 # OpenAI tool definitions sent on every tool-loop POST. JSON-schema dictating
@@ -308,7 +307,7 @@ class OpenRouterAdapter(BaseAdapter):
 
     # ------------------------------------------------------------------
 
-    async def _post_chat(self, prompt: str, key: str, timeout_seconds: int):
+    async def _post_chat(self, prompt: str, key: str, timeout_seconds: Optional[int]):
         """One HTTP POST; returns the httpx Response or raises AdapterError on
         transport-level failures. The caller inspects status_code."""
         payload: dict[str, Any] = {
@@ -336,7 +335,7 @@ class OpenRouterAdapter(BaseAdapter):
                 f"openrouter[{self.model_slug}] HTTP error: {e}",
             )
 
-    async def _invoke(self, base_prompt: str, timeout_seconds: int,
+    async def _invoke(self, base_prompt: str, timeout_seconds: Optional[int],
                       sandbox_path: Optional[str] = None) -> str:
         """Send `base_prompt` (with the sandbox inlined under the current
         ceiling, if a sandbox path is supplied). On HTTP 400 "maximum context
@@ -451,7 +450,7 @@ class OpenRouterAdapter(BaseAdapter):
     # ------------------------------------------------------------------
 
     async def _post_chat_tools(self, messages: list[dict], key: str,
-                               timeout_seconds: int):
+                               timeout_seconds: Optional[int]):
         """Tool-loop variant of `_post_chat`: sends a full message array (with
         possible prior tool messages) and includes the tool definitions.
         Note: `response_format` is intentionally omitted — the model has the
@@ -510,7 +509,7 @@ class OpenRouterAdapter(BaseAdapter):
         self,
         base_prompt: str,
         sandbox_path: str,
-        timeout_seconds: int,
+        timeout_seconds: Optional[int],
     ) -> str:
         """Tool-loop invocation. Loops POST → tool_call → tool_result → POST
         until the model emits content (final structured turn JSON) or until
@@ -700,8 +699,8 @@ class OpenRouterAdapter(BaseAdapter):
         path (`_invoke_with_tools`). Each run_* method calls this."""
         sandbox = self._sandbox_path_from(ctx)
         if self.tool_loop and sandbox:
-            return self._invoke_with_tools(prompt, sandbox, TOOL_LOOP_TIMEOUT_SECONDS)
-        return self._invoke(prompt, ctx.timeout_seconds, sandbox_path=sandbox)
+            return self._invoke_with_tools(prompt, sandbox, None)
+        return self._invoke(prompt, None, sandbox_path=sandbox)
 
     # ------------------------------------------------------------------
 
@@ -710,7 +709,9 @@ class OpenRouterAdapter(BaseAdapter):
         prompt = build_primary_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                       prior_messages=ctx.prior_messages,
                                       ceiling_chars=self._effective_max_chars())
+        self._last_prompt = prompt
         text = await self._invoke_dispatch(ctx, prompt)
+        self._last_raw_response = text
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="primary",
                                  default_message_type=MessageType.PRIMARY_PROPOSAL.value)
         return PrimaryResponse.model_validate(data)
@@ -720,7 +721,9 @@ class OpenRouterAdapter(BaseAdapter):
         prompt = build_consultant_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                          prior_messages=ctx.prior_messages,
                                          ceiling_chars=self._effective_max_chars())
+        self._last_prompt = prompt
         text = await self._invoke_dispatch(ctx, prompt)
+        self._last_raw_response = text
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="consultant",
                                  default_message_type=MessageType.CONSULTANT_CRITIQUE.value)
         return ConsultantCritique.model_validate(data)
@@ -730,7 +733,9 @@ class OpenRouterAdapter(BaseAdapter):
         prompt = build_final_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                     prior_messages=ctx.prior_messages,
                                     ceiling_chars=self._effective_max_chars())
+        self._last_prompt = prompt
         text = await self._invoke_dispatch(ctx, prompt)
+        self._last_raw_response = text
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="primary",
                                  default_message_type=MessageType.PRIMARY_FINAL.value)
         return PrimaryResponse.model_validate(data)
@@ -742,7 +747,9 @@ class OpenRouterAdapter(BaseAdapter):
         prompt = build_conclave_prompt(task=ctx.task, task_id=ctx.task_id, agent_name=self.name,
                                        prior_messages=ctx.prior_messages, other_participants=others,
                                        ceiling_chars=self._effective_max_chars())
+        self._last_prompt = prompt
         text = await self._invoke_dispatch(ctx, prompt)
+        self._last_raw_response = text
         data = _parse_and_coerce(text, ctx.task_id, self.name, role="participant",
                                  default_message_type=MessageType.CONCLAVE_TURN.value)
         return ConclaveTurn.model_validate(data)

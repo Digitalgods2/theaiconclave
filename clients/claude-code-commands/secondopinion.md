@@ -11,7 +11,7 @@ Default to `consult` mode with `claude-code` as primary (since you have full con
 Run:
 
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code run consult claude-code,codex "<topic>"
+python -m switchboard_conclave --invoked-by claude-code run consult claude-code,codex "<topic>"
 ```
 
 Render the result. Lead with the consultant's actual critique — that's what the user asked for. If the consultant agreed, say so plainly without padding.

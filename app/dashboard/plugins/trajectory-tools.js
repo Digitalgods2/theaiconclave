@@ -27,12 +27,13 @@
 
   function summariseExportAll(body) {
     if (!body || typeof body !== "object") return "Done.";
-    const written = body.written ?? body.exported ?? body.count ?? 0;
-    const skipped = body.skipped ?? 0;
-    const errors = Array.isArray(body.errors) ? body.errors : [];
-    let msg = "Wrote " + written + " trajectory file" + (written === 1 ? "" : "s");
-    if (skipped) msg += "; skipped " + skipped;
-    if (errors.length) msg += "; " + errors.length + " error" + (errors.length === 1 ? "" : "s");
+    // The bulk endpoint's stable contract is exported_count/error_count.
+    // Keep the message driven by those counters, rather than inferring counts
+    // from the detail arrays (which may be omitted by future implementations).
+    const written = Number(body.exported_count) || 0;
+    const errorCount = Number(body.error_count) || 0;
+    let msg = "Exported " + written + " trajectory file" + (written === 1 ? "" : "s");
+    if (errorCount) msg += "; " + errorCount + " error" + (errorCount === 1 ? "" : "s");
     return msg + ".";
   }
 
@@ -69,7 +70,7 @@
             btn.textContent = "Exporting...";
             statusLine.textContent = "";
             try {
-              const resp = await fetch("/api/trajectories/export-all", {
+              const resp = await window.authenticatedFetch("/api/trajectories/export-all", {
                 method: "POST",
               });
               if (!resp.ok) throw new Error("HTTP " + resp.status);
@@ -112,7 +113,7 @@
             return;
           }
           try {
-            const resp = await fetch(
+            const resp = await window.authenticatedFetch(
               "/api/tasks/" + encodeURIComponent(task.id)
                 + "/trajectory/export",
               { method: "POST" }

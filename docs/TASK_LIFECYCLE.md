@@ -8,13 +8,17 @@ Defines the state machine every task moves through, including who flips each tra
 |---|---|
 | `pending` | Task created (or resumed from user input), waiting for the worker to claim it. |
 | `running` | Worker has claimed the task; orchestrator is calling agents. |
-| `waiting_for_user` | Orchestrator paused for **action approval**; one or more `approvals` rows in `pending` status. |
+| `waiting_for_user` | Reserved for a future executable approval workflow; current code never enters this state. |
 | `awaiting_user_input` | Resolve-mode primary asked the user a **question**; pauses until the user POSTs an answer. |
 | `completed` | Final result built and persisted. |
 | `failed` | Unrecoverable error; no usable final result. |
 | `cancelled` | User cancelled before completion. |
 
 ## Diagram
+
+The `waiting_for_user` branch shown below is reserved protocol shape, not a
+currently reachable transition. Current action plans are advisory and require
+the user to act separately.
 
 ```
                 ┌─────────────┐
@@ -54,8 +58,7 @@ Defines the state machine every task moves through, including who flips each tra
 - **Side effects**: `tasks.status = 'cancelled'`. No agents are called.
 
 ### `running → waiting_for_user`
-- **Trigger**: orchestrator wrote one or more `approvals` rows with `status = 'pending'` for the current task.
-- **Side effects**: orchestrator suspends agent calls until resolution.
+- **Reserved, not implemented.** There is currently no trigger or side effect.
 
 ### `running → completed`
 - **Trigger**: orchestrator finished all rounds and built a `FinalResult` with no fatal errors.
@@ -67,11 +70,10 @@ Defines the state machine every task moves through, including who flips each tra
 
 ### `running → cancelled`
 - **Trigger**: `POST /api/tasks/{id}/cancel` while running.
-- **Side effects**: in MVP the in-flight adapter call is allowed to finish; no further calls are made; `tasks.status = 'cancelled'`.
+- **Side effects**: Abort immediately interrupts the active adapter call; no further calls are made; `tasks.status = 'cancelled'`.
 
 ### `waiting_for_user → running`
-- **Trigger**: every `pending` approval for the task has been resolved (approved or rejected) via `POST /api/approvals/{id}/{approve|reject}`.
-- **Side effects**: orchestrator resumes from where it paused.
+- **Reserved, not implemented.** No approval resolution endpoint exists.
 
 ### `waiting_for_user → cancelled`
 - **Trigger**: `POST /api/tasks/{id}/cancel` while waiting.
@@ -95,13 +97,28 @@ Defines the state machine every task moves through, including who flips each tra
 
 ## Approval Sub-Lifecycle
 
-Approvals have their own three-state lifecycle: `pending → approved` or `pending → rejected`. Rows are append-only — resolution updates the same row, it does not create a new one.
-
-A task in `waiting_for_user` may have multiple approvals. The task only resumes when **every** approval is resolved (any combination of approved/rejected). Rejected approvals do not block resumption; the orchestrator drops the corresponding action from the recommendation list and continues.
+The database retains a schema-only `approvals` table and the protocol retains
+approval models for compatibility with the original design. Production code
+does not create approval rows, expose approve/reject endpoints, or resume tasks
+from them. Structured action plans are advisory; explicit artifact application
+is a separate user-initiated API operation.
 
 ## What MVP Does Not Implement
 
+- **No executable approval gate.** `waiting_for_user` and approval resolution endpoints are reserved.
 - **No retry transitions.** A failed task is failed. The protocol mentions `POST /api/tasks/{id}/retry` for the future.
 - **No partial cancellation.** Cancelling cancels the whole task, not a single round.
 - **No transitions out of terminal states.** Re-submission is the only recovery path.
 - **No streaming progress.** Status changes are visible only on poll. SSE/WebSocket are deferred.
+
+
+## Restart and explicit retry
+
+After acquiring the exclusive instance lock, startup marks every previous `running`
+claim failed, regardless of age, and closes its running agent-run records. This is
+transactional and preserves transcripts. Pending and paused tasks retain their status.
+Retry is explicit: `POST /api/tasks/{id}/retry` creates a new linked task from a stopped
+failed/cancelled attempt. Deletion is refused while a cancelled coroutine still cleans up.
+Initialization failures release the instance lock.
+
+Feedback on a terminal task updates only `task_feedback`; it cannot resume the worker.

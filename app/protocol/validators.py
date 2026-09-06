@@ -42,6 +42,8 @@ class TaskMode(str, Enum):
 class AgentRole(str, Enum):
     PRIMARY = "primary"
     CONSULTANT = "consultant"
+    JUDGE = "judge"
+    SYNTHESIZER = "synthesizer"
     PARTICIPANT = "participant"   # conclave mode — equal voice, no primary/consultant asymmetry
 
 
@@ -197,15 +199,34 @@ class Permissions(BaseModel):
 
 class Limits(BaseModel):
     max_rounds: int = Field(ge=1, le=200)               # backstop in resolve/conclave; primary cap in consult
-    timeout_seconds: int = Field(ge=10, le=3600)        # per agent call
-    max_seconds: Optional[int] = Field(default=None, ge=10, le=86400)   # total task time (resolve/conclave)
+    # Backward-compatible observability thresholds. They no longer terminate
+    # work: the dashboard warns after notify_after_seconds (falling back to the
+    # legacy timeout_seconds/max_seconds values), and the user chooses whether
+    # to abort the active task.
+    timeout_seconds: Optional[int] = Field(default=None, ge=10, le=86400)
+    max_seconds: Optional[int] = Field(default=None, ge=10, le=604800)
+    notify_after_seconds: Optional[int] = Field(default=None, ge=10, le=604800)
     max_context_tokens: Optional[int] = Field(default=None, ge=100)
     convergence_threshold: float = Field(default=1.0, ge=0.5, le=1.0)   # conclave: fraction of participants who must signal i_am_done
+
+    @property
+    def notification_seconds(self) -> Optional[int]:
+        return self.notify_after_seconds or self.timeout_seconds or self.max_seconds
 
 
 class Risk(BaseModel):
     severity: RiskSeverity
     description: str
+
+
+class EvidenceCitation(BaseModel):
+    evidence_id: str
+    url: str
+    title: Optional[str] = None
+    publisher: Optional[str] = None
+    retrieved_at: str
+    content_sha256: str
+    quality: dict[str, Any] = Field(default_factory=dict)
 
 
 class RecommendedAction(BaseModel):
@@ -264,6 +285,9 @@ class TaskRequest(BaseModel):
     permissions: Permissions
     limits: Limits
     parent_task_id: Optional[str] = None
+    decision_project_id: Optional[str] = None
+    judge_agent: Optional[str] = None
+    synthesis_agent: Optional[str] = None
 
     @model_validator(mode="after")
     def _check_version(self) -> "TaskRequest":
@@ -278,6 +302,17 @@ class TaskRequest(BaseModel):
 
     @model_validator(mode="after")
     def _check_mode_requirements(self) -> "TaskRequest":
+        if len(self.consultants) != len(set(self.consultants)):
+            raise ValueError("consultants must contain unique agent names")
+        if self.primary_agent and self.primary_agent in self.consultants:
+            raise ValueError("primary_agent must not also appear in consultants")
+        participants = set(self.consultants)
+        if self.primary_agent:
+            participants.add(self.primary_agent)
+        if self.judge_agent and self.judge_agent in participants:
+            raise ValueError("judge_agent must be independent from task participants")
+        if self.synthesis_agent and self.synthesis_agent in participants:
+            raise ValueError("synthesis_agent must be independent from task participants")
         # primary_agent required for resolve and consult
         if self.mode in (TaskMode.RESOLVE, TaskMode.CONSULT):
             if not self.primary_agent:
@@ -315,6 +350,7 @@ class PrimaryResponse(BaseModel):
     recommended_actions: list[RecommendedAction] = Field(default_factory=list)
     risks: list[Risk] = Field(default_factory=list)
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    citation_ids: list[str] = Field(default_factory=list)
     # Resolve mode additions; optional in consult mode.
     resolution_status: Optional[ResolutionStatus] = None
     user_input_question: Optional[str] = None
@@ -340,6 +376,7 @@ class ConsultantCritique(BaseModel):
     missed_risks: list[str] = Field(default_factory=list)
     suggested_questions: list[str] = Field(default_factory=list)
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    citation_ids: list[str] = Field(default_factory=list)
     # Resolve mode addition: does this consultant believe another round would help?
     wants_continuation: bool = False
 
@@ -357,6 +394,7 @@ class ConclaveTurn(BaseModel):
     convergence: ConclaveConvergence
     user_input_question: Optional[str] = None
     confidence: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    citation_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_user_input_question(self) -> "ConclaveTurn":
@@ -394,6 +432,9 @@ class FinalResult(BaseModel):
     # {"min": 0.65, "max": 0.95, "mean": 0.81, "count": 4, "missing_count": 0}.
     # None for non-conclave modes or when no participant emitted a confidence score.
     confidence_aggregate: Optional[dict[str, Any]] = None
+    citations: list[EvidenceCitation] = Field(default_factory=list)
+    citation_coverage: Optional[dict[str, Any]] = None
+    synthesis_agent: Optional[str] = None
 
 
 class Approval(BaseModel):
@@ -429,6 +470,7 @@ __all__ = [
     "Permissions",
     "Limits",
     "Risk",
+    "EvidenceCitation",
     "RecommendedAction",
     "ActionPlanStep",
     "TaskContext",

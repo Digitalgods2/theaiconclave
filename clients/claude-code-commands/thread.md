@@ -9,7 +9,7 @@ Parse `$ARGUMENTS`: task_id (typically `tsk_...`) or `latest` for the most recen
 Run:
 
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code thread <task_id>
+python -m switchboard_conclave --invoked-by claude-code thread <task_id>
 ```
 
 The output shows the chain oldest-first, with the current task marked. Use this when:

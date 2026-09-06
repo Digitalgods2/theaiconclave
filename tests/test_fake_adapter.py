@@ -23,6 +23,10 @@ from app.services.orchestrator import run_task
 from app.utils.ids import task_id as new_task_id
 
 
+class _ConsultantFake(FakeAdapter):
+    name = "fake-consultant"
+
+
 @pytest.fixture
 def temp_db():
     with tempfile.TemporaryDirectory() as tmp:
@@ -30,11 +34,12 @@ def temp_db():
         init_database(str(db_path))
         agent_registry.clear()
         agent_registry.init_registry()
+        agent_registry.register(_ConsultantFake())
         yield db_path
 
 
 def _create_pending_task(extra: dict | None = None) -> str:
-    """Insert a pending task using the fake adapter as both primary and consultant."""
+    """Insert a pending task with distinct deterministic fake seats."""
     tid = new_task_id()
     now = now_iso()
     permissions = Permissions(
@@ -57,7 +62,7 @@ def _create_pending_task(extra: dict | None = None) -> str:
              user_request, primary_agent, consultants, project_path,
              context_json, permissions_json, limits_json)
             VALUES (?, ?, ?, 'pending', 'api', NULL, 'consult', 'general_consultation',
-                    'Test request', 'fake', '["fake"]', NULL, ?, ?, ?)""",
+                    'Test request', 'fake', '["fake-consultant"]', NULL, ?, ?, ?)""",
             (
                 tid,
                 now,

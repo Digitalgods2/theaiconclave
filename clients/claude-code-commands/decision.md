@@ -11,7 +11,7 @@ Parse `$ARGUMENTS`:
 Run:
 
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code decision <task_id>
+python -m switchboard_conclave --invoked-by claude-code decision <task_id>
 ```
 
 The output shows:

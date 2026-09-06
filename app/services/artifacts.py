@@ -7,8 +7,13 @@ artifact to the project is an explicit API/dashboard action.
 
 from __future__ import annotations
 
+import difflib
+import hashlib
 import json
 import mimetypes
+import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -152,6 +157,7 @@ def _artifact_from_action(
                 "description": action.description,
                 "target_path": relpath,
                 "apply_mode": "write_file",
+                "requires_approval": action.requires_approval,
             },
         )
 
@@ -174,6 +180,7 @@ def _artifact_from_action(
                 "description": action.description,
                 "target_path": relpath,
                 "apply_mode": "search_replace",
+                "requires_approval": action.requires_approval,
             },
         )
 
@@ -197,6 +204,7 @@ def _artifact_from_action(
                 "description": action.description,
                 "target_path": _safe_relpath(str(target or filename), filename),
                 "apply_mode": "manual_patch",
+                "requires_approval": action.requires_approval,
             },
         )
 
@@ -278,40 +286,142 @@ def _row_to_artifact(row) -> dict[str, Any]:
     }
 
 
-def apply_artifact_to_project(task_id: str, artifact_id_value: str) -> dict[str, Any]:
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _resolve_apply_target(task_id: str, artifact_id_value: str):
     with connect() as conn:
         task_row = conn.execute(
-            "SELECT project_path FROM tasks WHERE id = ?", (task_id,)
+            "SELECT project_path, status FROM tasks WHERE id = ?", (task_id,)
         ).fetchone()
     if task_row is None:
         raise FileNotFoundError("task not found")
+    if task_row["status"] != "completed":
+        raise ValueError("artifacts may only be applied from a completed task")
     project_path = task_row["project_path"]
     if not project_path:
         raise ValueError("task has no project_path")
     project_root = Path(project_path).resolve()
+    if not project_root.is_dir():
+        raise ValueError("task project_path no longer exists or is not a directory")
     artifact = get_artifact(task_id, artifact_id_value)
     metadata = artifact.get("metadata") or {}
     relpath = _safe_relpath(metadata.get("target_path") or artifact["filename"], artifact["filename"])
     target = (project_root / relpath).resolve()
     if project_root not in target.parents and target != project_root:
         raise ValueError("artifact target escapes project_path")
+    return artifact, metadata, target, relpath
+
+
+def preview_artifact_apply(task_id: str, artifact_id_value: str) -> dict[str, Any]:
+    """Return the exact target state and proposed text diff without writing."""
+    artifact, metadata, target, relpath = _resolve_apply_target(task_id, artifact_id_value)
+    data = read_artifact_bytes(task_id, artifact_id_value)
+    exists = target.is_file()
+    current = target.read_bytes() if exists else b""
+    current_hash = _sha256(current) if exists else "missing"
+    mode = metadata.get("apply_mode")
+    proposed = data
+    operation = "wrote_file"
+    if artifact["kind"] == "edit" and mode == "search_replace":
+        if not exists:
+            raise ValueError(f"target file does not exist: {relpath}")
+        edit = json.loads(data.decode("utf-8"))
+        text = current.decode("utf-8")
+        occurrences = text.count(edit["search"])
+        if occurrences != 1:
+            raise ValueError(
+                f"search text must occur exactly once in {relpath}; found {occurrences}"
+            )
+        proposed = text.replace(edit["search"], edit["replace"], 1).encode("utf-8")
+        operation = "applied_search_replace"
+    elif not (artifact["kind"] == "file" and mode == "write_file"):
+        raise ValueError("this artifact kind is review/download only")
+
+    diff = ""
+    try:
+        before_lines = current.decode("utf-8").splitlines(keepends=True)
+        after_lines = proposed.decode("utf-8").splitlines(keepends=True)
+        diff = "".join(difflib.unified_diff(
+            before_lines, after_lines,
+            fromfile=f"a/{relpath}" if exists else "/dev/null",
+            tofile=f"b/{relpath}",
+        ))[:40_000]
+    except UnicodeDecodeError:
+        diff = "[binary content; text diff unavailable]"
+    return {
+        "task_id": task_id,
+        "artifact_id": artifact_id_value,
+        "operation": operation,
+        "target_path": str(target),
+        "target_exists": exists,
+        "will_overwrite": exists and operation == "wrote_file",
+        "expected_target_sha256": current_hash,
+        "proposed_sha256": _sha256(proposed),
+        "diff": diff,
+    }
+
+
+def _atomic_write(target: Path, data: bytes) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, target)
+    except Exception:
+        try:
+            Path(temp_name).unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
+def apply_artifact_to_project(
+    task_id: str,
+    artifact_id_value: str,
+    *,
+    confirm: bool = False,
+    expected_target_sha256: str | None = None,
+    allow_overwrite: bool = False,
+) -> dict[str, Any]:
+    """Apply a reviewed draft using an optimistic-lock and recoverable backup."""
+    if not confirm:
+        raise ValueError("explicit confirmation is required")
+    preview = preview_artifact_apply(task_id, artifact_id_value)
+    actual_hash = preview["expected_target_sha256"]
+    if expected_target_sha256 is None:
+        raise ValueError("expected_target_sha256 from the apply preview is required")
+    if expected_target_sha256 != actual_hash:
+        raise ValueError("target changed after preview; refresh and review the new diff")
+    if preview["will_overwrite"] and not allow_overwrite:
+        raise ValueError("target already exists; allow_overwrite=true is required")
+
+    artifact, metadata, target, _relpath = _resolve_apply_target(task_id, artifact_id_value)
 
     data = read_artifact_bytes(task_id, artifact_id_value)
     mode = metadata.get("apply_mode")
+    backup_path: Path | None = None
+    if target.is_file():
+        backup_dir = artifacts_root() / task_id / artifact_id_value / "backups"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        backup_path = backup_dir / f"{target.name}.{now_iso().replace(':', '-')}.bak"
+        shutil.copy2(target, backup_path)
+
     if artifact["kind"] == "file" and mode == "write_file":
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_bytes(data)
+        _atomic_write(target, data)
         applied = "wrote_file"
     elif artifact["kind"] == "edit" and mode == "search_replace":
         edit = json.loads(data.decode("utf-8"))
-        if not target.exists():
-            raise ValueError(f"target file does not exist: {relpath}")
         text = target.read_text(encoding="utf-8")
         search = edit["search"]
         replace = edit["replace"]
-        if search not in text:
-            raise ValueError(f"search text not found in {relpath}")
-        target.write_text(text.replace(search, replace, 1), encoding="utf-8")
+        if text.count(search) != 1:
+            raise ValueError("target changed after preview; search text is no longer unique")
+        _atomic_write(target, text.replace(search, replace, 1).encode("utf-8"))
         applied = "applied_search_replace"
     else:
         raise ValueError("this artifact kind is review/download only")
@@ -319,10 +429,31 @@ def apply_artifact_to_project(task_id: str, artifact_id_value: str) -> dict[str,
     now = now_iso()
     metadata["applied_at"] = now
     metadata["applied_to"] = str(target)
+    metadata["applied_sha256"] = _sha256(target.read_bytes())
+    if backup_path is not None:
+        metadata["backup_path"] = _storage_relpath(backup_path)
     with connect() as conn:
         conn.execute(
             "UPDATE task_artifacts SET updated_at = ?, metadata_json = ? WHERE id = ?",
             (now, json.dumps(metadata, sort_keys=True), artifact_id_value),
+        )
+        conn.execute(
+            """INSERT INTO logs
+               (id, task_id, level, event_type, message, metadata_json, created_at)
+               VALUES (?, ?, 'info', 'artifact_applied', ?, ?, ?)""",
+            (
+                f"log_artifact_{artifact_id_value}_{now}", task_id,
+                f"Applied artifact {artifact_id_value} to {target}",
+                json.dumps({
+                    "artifact_id": artifact_id_value,
+                    "operation": applied,
+                    "target_path": str(target),
+                    "backup_path": metadata.get("backup_path"),
+                    "before_sha256": actual_hash,
+                    "after_sha256": metadata["applied_sha256"],
+                }, sort_keys=True),
+                now,
+            ),
         )
     return {
         "task_id": task_id,
@@ -331,4 +462,6 @@ def apply_artifact_to_project(task_id: str, artifact_id_value: str) -> dict[str,
         "operation": applied,
         "target_path": str(target),
         "applied_at": now,
+        "backup_path": metadata.get("backup_path"),
+        "sha256": metadata["applied_sha256"],
     }

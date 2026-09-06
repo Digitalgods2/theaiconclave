@@ -25,8 +25,7 @@ What the launcher does:
   5. Exits. (The uvicorn subprocess keeps running.)
 
 To stop the service: kill the python process (Task Manager on Windows,
-`pkill -f 'uvicorn app.main'` on macOS/Linux), or delete the pidlock file
-at <repo>/data/switchboard.pid. The single-instance pidlock means
+`pkill -f 'uvicorn app.main'` on macOS/Linux), using the process manager. Deleting a pidlock does not stop the service. The single-instance pidlock means
 re-running this launcher while the service is up is a no-op on the service
 side — it just opens a fresh browser tab.
 
@@ -62,7 +61,10 @@ def _log(msg: str) -> None:
 
 def _already_running() -> bool:
     try:
-        with urllib.request.urlopen(HEALTH_URL, timeout=2) as resp:
+        from app.config import api_token, get_config
+        token = api_token(get_config())
+        request = urllib.request.Request(HEALTH_URL, headers={"X-Conclave-Token": token} if token else {})
+        with urllib.request.urlopen(request, timeout=2) as resp:
             return resp.status == 200
     except (urllib.error.URLError, OSError, TimeoutError):
         return False
@@ -143,6 +145,18 @@ def _show_error(message: str) -> None:
 
 
 def main() -> int:
+    global HOST, PORT, URL, HEALTH_URL, LOG_PATH
+    os.chdir(REPO)
+    from app.config import get_config, validate_server_boundary
+    from app.utils.paths import logs_root
+    config = get_config()
+    validate_server_boundary(config)
+    HOST, PORT = config.server.host, config.server.port
+    browser_host = "127.0.0.1" if HOST == "0.0.0.0" else ("::1" if HOST == "::" else HOST)
+    browser_host = f"[{browser_host}]" if ":" in browser_host else browser_host
+    URL = f"http://{browser_host}:{PORT}/"
+    HEALTH_URL = URL + "api/health"
+    LOG_PATH = logs_root() / "launcher.log"
     _log("launcher: invoked")
 
     if _already_running():

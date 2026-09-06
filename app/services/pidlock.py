@@ -178,14 +178,38 @@ def acquire(data_dir: Path) -> Path:
     data_dir.mkdir(parents=True, exist_ok=True)
     lock_path = data_dir / _LOCKFILE_NAME
 
-    if lock_path.exists():
+    my_pid = os.getpid()
+    my_ct = _my_create_time()
+    line = f"{my_pid} {my_ct if my_ct is not None else ''}\n".encode("utf-8")
+
+    # O_EXCL makes ownership atomic. With the old exists/read/write sequence,
+    # simultaneous startups could both observe no file and both start workers.
+    for _attempt in range(5):
+        try:
+            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+            if hasattr(os, "O_BINARY"):
+                flags |= os.O_BINARY
+            fd = os.open(lock_path, flags, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            try:
+                os.write(fd, line)
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            logger.info("Acquired pidlock at %s (PID %d).", lock_path, my_pid)
+            return lock_path
+
         try:
             content = lock_path.read_text(encoding="utf-8").strip()
             parts = content.split()
             stale_pid = int(parts[0])
             recorded_ct = float(parts[1]) if len(parts) >= 2 else None
+        except FileNotFoundError:
+            continue
         except (ValueError, OSError) as e:
-            logger.warning("Unreadable lockfile %s (%s); overwriting.", lock_path, e)
+            logger.warning("Unreadable lockfile %s (%s); treating as stale.", lock_path, e)
             stale_pid, recorded_ct = -1, None
 
         alive, actual_ct = _pid_alive_and_create_time(stale_pid)
@@ -214,13 +238,14 @@ def acquire(data_dir: Path) -> Path:
             )
         else:
             logger.info("Removing stale lockfile from PID %d (no longer alive).", stale_pid)
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
 
-    my_pid = os.getpid()
-    my_ct = _my_create_time()
-    line = f"{my_pid} {my_ct if my_ct is not None else ''}\n"
-    lock_path.write_text(line, encoding="utf-8")
-    logger.info("Acquired pidlock at %s (PID %d).", lock_path, my_pid)
-    return lock_path
+    raise PidLockBusy(
+        f"Could not acquire {lock_path}: another process repeatedly changed the lockfile."
+    )
 
 
 def release(lock_path: Path) -> None:

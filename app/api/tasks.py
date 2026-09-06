@@ -11,12 +11,9 @@ from fastapi.responses import Response
 
 from app.database import connect, now_iso, with_retry
 from app.protocol.validators import MessageType, TaskRequest
-from app.services.artifacts import (
-    apply_artifact_to_project,
-    get_artifact,
-    list_artifacts,
-    read_artifact_bytes,
-)
+from app.services.artifacts import list_artifacts
+from app.services.results import serialize_final_result
+from app.services.task_metrics import compute_summary, get_feedback
 from app.services.exporter import export_to_markdown
 from app.services import doc_export
 from app.utils.ids import message_id, task_id as new_task_id
@@ -46,6 +43,22 @@ _ACTIVE_STATUSES = {"pending", "running", "awaiting_user_input", "waiting_for_us
 
 @router.post("")
 async def create_task(request: TaskRequest) -> dict[str, Any]:
+    from app.config import get_config
+    config = get_config()
+    if request.mode.value == "conclave":
+        configured_judge = request.judge_agent or config.orchestration.judge_agent
+        configured_synthesis = request.synthesis_agent or config.orchestration.synthesis_agent
+        participants = set(request.consultants)
+        if configured_judge in participants or configured_synthesis in participants:
+            raise HTTPException(
+                status_code=400,
+                detail="configured judge/synthesis seats must not also be conclave participants",
+            )
+        request = TaskRequest.model_validate({
+            **request.model_dump(mode="json"),
+            "judge_agent": configured_judge,
+            "synthesis_agent": configured_synthesis,
+        })
     tid = new_task_id()
     now = now_iso()
     # Validate parent exists if specified.
@@ -59,6 +72,17 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
                 status_code=400,
                 detail=f"parent_task_id {request.parent_task_id} does not exist",
             )
+    project_row = None
+    if request.decision_project_id:
+        with connect() as conn:
+            project_row = conn.execute(
+                """SELECT id, instructions, default_evidence_urls_json
+                   FROM decision_projects WHERE id = ? AND archived_at IS NULL""",
+                (request.decision_project_id,),
+            ).fetchone()
+        if project_row is None:
+            raise HTTPException(status_code=400, detail="decision_project_id does not exist or is archived")
+        request.context.extra["decision_project_instructions"] = project_row["instructions"]
     # Validate every named agent is currently registered. Catching this at
     # submit time gives the user a clean 400 instead of a buried error in the
     # task's final_results.errors_json after the conclave runs without them.
@@ -68,6 +92,10 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
     if request.primary_agent:
         referenced.append(request.primary_agent)
     referenced.extend(request.consultants or [])
+    if request.judge_agent:
+        referenced.append(request.judge_agent)
+    if request.synthesis_agent:
+        referenced.append(request.synthesis_agent)
     missing = [a for a in referenced if a not in registered]
     if missing:
         raise HTTPException(
@@ -93,6 +121,33 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
         prior_art = []
     prior_art_json = json.dumps(prior_art) if prior_art else None
 
+    requested_evidence = request.context.extra.get("evidence_snapshot_ids") or []
+    if not isinstance(requested_evidence, list) or not all(isinstance(v, str) for v in requested_evidence):
+        raise HTTPException(status_code=400, detail="context.extra.evidence_snapshot_ids must be a list of IDs")
+    evidence_ids = list(dict.fromkeys(requested_evidence))
+    if request.decision_project_id and "evidence_snapshot_ids" not in request.context.extra:
+        with connect() as conn:
+            project_evidence = conn.execute(
+                """SELECT id FROM evidence_snapshots WHERE project_id = ?
+                   ORDER BY created_at DESC LIMIT 20""",
+                (request.decision_project_id,),
+            ).fetchall()
+        evidence_ids = list(dict.fromkeys([row["id"] for row in project_evidence] + evidence_ids))
+    if evidence_ids:
+        with connect() as conn:
+            found = {
+                row["id"] for row in conn.execute(
+                    f"SELECT id FROM evidence_snapshots WHERE id IN ({','.join('?' for _ in evidence_ids)})",
+                    evidence_ids,
+                ).fetchall()
+            }
+        missing_evidence = [value for value in evidence_ids if value not in found]
+        if missing_evidence:
+            raise HTTPException(status_code=400, detail={
+                "code": "evidence_not_found", "missing": missing_evidence,
+            })
+    request.context.extra["evidence_snapshot_ids"] = evidence_ids
+
     with connect() as conn:
         conn.execute(
             """
@@ -100,8 +155,9 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
             (id, created_at, updated_at, status, source, source_agent, mode,
              task_type, user_request, primary_agent, consultants, project_path,
              context_json, permissions_json, limits_json, parent_task_id,
-             prior_art_json)
-            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             prior_art_json, decision_project_id, judge_agent, synthesis_agent,
+             evidence_snapshot_ids_json)
+            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 tid,
@@ -120,6 +176,10 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
                 json.dumps(request.limits.model_dump(), sort_keys=True),
                 request.parent_task_id,
                 prior_art_json,
+                request.decision_project_id,
+                request.judge_agent,
+                request.synthesis_agent,
+                json.dumps(evidence_ids),
             ),
         )
     return {
@@ -128,6 +188,8 @@ async def create_task(request: TaskRequest) -> dict[str, Any]:
         "created_at": now,
         "parent_task_id": request.parent_task_id,
         "prior_art": prior_art,
+        "decision_project_id": request.decision_project_id,
+        "evidence_snapshot_ids": evidence_ids,
     }
 
 
@@ -185,6 +247,7 @@ async def list_tasks(
                    tasks.created_at AS created_at, tasks.updated_at AS updated_at,
                    tasks.exported_at AS exported_at, tasks.export_path AS export_path,
                    tasks.source AS source, tasks.source_agent AS source_agent,
+                   tasks.decision_project_id AS decision_project_id,
                    SUBSTR(tasks.user_request, 1, 120) AS user_request_snippet,
                    final_results.failure_cause_tags_json AS failure_cause_tags_json
             FROM tasks
@@ -211,6 +274,7 @@ async def list_tasks(
                 "export_path": _column_or_none(r, "export_path"),
                 "source": _column_or_none(r, "source"),
                 "source_agent": _column_or_none(r, "source_agent"),
+                "decision_project_id": _column_or_none(r, "decision_project_id"),
                 "user_request_snippet": _column_or_none(r, "user_request_snippet"),
                 "failure_cause_tags": _safe_parse_json(
                     _column_or_none(r, "failure_cause_tags_json"), []
@@ -345,31 +409,7 @@ def _enriched_prior_art(task_row) -> list[dict[str, Any]]:
 
 
 def _row_to_final_result(row) -> dict[str, Any]:
-    agg_raw = _column_or_none(row, "confidence_aggregate_json")
-    action_plan_raw = _column_or_none(row, "action_plan_json")
-    tags_raw = _column_or_none(row, "failure_cause_tags_json")
-    tags = _safe_parse_json(tags_raw, default=[])
-    if not isinstance(tags, list):
-        tags = []
-    return {
-        "task_id": row["task_id"],
-        "final_answer": row["final_answer"],
-        "agreement_level": row["agreement_level"],
-        "resolution_status": row["resolution_status"],
-        "disagreements": json.loads(row["disagreements_json"]),
-        "action_plan": _safe_parse_json(action_plan_raw, default=[]),
-        "recommended_actions": json.loads(row["recommended_actions_json"]),
-        "risks": json.loads(row["risks_json"]),
-        "commands_requiring_approval": json.loads(row["commands_requiring_approval_json"]),
-        "patches_requiring_approval": json.loads(row["patches_requiring_approval_json"]),
-        "errors": json.loads(row["errors_json"]),
-        "confidence_aggregate": json.loads(agg_raw) if agg_raw else None,
-        # Rule-based labels describing why this deliberation was hard, stamped
-        # by services.trace_analyzer after finalization. Empty list for older
-        # rows (pre-migration) or quick-converging tasks where no rule fired.
-        "failure_cause_tags": [str(t) for t in tags],
-        "created_at": row["created_at"],
-    }
+    return serialize_final_result(row)
 
 
 def _compute_confidence_trajectory(messages) -> list[dict[str, Any]]:
@@ -415,11 +455,6 @@ async def get_task(task_id: str) -> dict[str, Any]:
             "SELECT * FROM final_results WHERE task_id = ?", (task_id,)
         ).fetchone()
 
-        approvals = conn.execute(
-            "SELECT * FROM approvals WHERE task_id = ? ORDER BY created_at",
-            (task_id,),
-        ).fetchall()
-
         runs = conn.execute(
             """SELECT id, agent_name, role, round_number, started_at, finished_at,
                       status, exit_code, duration_ms, error_code, error_message,
@@ -429,6 +464,8 @@ async def get_task(task_id: str) -> dict[str, Any]:
         ).fetchall()
 
     return {
+        "feedback": get_feedback(task_id),
+        "compute_summary": compute_summary([dict(run) for run in runs]),
         "task": {
             "id": task_row["id"],
             "status": task_row["status"],
@@ -446,6 +483,9 @@ async def get_task(task_id: str) -> dict[str, Any]:
             "user_decision": _column_or_none(task_row, "user_decision"),
             "user_decided_at": _column_or_none(task_row, "user_decided_at"),
             "parent_task_id": _column_or_none(task_row, "parent_task_id"),
+            "decision_project_id": _column_or_none(task_row, "decision_project_id"),
+            "judge_agent": _column_or_none(task_row, "judge_agent"),
+            "synthesis_agent": _column_or_none(task_row, "synthesis_agent"),
             "exported_at": _column_or_none(task_row, "exported_at"),
             "export_path": _column_or_none(task_row, "export_path"),
             "source": _column_or_none(task_row, "source"),
@@ -476,18 +516,9 @@ async def get_task(task_id: str) -> dict[str, Any]:
              "confidence_trajectory": _compute_confidence_trajectory(messages)}
             if result_row else None
         ),
-        "approvals": [
-            {
-                "id": a["id"],
-                "approval_type": a["approval_type"],
-                "description": a["description"],
-                "payload": json.loads(a["payload_json"]),
-                "status": a["status"],
-                "created_at": a["created_at"],
-                "resolved_at": a["resolved_at"],
-            }
-            for a in approvals
-        ],
+        # Compatibility key for pre-1.2 clients. Action policy is represented
+        # by final_result.action_plan; no runtime approval workflow exists.
+        "approvals": [],
         "agent_runs": [
             {
                 "id": r["id"],
@@ -508,43 +539,6 @@ async def get_task(task_id: str) -> dict[str, Any]:
         ],
         "artifacts": list_artifacts(task_id, include_content=True),
     }
-
-
-@router.get("/{task_id}/artifacts")
-async def get_task_artifacts(task_id: str) -> dict[str, Any]:
-    with connect() as conn:
-        row = conn.execute("SELECT id FROM tasks WHERE id = ?", (task_id,)).fetchone()
-    if row is None:
-        raise HTTPException(status_code=404, detail="task not found")
-    return {"task_id": task_id, "artifacts": list_artifacts(task_id, include_content=True)}
-
-
-@router.get("/{task_id}/artifacts/{artifact_id}/download")
-async def download_artifact(task_id: str, artifact_id: str) -> Response:
-    try:
-        artifact = get_artifact(task_id, artifact_id)
-        data = read_artifact_bytes(task_id, artifact_id)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="artifact not found")
-    return Response(
-        content=data,
-        media_type=artifact["mime_type"] or "application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{artifact["filename"]}"',
-        },
-    )
-
-
-@router.post("/{task_id}/artifacts/{artifact_id}/apply")
-async def apply_artifact(task_id: str, artifact_id: str) -> dict[str, Any]:
-    try:
-        return apply_artifact_to_project(task_id, artifact_id)
-    except FileNotFoundError as e:
-        detail = str(e) or "artifact not found"
-        status = 404 if "artifact" in detail or "task" in detail else 400
-        raise HTTPException(status_code=status, detail=detail)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{task_id}/thread")
@@ -1041,7 +1035,36 @@ async def cancel_task(task_id: str) -> dict[str, Any]:
             "UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE id = ?",
             (now_iso(), task_id),
         )
-    return {"task_id": task_id, "status": "cancelled"}
+    from app.services import task_control
+    interrupted = task_control.cancel(task_id)
+    return {
+        "task_id": task_id,
+        "status": "cancelled",
+        "interrupted_active_call": interrupted,
+    }
+
+
+@router.post("/{task_id}/retry")
+async def retry_task(task_id: str) -> dict[str, Any]:
+    """Start a linked attempt without rewriting the original audit history."""
+    from app.services import task_control
+    from app.services.orchestrator import _load_task
+    with connect() as conn:
+        row = conn.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    if row["status"] not in {"failed", "cancelled"} or task_control.is_active(task_id):
+        raise HTTPException(status_code=409, detail="retry requires a stopped failed or cancelled task")
+    try:
+        request = _load_task(task_id)
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail="legacy task cannot be retried; submit a new task") from error
+    if request is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    request.parent_task_id = task_id
+    for key in ("sandbox_path", "thread_ancestors", "prior_art", "prior_artifacts", "evidence_snapshots"):
+        request.context.extra.pop(key, None)
+    return await create_task(request)
 
 
 @router.delete("/{task_id}")
@@ -1061,7 +1084,8 @@ async def delete_task(task_id: str) -> dict[str, Any]:
         row = conn.execute("SELECT status FROM tasks WHERE id = ?", (task_id,)).fetchone()
     if row is None:
         raise HTTPException(status_code=404, detail="task not found")
-    if row["status"] in _ACTIVE_STATUSES:
+    from app.services import task_control
+    if row["status"] in _ACTIVE_STATUSES or task_control.is_active(task_id):
         raise HTTPException(
             status_code=409,
             detail=(

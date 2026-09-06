@@ -81,6 +81,12 @@ def _insert_task(
                         'from_agent', ?, NULL, ?)""",
                 (message_id(), tid, f"msg {i}", created),
             )
+    if exported:
+        from app.utils.paths import exports_root
+        archive = exports_root() / f"{tid}.md"
+        archive.write_text(f"# {tid}\nanswer", encoding="utf-8")
+        with connect() as conn:
+            conn.execute("UPDATE tasks SET export_path = ? WHERE id = ?", (str(archive), tid))
     return tid
 
 

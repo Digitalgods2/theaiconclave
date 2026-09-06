@@ -15,9 +15,11 @@ Run from the repo root:
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 from pathlib import Path
 
 
@@ -29,6 +31,35 @@ HOME = Path.home()
 CLAUDE_TARGETS = HOME / ".claude" / "commands"
 CODEX_TARGET = HOME / ".codex" / "skills" / "switchboard-conclave"
 GEMINI_SOURCE = CLIENTS / "gemini-extension"
+HELPER_SOURCE = CLIENTS / "switchboard_conclave.py"
+USER_SITE = Path(sysconfig.get_path("purelib", scheme="nt_user" if os.name == "nt" else "posix_user"))
+HELPER_TARGET = USER_SITE / "switchboard_conclave.py"
+
+
+def validate_helper() -> bool:
+    source_ok = HELPER_SOURCE.is_file()
+    installed_ok = (HELPER_TARGET.is_file() and source_ok
+                    and HELPER_TARGET.read_bytes() == HELPER_SOURCE.read_bytes())
+    print(f"[helper] [{'OK' if source_ok else 'MISSING'}] source: {HELPER_SOURCE}")
+    print(f"[helper] [{'OK' if installed_ok else 'MISSING'}] installed: {HELPER_TARGET}")
+    return source_ok and installed_ok
+
+
+def _same_file(source: Path, target: Path) -> bool:
+    """Return whether an installed client file exactly matches its source."""
+    try:
+        return source.is_file() and target.is_file() and source.read_bytes() == target.read_bytes()
+    except OSError:
+        return False
+
+
+def install_helper() -> None:
+    if not HELPER_SOURCE.is_file():
+        print(f"[helper] source missing: {HELPER_SOURCE}")
+        return
+    USER_SITE.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(HELPER_SOURCE, HELPER_TARGET)
+    print(f"  [helper] -> {HELPER_TARGET}")
 
 
 def _copy_tree(src: Path, dst: Path, label: str) -> None:
@@ -47,7 +78,7 @@ def install_claude() -> None:
     if not src.is_dir():
         print(f"[claude] source missing: {src}")
         return
-    print(f"[claude] copying 8 commands -> {CLAUDE_TARGETS}")
+    print(f"[claude] copying {len(list(src.glob('*.md')))} commands -> {CLAUDE_TARGETS}")
     CLAUDE_TARGETS.mkdir(parents=True, exist_ok=True)
     for md in sorted(src.glob("*.md")):
         shutil.copy2(md, CLAUDE_TARGETS / md.name)
@@ -89,14 +120,21 @@ def install_gemini() -> None:
 
 
 def check() -> None:
+    valid = validate_helper()
     print("=== claude commands ===")
     for md in sorted((CLIENTS / "claude-code-commands").glob("*.md")):
         target = CLAUDE_TARGETS / md.name
-        marker = "OK" if target.exists() else "MISSING"
+        current = _same_file(md, target)
+        marker = "OK" if current else ("STALE" if target.exists() else "MISSING")
+        valid = valid and current
         print(f"  [{marker}] {target}")
     print("=== codex skill ===")
+    source = CLIENTS / "codex-skill" / "SKILL.md"
     target = CODEX_TARGET / "SKILL.md"
-    print(f"  [{'OK' if target.exists() else 'MISSING'}] {target}")
+    current = _same_file(source, target)
+    marker = "OK" if current else ("STALE" if target.exists() else "MISSING")
+    valid = valid and current
+    print(f"  [{marker}] {target}")
     print("=== gemini extensions ===")
     gemini_bin = shutil.which("gemini")
     if gemini_bin is None:
@@ -104,11 +142,14 @@ def check() -> None:
     else:
         result = subprocess.run([gemini_bin, "extensions", "list"], capture_output=True, text=True)
         sys.stdout.write(result.stdout)
+    if not valid:
+        raise SystemExit(1)
 
 
 def main() -> None:
     args = sys.argv[1:]
     if not args or args == ["all"]:
+        install_helper()
         install_claude()
         install_codex()
         install_gemini()
@@ -117,10 +158,13 @@ def main() -> None:
         check()
         return
     if "claude" in args:
+        install_helper()
         install_claude()
     if "codex" in args:
+        install_helper()
         install_codex()
     if "gemini" in args:
+        install_helper()
         install_gemini()
 
 

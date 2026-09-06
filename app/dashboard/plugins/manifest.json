@@ -1,6 +1,5 @@
 {
   "plugins": [
-    "example-hello.js",
     "failure-cause-detail-panel.js",
     "trajectory-tools.js"
   ]

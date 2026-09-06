@@ -19,7 +19,7 @@ from typing import Any, Optional
 
 from pathlib import Path
 
-from app.agents._spawn import SPAWN_KWARGS
+from app.agents._spawn import SPAWN_KWARGS, communicate_with_cleanup
 from app.agents.cli_adapter_base import CliAdapterBase
 from app.agents.base import (
     AdapterError,
@@ -97,7 +97,7 @@ class CodexAdapter(CliAdapterBase):
                 stderr=asyncio.subprocess.PIPE,
                 **SPAWN_KWARGS,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            stdout, _ = await communicate_with_cleanup(proc, timeout=15)
             return AdapterTestResult(
                 available=True,
                 version=stdout.decode("utf-8", errors="replace").strip(),
@@ -112,7 +112,7 @@ class CodexAdapter(CliAdapterBase):
 
     # ------------------------------------------------------------------
 
-    async def _invoke(self, prompt: str, timeout_seconds: int, image_paths: list = None, sandbox_path: str = None) -> str:
+    async def _invoke(self, prompt: str, timeout_seconds: Optional[int], image_paths: list = None, sandbox_path: str = None) -> str:
         """Run `codex exec` with the prompt on stdin and return the agent's text.
         Image attachments are passed via Codex's `-i` flag (repeatable).
         When `sandbox_path` is set, Codex operates inside it via `-C <sandbox>`
@@ -150,15 +150,12 @@ class CodexAdapter(CliAdapterBase):
             )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(input=prompt.encode("utf-8")),
+            stdout_bytes, stderr_bytes = await communicate_with_cleanup(
+                proc,
+                input=prompt.encode("utf-8"),
                 timeout=timeout_seconds,
             )
         except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
             raise AdapterError(
                 ErrorCode.AGENT_TIMEOUT,
                 f"codex exceeded timeout of {timeout_seconds}s",

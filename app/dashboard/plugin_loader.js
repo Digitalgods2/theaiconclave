@@ -92,7 +92,7 @@
 
       // Small fetch-and-parse-JSON helper. Throws on non-2xx.
       fetchJSON: async function (url, opts) {
-        const resp = await fetch(url, opts);
+        const resp = await window.authenticatedFetch(url, opts);
         if (!resp.ok) {
           const err = new Error("HTTP " + resp.status + " from " + url);
           err.status = resp.status;
@@ -279,7 +279,7 @@
   async function _loadManifest() {
     let manifest = null;
     try {
-      const resp = await fetch("/static/plugins/manifest.json", {
+      const resp = await window.authenticatedFetch("/static/plugins/manifest.json", {
         cache: "no-cache",
       });
       if (!resp.ok) {

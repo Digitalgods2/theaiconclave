@@ -1841,6 +1841,15 @@ td.actions-cell {
   font-weight: 600;
   letter-spacing: 0.02em;
 }
+.live-activity-notice {
+  border: 1px solid #e6b84a;
+  border-radius: 6px;
+  background: #fff8df;
+  color: #694d00;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
 .live-activity-recent {
   border-top: 1px dashed #cfe0fb;
   padding-top: 8px;
@@ -3455,6 +3464,7 @@ body.theme-dark .live-activity-sep,
 body.theme-dark .live-activity-prefix     { color: #94a3b8; }
 body.theme-dark .live-activity-elapsed    { color: #e5e7eb; }
 body.theme-dark .live-activity-round      { color: #60a5fa; }
+body.theme-dark .live-activity-notice     { background: #3a2f12; border-color: #8a6a16; color: #fde68a; }
 body.theme-dark .live-activity-recent     { border-top-color: rgba(59,130,246,0.30); }
 body.theme-dark .live-activity-recent-label { color: #94a3b8; }
 body.theme-dark .live-activity-recent-list { color: #cbd5e1; }
@@ -4402,3 +4412,14 @@ body.theme-dark .failure-cause-chip {
 }
 
 
+
+/* Connection, decision feedback, and reusable evidence controls. */
+.connection-settings { margin: 8px 24px 8px 80px; padding: 8px; position: relative; z-index: 10; }
+.connection-settings form { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.review-card, #project-editor, #project-evidence { padding: 18px; margin: 16px 0; border: 1px solid currentColor; border-radius: 8px; }
+.review-card label, #project-editor label { display: grid; gap: 6px; margin: 12px 0; }
+.review-card select, .review-card textarea, #project-editor input, #project-editor textarea { width: 100%; max-width: 640px; }
+#project-evidence pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; }
+#project-editor button { margin: 6px; }
+#value-metrics { overflow-x: auto; }
+#value-metrics th, #value-metrics td { padding: 8px; text-align: left; }

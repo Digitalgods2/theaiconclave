@@ -6,7 +6,7 @@ The protocol (`SWITCHBOARD_PROTOCOL.md`) defines the *wire* format. This documen
 
 ## 1. Conventions
 
-- **Primary keys are TEXT (ULIDs from `app/utils/ids.py`).** Format: `<prefix>_<26-char ULID>`. Prefixes: `tsk` (task), `run` (agent_run), `msg` (agent_message), `res` (final_result), `apr` (approval), `art` (task artifact), `log` (log).
+- **Primary keys are TEXT (ULIDs from `app/utils/ids.py`).** Format: `<prefix>_<26-char ULID>`. Prefixes include `tsk` (task), `run` (agent run), `msg` (message), `res` (result), `art` (artifact), `log` (log), `prj` (decision project), and `evd` (evidence snapshot).
 - **All timestamps are ISO 8601 UTC strings.** SQLite has no native datetime; ISO 8601 sorts correctly as text and round-trips through Pydantic without ambiguity.
 - **Structured fields use `_json` columns.** They are validated against the protocol schema before write. Reading them returns parsed dicts; writing serializes deterministically (sorted keys, no whitespace).
 - **Foreign keys are enforced.** Every connection sets `PRAGMA foreign_keys = ON`.
@@ -23,7 +23,7 @@ CREATE TABLE tasks (
     id                TEXT PRIMARY KEY,                 -- tsk_<ULID>
     created_at        TEXT NOT NULL,
     updated_at        TEXT NOT NULL,
-    status            TEXT NOT NULL,                    -- pending | running | waiting_for_user | completed | failed | cancelled
+    status            TEXT NOT NULL,                    -- pending | running | awaiting_user_input | completed | failed | cancelled (waiting_for_user reserved)
     source            TEXT NOT NULL,                    -- dashboard | api | webhook | cli | watcher
     source_agent      TEXT,                             -- agent that submitted, if any
     mode              TEXT NOT NULL,                    -- resolve | consult | conclave
@@ -36,11 +36,25 @@ CREATE TABLE tasks (
     permissions_json  TEXT NOT NULL,
     limits_json       TEXT NOT NULL,
     error_message     TEXT
+    -- additive migrated fields also include decision_project_id,
+    -- judge_agent, synthesis_agent, and evidence_snapshot_ids_json
 );
 
 CREATE INDEX idx_tasks_status     ON tasks(status);
 CREATE INDEX idx_tasks_created_at ON tasks(created_at DESC);
 ```
+
+### `schema_migrations`
+
+`app/schema_migrations.py` applies each numbered migration in its own transaction and records `(version, name, applied_at)`. Startup is idempotent; a migration is never inferred merely from an existing column.
+
+### `decision_projects`
+
+Persistent workspaces with a unique name, description, agent instructions, default evidence URLs, timestamps, and optional archive timestamp. Tasks reference projects through `tasks.decision_project_id`.
+
+### `evidence_snapshots`
+
+Immutable shared source records. Each row stores its URL, title, publisher, retrieval timestamp, extracted text, SHA-256 hash, quality signals, fetch metadata, and optional project/task association. Tasks freeze the selected IDs in `evidence_snapshot_ids_json` so later project changes do not change what a completed deliberation saw.
 
 ### `agent_runs`
 
@@ -114,7 +128,8 @@ CREATE TABLE final_results (
 
 ### `approvals`
 
-User-pending decisions. A task in `waiting_for_user` has at least one row here in `pending` status.
+Reserved schema for a future executable approval workflow. Current production
+code does not create these rows or expose approval-resolution endpoints.
 
 ```sql
 CREATE TABLE approvals (
@@ -201,13 +216,11 @@ CREATE INDEX idx_logs_event_type ON logs(event_type, created_at);
 | `Approval` | One `approvals` row. |
 | `ProtocolError` | Run-scoped errors → `agent_runs.error_code` + `error_message`. Task-scoped errors → `final_results.errors_json`. |
 
-## 4. Migrations
+## 4. Schema evolution
 
-- The current schema version lives in `settings` under key `schema_version` (integer, JSON-encoded).
-- Migrations live in `app/database/migrations/<NNNN>_<slug>.sql`, four-digit zero-padded.
-- On startup, `app/database.py` reads `schema_version`, then applies every migration with a higher number in order, in a single transaction per file.
-- **Forward-only in MVP.** No down-migrations. Recovery is by restore-from-backup, not by reverse-applying SQL.
-- The initial schema (everything in section 2) is migration `0001_initial.sql`.
+- The initial schema is defined inline as `SCHEMA_SQL` in `app/database.py` and is applied idempotently with `CREATE TABLE IF NOT EXISTS`.
+- Additive compatibility migrations for columns introduced after the initial schema are also inline in `init_database()` and use `_add_column_if_missing`; there is no external migrations directory or schema-version runner today.
+- Schema changes are forward-only in the MVP. Recovery is by restore-from-backup, not by reverse-applying SQL.
 
 ## 5. Performance Notes
 
@@ -226,3 +239,17 @@ CREATE INDEX idx_logs_event_type ON logs(event_type, created_at);
 - The orchestrator never deletes rows from `tasks`, `agent_runs`, `agent_messages`, `final_results`, or `logs`. Cancellation marks status, it does not erase history. (User-initiated hard delete via `DELETE /api/tasks/{id}` is the one exception — it cascades the task and its descendants on explicit user action; refused for in-flight tasks.)
 - `approvals` rows are never deleted; resolution updates `status` and `resolved_at`.
 - `settings` is the only table where row deletion is normal (clearing an override).
+
+
+## Migration 4: decision feedback
+
+`task_feedback` has one row per task, keyed by `task_id` with `ON DELETE CASCADE`.
+`decision_changed`, `material_risk_found`, and `extra_review_worth_it` are nullable
+booleans stored as checked 0/1 integers. `note` is local text (API cap: 4,000 characters).
+`created_at` and `updated_at` are UTC timestamps. No compute totals are duplicated.
+
+Compute summaries are derived from `agent_runs`; absent token/cost values remain
+unknown and have explicit coverage denominators. Prompt evidence exposure is recorded
+in `tasks.context_json.extra.evidence_excerpts` with stored and presented hashes,
+character counts, truncation, and omission flags. JSONL exports include context,
+feedback, and compute summaries as additive fields.

@@ -35,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from app.database import connect, with_retry
+from app.utils.paths import default_db_path
 
 logger = logging.getLogger(__name__)
 
@@ -43,10 +44,15 @@ logger = logging.getLogger(__name__)
 # Measurement
 # ---------------------------------------------------------------------------
 
-def db_size_bytes(db_path: str | Path) -> int:
+def effective_db_path(db_path: str | Path | None) -> Path:
+    """Resolve the configured DB path exactly as application startup does."""
+    return Path(db_path) if db_path else default_db_path()
+
+
+def db_size_bytes(db_path: str | Path | None) -> int:
     """Total size of the SQLite file + WAL on disk."""
     total = 0
-    base = Path(db_path)
+    base = effective_db_path(db_path)
     for suffix in ("", "-wal", "-shm"):
         p = base.with_name(base.name + suffix) if suffix else base
         if p.exists():
@@ -55,9 +61,25 @@ def db_size_bytes(db_path: str | Path) -> int:
 
 
 def completed_task_count() -> int:
+    """Count terminal tasks that still retain Tier-3 message history.
+
+    Tier-1 task rows are deliberately never auto-deleted, so counting all
+    terminal rows made ``max_completed_tasks`` impossible to satisfy. The
+    operational count now measures the retention-managed payload: terminal
+    tasks whose raw transcript is still present. Trimming a transcript moves
+    this count toward the cap without sacrificing task identity, decisions,
+    or parent/child links.
+    """
     with connect() as conn:
         row = conn.execute(
-            "SELECT COUNT(*) AS n FROM tasks WHERE status IN ('completed', 'failed', 'cancelled')"
+            """
+            SELECT COUNT(*) AS n
+            FROM tasks t
+            WHERE t.status IN ('completed', 'failed', 'cancelled')
+              AND EXISTS (
+                  SELECT 1 FROM agent_messages am WHERE am.task_id = t.id
+              )
+            """
         ).fetchone()
     return row["n"]
 
@@ -123,7 +145,7 @@ def find_trimmable_tier2_tasks(min_age_days: int) -> list[str]:
     with connect() as conn:
         rows = conn.execute(
             """
-            SELECT t.id
+            SELECT t.id, t.export_path
             FROM tasks t
             JOIN final_results fr ON t.id = fr.task_id
             WHERE t.status IN ('completed', 'failed', 'cancelled')
@@ -136,7 +158,15 @@ def find_trimmable_tier2_tasks(min_age_days: int) -> list[str]:
             """,
             (cutoff,),
         ).fetchall()
-    return [r["id"] for r in rows]
+    eligible = []
+    for row in rows:
+        try:
+            archive = Path(row["export_path"]) if row["export_path"] else None
+            if archive and archive.is_file() and archive.stat().st_size > 0:
+                eligible.append(row["id"])
+        except OSError:
+            continue
+    return eligible
 
 
 # ---------------------------------------------------------------------------
@@ -170,12 +200,21 @@ def _vacuum() -> bool:
         return False
 
 
+def retained_db_bytes() -> int:
+    """Live SQLite pages, excluding reusable pages that VACUUM will reclaim."""
+    with connect() as conn:
+        pages = conn.execute("PRAGMA page_count").fetchone()[0]
+        free = conn.execute("PRAGMA freelist_count").fetchone()[0]
+        size = conn.execute("PRAGMA page_size").fetchone()[0]
+    return (pages - free) * size
+
+
 def trim_to_budget(
     *,
     max_db_size_bytes: int,
     max_task_count: int,
     min_age_days: int,
-    db_path: str | Path,
+    db_path: str | Path | None,
     trim_tier2_after_export: bool = False,
 ) -> dict[str, Any]:
     """Run a single retention pass. Returns a summary dict suitable for logging.
@@ -210,7 +249,7 @@ def trim_to_budget(
 
     for tid in eligible:
         # Re-check budgets each iteration; stop when both are satisfied.
-        if (db_size_bytes(db_path) <= max_db_size_bytes
+        if (retained_db_bytes() <= max_db_size_bytes
                 and completed_task_count() <= max_task_count):
             break
         n = _delete_messages_for(tid)
@@ -221,10 +260,10 @@ def trim_to_budget(
     trimmed_tier2_tasks: list[str] = []
     trimmed_final_results = 0
     if (trim_tier2_after_export
-            and (db_size_bytes(db_path) > max_db_size_bytes
+            and (retained_db_bytes() > max_db_size_bytes
                  or completed_task_count() > max_task_count)):
         for tid in find_trimmable_tier2_tasks(min_age_days):
-            if (db_size_bytes(db_path) <= max_db_size_bytes
+            if (retained_db_bytes() <= max_db_size_bytes
                     and completed_task_count() <= max_task_count):
                 break
             n = _delete_final_result_for(tid)
@@ -233,7 +272,7 @@ def trim_to_budget(
                 trimmed_tier2_tasks.append(tid)
 
     vacuumed = False
-    if trimmed_tasks or trimmed_tier2_tasks:
+    if size_over or trimmed_tasks or trimmed_tier2_tasks:
         vacuumed = _vacuum()
 
     return {
@@ -275,15 +314,22 @@ async def retention_loop(config) -> None:
 
     while True:
         try:
-            result = trim_to_budget(
+            operation = asyncio.create_task(asyncio.to_thread(
+                trim_to_budget,
                 max_db_size_bytes=config.retention.max_db_size_mb * 1024 * 1024,
                 max_task_count=config.retention.max_completed_tasks,
                 min_age_days=config.retention.min_task_age_days,
-                db_path=config.database.path,
+                db_path=effective_db_path(config.database.path),
                 trim_tier2_after_export=getattr(
                     config.retention, "trim_tier2_after_export", False
                 ),
-            )
+            ))
+            try:
+                result = await asyncio.shield(operation)
+            except asyncio.CancelledError:
+                # Retain the instance lock until the database writer has stopped.
+                await operation
+                raise
             if result.get("ran"):
                 logger.info("Retention pass: %s", result)
             else:

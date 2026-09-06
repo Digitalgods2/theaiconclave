@@ -14,12 +14,15 @@ const State = {
   currentTaskData: null,        // last fetched detail payload
   terminalStatuses: new Set(["completed", "failed", "cancelled"]),
   attachments: [],              // [{ id, file: File }] pending uploads for New Task form
+  selectedEvidenceIds: new Set(),
+  decisionProjects: [],         // persistent decision-project summaries
   decisionEditing: false,       // when true, force the decision panel into the form state even if a decision exists
   decisionDraft: "",            // preserved draft text across re-renders while editing
   followupParentId: null,       // set when "Continue this thread" was used; included as parent_task_id on next submit
   threadCache: {},              // taskId -> last fetched thread response
   liveTickerTimer: null,        // 1s interval for live elapsed-time updates on the active agent run
   liveTickerStartMs: null,      // ms epoch for the active run start, used by the ticker
+  liveTickerNotifyAfterMs: null,
   // Inbox filters / quantity / search. These persist across the 5s auto-refresh.
   inboxFilters: {
     status: "",                 // "" = all, else one of: pending|running|awaiting_user_input|completed|failed|cancelled
@@ -355,9 +358,54 @@ function formatDisagreementAsText(d) {
 // ------------------------------------------------------------
 // API
 // ------------------------------------------------------------
+async function authenticatedFetch(path, opts = {}) {
+  const url = new URL(path, window.location.href);
+  const headers = new Headers(opts.headers || {});
+  const token = sessionStorage.getItem("conclaveApiToken") || localStorage.getItem("conclaveApiToken");
+  if (url.origin === location.origin && url.pathname.startsWith("/api/") && token) {
+    headers.set("X-Conclave-Token", token);
+  }
+  const response = await fetch(path, { ...opts, headers });
+  if (response.status === 401) {
+    const panel = document.getElementById("connection-settings");
+    if (panel) panel.open = true;
+  }
+  return response;
+}
+window.authenticatedFetch = authenticatedFetch;
+
+function setupConnectionSettings() {
+  const panel = el("details", { id: "connection-settings", class: "connection-settings" });
+  panel.appendChild(el("summary", { text: "Connection access" }));
+  const form = el("form");
+  const label = el("label", { text: "API token (saved for this tab) " });
+  const input = el("input", { type: "password", id: "connection-token", autocomplete: "off" });
+  label.appendChild(input);
+  form.appendChild(label);
+  form.appendChild(el("button", { type: "submit", text: "Connect" }));
+  const clear = el("button", { type: "button", text: "Clear token" });
+  form.appendChild(clear);
+  const status = el("span", { role: "status" });
+  form.appendChild(status);
+  clear.addEventListener("click", () => {
+    sessionStorage.removeItem("conclaveApiToken"); localStorage.removeItem("conclaveApiToken");
+    input.value = ""; status.textContent = "Token cleared.";
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    sessionStorage.setItem("conclaveApiToken", input.value.trim());
+    localStorage.removeItem("conclaveApiToken"); input.value = "";
+    try {
+      await Api.health(); status.textContent = "Connected.";
+      loadAgents(); loadDecisionProjects(); pollHealth();
+    } catch (error) { status.textContent = "Connection failed: " + error.message; }
+  });
+  panel.appendChild(form); document.body.prepend(panel);
+}
+
 async function api(path, opts = {}) {
   const headers = Object.assign({ "Content-Type": "application/json" }, opts.headers || {});
-  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  const res = await authenticatedFetch(path, Object.assign({}, opts, { headers }));
   let body = null;
   try { body = await res.json(); } catch (_) { /* ignore non-json */ }
   if (!res.ok) {
@@ -389,11 +437,23 @@ const Api = {
   getTask:  (id) => api(`/api/tasks/${id}`),
   getThread:(id) => api(`/api/tasks/${id}/thread`),
   createTask: (payload) => api("/api/tasks", { method: "POST", body: JSON.stringify(payload) }),
+  listProjects: () => api("/api/projects?include_archived=" + !!$("#show-archived-projects")?.checked),
+  getProject: (id) => api(`/api/projects/${encodeURIComponent(id)}`),
+  updateProject: (id, body) => api(`/api/projects/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) }),
+  projectEvidence: (id) => api(`/api/evidence?project_id=${encodeURIComponent(id)}`),
+  saveFeedback: (id, body) => api(`/api/tasks/${id}/feedback`, { method: "PUT", body: JSON.stringify(body) }),
+  metrics: () => api("/api/metrics"),
+  retryTask: (id) => api(`/api/tasks/${id}/retry`, { method: "POST" }),
+  createProject: (body) => api("/api/projects", { method: "POST", body: JSON.stringify(body) }),
+  fetchEvidence: (body) => api("/api/evidence/fetch", { method: "POST", body: JSON.stringify(body) }),
   cancelTask: (id) => api(`/api/tasks/${id}/cancel`, { method: "POST" }),
   answerTask: (id, answer) => api(`/api/tasks/${id}/answer`,
     { method: "POST", body: JSON.stringify({ answer }) }),
-  applyArtifact: (taskId, artifactId) => api(`/api/tasks/${taskId}/artifacts/${artifactId}/apply`,
-    { method: "POST" }),
+  previewArtifactApply: (taskId, artifactId) => api(
+    `/api/tasks/${taskId}/artifacts/${artifactId}/apply-preview`),
+  applyArtifact: (taskId, artifactId, body) => api(
+    `/api/tasks/${taskId}/artifacts/${artifactId}/apply`,
+    { method: "POST", body: JSON.stringify(body) }),
   decideTask: (id, decision) => api(`/api/tasks/${id}/decide`,
     { method: "POST", body: JSON.stringify({ decision }) }),
   exportTask: (id) => api(`/api/tasks/${id}/export`, { method: "POST" }),
@@ -407,7 +467,7 @@ const Api = {
   uploadFile: async (file) => {
     const fd = new FormData();
     fd.append("file", file);
-    const res = await fetch("/api/uploads", { method: "POST", body: fd });
+    const res = await authenticatedFetch("/api/uploads", { method: "POST", body: fd });
     let body = null;
     try { body = await res.json(); } catch (_) { /* ignore non-json */ }
     if (!res.ok) {
@@ -702,7 +762,7 @@ async function loadPricing() {
   if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading pricing…</td></tr>';
   try {
-    const resp = await fetch("/api/agents/pricing");
+    const resp = await authenticatedFetch("/api/agents/pricing");
     if (!resp.ok) throw new Error("HTTP " + resp.status);
     const data = await resp.json();
     PricingState.items = data.items || [];
@@ -870,7 +930,7 @@ async function ensureHelpLoaded() {
   const mount = $("#view-help");
   if (!mount) return;
   try {
-    const r = await fetch("/static/help.html", { cache: "no-cache" });
+    const r = await authenticatedFetch("/static/help.html", { cache: "no-cache" });
     if (r.ok) {
       mount.innerHTML = await r.text();
       _helpLoaded = true;
@@ -903,7 +963,7 @@ async function refreshHelpBadge() {
   };
   let r;
   try {
-    r = await fetch("/api/help/metadata");
+    r = await authenticatedFetch("/api/help/metadata");
   } catch (e) {
     showError("Network error: " + (e && e.message ? e.message : e));
     return;
@@ -1184,6 +1244,24 @@ async function loadAgents() {
     return;
   }
   renderAgentsList();
+  renderNeutralSeatOptions();
+}
+
+function renderNeutralSeatOptions() {
+  for (const selector of ["#judge-agent", "#synthesis-agent"]) {
+    const select = $(selector);
+    if (!select) continue;
+    const previous = select.value;
+    select.innerHTML = "";
+    select.appendChild(el("option", { value: "", text: "None" }));
+    for (const name of State.agents) {
+      if (State.selectedAgents.includes(name)) continue;
+      select.appendChild(el("option", { value: name, text: name }));
+    }
+    if (State.agents.includes(previous) && !State.selectedAgents.includes(previous)) {
+      select.value = previous;
+    }
+  }
 }
 
 function renderAgentsList() {
@@ -1209,6 +1287,7 @@ function renderAgentsList() {
         State.selectedAgents = State.selectedAgents.filter((a) => a !== name);
       }
       renderAgentsList();
+      renderNeutralSeatOptions();
     });
     label.appendChild(cb);
     // Seat readiness indicator (DR0017 follow-on). One small dot to the left of
@@ -1455,10 +1534,13 @@ function buildPayload(mode, agents, question) {
     task_type: "general_consultation",
     user_request: question,
     project_path: projectPath || null,
+    decision_project_id: $("#decision-project")?.value || null,
+    judge_agent: mode === "conclave" ? ($("#judge-agent")?.value || null) : null,
+    synthesis_agent: mode === "conclave" ? ($("#synthesis-agent")?.value || null) : null,
     context: { files: [], error: null, git_diff: null, extra: {} },
     permissions: readPermissions(),
     limits: {
-      max_rounds: 5, timeout_seconds: 360, max_seconds: 1200,
+      max_rounds: 5, notify_after_seconds: 360,
       max_context_tokens: null, convergence_threshold: 1.0,
     },
   };
@@ -1473,7 +1555,184 @@ function buildPayload(mode, agents, question) {
     base.primary_agent = agents[0];
     base.consultants = agents.slice(1);
   }
+  base.context.extra.evidence_snapshot_ids = Array.from(State.selectedEvidenceIds);
   return base;
+}
+
+async function loadDecisionProjects() {
+  const select = $("#decision-project");
+  if (!select) return;
+  try {
+    const response = await Api.listProjects();
+    State.decisionProjects = Array.isArray(response.projects) ? response.projects : [];
+    const selected = select.value;
+    select.innerHTML = "";
+    select.appendChild(el("option", { value: "", text: "No persistent project" }));
+    for (const project of State.decisionProjects) {
+      select.appendChild(el("option", { value: project.id, text: project.name }));
+    }
+    if (State.decisionProjects.some((project) => project.id === selected)) select.value = selected;
+  } catch (error) {
+    const status = $("#evidence-status");
+    if (status) status.textContent = "Could not load projects: " + error.message;
+  }
+}
+
+function setupDecisionProjectsUI() {
+  const create = $("#create-decision-project");
+  const select = $("#decision-project");
+  if (create) create.addEventListener("click", async () => {
+    const name = window.prompt("Project name:");
+    if (!name || !name.trim()) return;
+    const instructions = window.prompt("Persistent instructions for agents (optional):") || "";
+    try {
+      const created = await Api.createProject({ name: name.trim(), instructions });
+      await loadDecisionProjects();
+      if (select) select.value = created.id;
+    } catch (error) {
+      alert("Project creation failed: " + error.message);
+    }
+  });
+  if (select) select.addEventListener("change", () => {
+    State.selectedEvidenceIds.clear();
+    $("#project-editor").hidden = true;
+    loadProjectEvidence(true);
+  });
+  $("#edit-decision-project")?.addEventListener("click", editDecisionProject);
+  $("#show-archived-projects")?.addEventListener("change", loadDecisionProjects);
+}
+
+async function loadProjectEvidence(reset = false) {
+  const id = $("#decision-project")?.value;
+  const host = $("#project-evidence-list");
+  if (!host) return;
+  if (reset) State.selectedEvidenceIds.clear();
+  host.replaceChildren();
+  if (!id) { host.textContent = "No project selected. Follow-up sources remain selected if inherited."; return; }
+  host.textContent = "Loading frozen evidence…";
+  try {
+    const response = await Api.projectEvidence(id);
+    if ($("#decision-project").value !== id) return;
+    host.replaceChildren();
+    for (const source of response.evidence || []) {
+      const row = el("details");
+      const summary = el("summary");
+      const label = el("label");
+      const checkbox = el("input", { type: "checkbox", "aria-label": "Use " + (source.title || source.url) });
+      checkbox.checked = State.selectedEvidenceIds.has(source.id);
+      checkbox.addEventListener("change", () => {
+        if (checkbox.checked) State.selectedEvidenceIds.add(source.id); else State.selectedEvidenceIds.delete(source.id);
+      });
+      label.append(checkbox, document.createTextNode(" " + (source.title || source.url) + " · " + fmtTime(source.retrieved_at)));
+      summary.appendChild(label); row.appendChild(summary);
+      row.appendChild(el("p", { text: source.url + " · " + source.content_sha256 }));
+      row.appendChild(el("pre", { text: source.content_text || "" }));
+      host.appendChild(row);
+    }
+    if (!host.children.length) host.textContent = "No frozen evidence yet. Add URLs below to capture sources.";
+  } catch (error) { host.textContent = "Could not load evidence: " + error.message; }
+}
+
+async function editDecisionProject() {
+  const id = $("#decision-project")?.value;
+  if (!id) return;
+  const host = $("#project-editor");
+  host.hidden = false; host.textContent = "Loading project…";
+  try {
+    const response = await Api.getProject(id);
+    const project = response.project;
+    host.replaceChildren();
+    host.appendChild(el("h3", { text: "Edit decision project" }));
+    const fields = {};
+    for (const [key, labelText] of [["name", "Name"], ["description", "Description"], ["instructions", "Agent instructions"], ["default_evidence_urls", "Suggested evidence URLs (one per line)"]]) {
+      const label = el("label", { text: labelText });
+      const field = el(key === "name" ? "input" : "textarea", { id: "project-edit-" + key });
+      field.value = Array.isArray(project[key]) ? project[key].join("\n") : project[key];
+      label.appendChild(field); host.appendChild(label); fields[key] = field;
+    }
+    const status = el("p", { role: "status" });
+    const save = el("button", { type: "button", class: "btn", text: "Save project" });
+    save.addEventListener("click", async () => {
+      try {
+        await Api.updateProject(id, { name: fields.name.value, description: fields.description.value,
+          instructions: fields.instructions.value, default_evidence_urls: fields.default_evidence_urls.value.split(/\r?\n/).map(v => v.trim()).filter(Boolean) });
+        await loadDecisionProjects(); status.textContent = "Project saved.";
+      } catch (error) { status.textContent = error.message; }
+    });
+    const archive = el("button", { type: "button", class: "btn btn-secondary", text: project.archived_at ? "Restore project" : "Archive project" });
+    archive.addEventListener("click", async () => {
+      try {
+        await Api.updateProject(id, { archived: !project.archived_at });
+        await loadDecisionProjects(); host.hidden = true;
+      } catch (error) { status.textContent = error.message; }
+    });
+    host.append(save, archive, status);
+    if (project.default_evidence_urls.length) {
+      const use = el("button", { type: "button", text: "Use suggested URLs for next capture" });
+      use.addEventListener("click", () => { $("#evidence-urls").value = project.default_evidence_urls.join("\n"); });
+      host.appendChild(use);
+    }
+    host.appendChild(el("h4", { text: "Related decisions" }));
+    for (const task of response.tasks || []) {
+      const button = el("button", { type: "button", text: task.user_request + " · " + task.status });
+      button.addEventListener("click", () => openDetail(task.id)); host.appendChild(button);
+    }
+  } catch (error) { host.textContent = error.message; }
+}
+
+function renderTaskFeedback(data) {
+  const host = $("#task-feedback");
+  if (!host) return;
+  const task = data.task || {};
+  host.hidden = !["completed", "failed", "cancelled"].includes(task.status);
+  if (host.hidden) return;
+  // Do not replace an in-progress edit during a background refresh.
+  if (host.dataset.taskId === task.id && host.contains(document.activeElement)) return;
+  host.dataset.taskId = task.id; host.replaceChildren();
+  host.appendChild(el("h3", { text: "Was this review useful?" }));
+  const compute = data.compute_summary || {};
+  host.appendChild(el("p", { text: `${compute.agent_runs || 0} agent runs · token coverage ${compute.token_reported_runs || 0}/${compute.agent_runs || 0} · cost coverage ${compute.cost_reported_runs || 0}/${compute.agent_runs || 0}` }));
+  const form = el("form");
+  for (const [name, title] of [["decision_changed", "Did it change or refine your decision?"], ["material_risk_found", "Did it identify a risk you had missed?"], ["extra_review_worth_it", "Was the extra review worth its time and compute?"]]) {
+    const label = el("label", { text: title });
+    const select = el("select", { name, "aria-label": title });
+    for (const [value, text] of [["", "Not rated"], ["true", "Yes"], ["false", "No"]]) select.appendChild(el("option", { value, text }));
+    select.value = data.feedback?.[name] == null ? "" : String(data.feedback[name]);
+    label.appendChild(select); form.appendChild(label);
+  }
+  const noteLabel = el("label", { text: "Optional note" });
+  const note = el("textarea", { name: "note", maxlength: "4000" });
+  note.value = data.feedback?.note || ""; noteLabel.appendChild(note); form.appendChild(noteLabel);
+  form.appendChild(el("button", { type: "submit", text: "Save feedback", class: "btn" }));
+  const status = el("span", { role: "status" }); form.appendChild(status);
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault(); const values = new FormData(form); const body = { note: values.get("note") };
+    for (const key of ["decision_changed", "material_risk_found", "extra_review_worth_it"]) body[key] = values.get(key) === "" ? null : values.get(key) === "true";
+    try { const result = await Api.saveFeedback(task.id, body); data.feedback = result.feedback; status.textContent = "Feedback saved."; }
+    catch (error) { status.textContent = error.message; }
+  });
+  host.appendChild(form);
+  const excerpts = task.context?.extra?.evidence_excerpts || [];
+  if (excerpts.length) {
+    const details = el("details"); details.appendChild(el("summary", { text: "Evidence actually presented to participants" }));
+    for (const view of excerpts) details.appendChild(el("p", { text: `${view.evidence_id}: ${view.presented_chars}/${view.stored_chars} characters · ${view.omitted ? "omitted" : view.truncated ? "excerpt" : "complete"} · ${view.presented_sha256}` }));
+    host.appendChild(details);
+  }
+}
+
+function renderValueMetrics(data, host) {
+  const section = el("section", { class: "review-card", id: "value-metrics" });
+  section.appendChild(el("h3", { text: "Decision value by mode" }));
+  section.appendChild(el("p", { text: "Optional feedback describes your experience; modes were not randomly assigned. Completion rate uses terminal tasks. Unknown costs are not zero." }));
+  const table = el("table"); const head = el("tr");
+  for (const title of ["Mode", "Tasks", "Completed / terminal", "Rated / terminal", "Valuable / rated", "Runs per task", "Reported USD (coverage)"]) head.appendChild(el("th", { text: title, scope: "col" }));
+  table.appendChild(el("thead", {}, [head])); const body = el("tbody");
+  for (const group of data.modes || []) {
+    const row = el("tr");
+    for (const value of [group.mode, group.task_count, `${group.completed_tasks}/${group.terminal_tasks}`, `${group.rated_tasks}/${group.terminal_tasks}`, `${group.valuable_tasks}/${group.rated_tasks}`, group.runs_per_task == null ? "—" : group.runs_per_task.toFixed(2), `${group.compute_summary.known_cost_usd == null ? "Unknown" : fmtUsd(group.compute_summary.known_cost_usd)} (${group.compute_summary.cost_reported_runs}/${group.compute_summary.agent_runs} runs)`]) row.appendChild(el("td", { text: String(value) }));
+    body.appendChild(row);
+  }
+  table.appendChild(body); section.appendChild(table); host.appendChild(section);
 }
 
 // ------------------------------------------------------------
@@ -1873,7 +2132,7 @@ async function onAttachGitDiff() {
   btn.disabled = true;
   setGitDiffStatus("Fetching git diff...", "muted");
   try {
-    const res = await fetch("/api/git/diff", {
+    const res = await authenticatedFetch("/api/git/diff", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ project_path: projectPath, include_staged: true }),
@@ -2015,6 +2274,19 @@ async function onSubmitNewTask(ev) {
 
   btn.disabled = true;
   try {
+    const evidenceUrls = ($("#evidence-urls")?.value || "").split(/\r?\n/)
+      .map((value) => value.trim()).filter(Boolean);
+    if (evidenceUrls.length > 0) {
+      if (!payload.permissions.can_access_network) {
+        throw new Error("Enable can_access_network before fetching evidence URLs.");
+      }
+      status.textContent = "Capturing evidence...";
+      const captured = await Api.fetchEvidence({
+        urls: evidenceUrls,
+        project_id: payload.decision_project_id || null,
+      });
+      payload.context.extra.evidence_snapshot_ids = [...new Set([...(payload.context.extra.evidence_snapshot_ids || []), ...(captured.evidence || []).map((item) => item.id)])];
+    }
     // Step 1: upload any attachments
     const uploaded = [];
     const total = State.attachments.length;
@@ -2236,7 +2508,7 @@ async function deleteTask(taskId) {
   );
   if (!ok) return;
   try {
-    const resp = await fetch("/api/tasks/" + encodeURIComponent(taskId), { method: "DELETE" });
+    const resp = await authenticatedFetch("/api/tasks/" + encodeURIComponent(taskId), { method: "DELETE" });
     if (!resp.ok) {
       let detail = "HTTP " + resp.status;
       try { const j = await resp.json(); if (j && j.detail) detail = j.detail; } catch (_) { /* ignore */ }
@@ -2706,6 +2978,15 @@ function renderDetail(data) {
   if (task.updated_at) metaRow.appendChild(el("span", { class: "muted", text: "updated: " + fmtTime(task.updated_at) }));
   header.appendChild(titleRow);
   header.appendChild(metaRow);
+  if (["failed", "cancelled"].includes(task.status)) {
+    const retry = el("button", { type: "button", class: "btn btn-secondary", text: "Retry as linked task", id: "retry-task" });
+    retry.addEventListener("click", async () => {
+      retry.disabled = true;
+      try { const next = await Api.retryTask(task.id); openDetail(next.task_id); }
+      catch (error) { alert(error.message); retry.disabled = false; }
+    });
+    header.appendChild(retry);
+  }
   if (task.error_message) {
     header.appendChild(el("p", { class: "form-status error", text: "error: " + task.error_message }));
   }
@@ -2760,6 +3041,7 @@ function renderDetail(data) {
 
   // Decision panel (terminal status only) - rendered before the post-task bar
   renderDecisionPanel(task, messages);
+  renderTaskFeedback(data);
 
   // Post-task action bar (terminal status only)
   const postBar = $("#post-task-bar");
@@ -2897,18 +3179,28 @@ function stopLiveTicker() {
     State.liveTickerTimer = null;
   }
   State.liveTickerStartMs = null;
+  State.liveTickerNotifyAfterMs = null;
 }
 
-function startLiveTicker(startMs) {
+function updateLiveTickerDisplay() {
+  if (!Number.isFinite(State.liveTickerStartMs)) return;
+  const elapsed = Date.now() - State.liveTickerStartMs;
+  const target = document.getElementById("live-activity-elapsed");
+  if (target) target.textContent = fmtDurationMs(elapsed) + " ago";
+  const warning = document.getElementById("live-activity-notice");
+  if (warning && Number.isFinite(State.liveTickerNotifyAfterMs)) {
+    warning.hidden = elapsed < State.liveTickerNotifyAfterMs;
+  }
+}
+
+function startLiveTicker(startMs, notifyAfterSeconds) {
   stopLiveTicker();
   if (!Number.isFinite(startMs)) return;
   State.liveTickerStartMs = startMs;
-  State.liveTickerTimer = setInterval(() => {
-    const target = document.getElementById("live-activity-elapsed");
-    if (!target || !Number.isFinite(State.liveTickerStartMs)) return;
-    const elapsed = Date.now() - State.liveTickerStartMs;
-    target.textContent = fmtDurationMs(elapsed) + " ago";
-  }, 1000);
+  const seconds = Number(notifyAfterSeconds);
+  State.liveTickerNotifyAfterMs = Number.isFinite(seconds) ? seconds * 1000 : null;
+  updateLiveTickerDisplay();
+  State.liveTickerTimer = setInterval(updateLiveTickerDisplay, 1000);
 }
 
 function hideLiveActivity() {
@@ -2998,6 +3290,9 @@ function renderLiveActivity(task, agentRuns) {
 
   const active = findActiveRun(agentRuns);
   const round = maxRoundNumber(agentRuns);
+  const limits = task && task.limits && typeof task.limits === "object" ? task.limits : {};
+  const notifyAfterSeconds = limits.notify_after_seconds
+    ?? limits.timeout_seconds ?? limits.max_seconds ?? null;
 
   // Active row
   const row = el("div", { class: "live-activity-row" });
@@ -3019,7 +3314,7 @@ function renderLiveActivity(task, agentRuns) {
       class: "live-activity-elapsed",
       text: elapsedText,
     }));
-    if (startedMs !== null) startLiveTicker(startedMs);
+    if (startedMs !== null) startLiveTicker(startedMs, notifyAfterSeconds);
     else stopLiveTicker();
   } else {
     // No active run: distinguish "haven't started any agent yet" (prep / first
@@ -3041,11 +3336,29 @@ function renderLiveActivity(task, agentRuns) {
           id: "live-activity-elapsed", class: "live-activity-elapsed",
           text: fmtDurationMs(Date.now() - createdMs),
         }));
-        startLiveTicker(createdMs);
+        startLiveTicker(createdMs, notifyAfterSeconds);
       }
     }
   }
   inner.appendChild(row);
+
+  if (active && Number.isFinite(Number(notifyAfterSeconds))) {
+    const usage = aggregateUsage(agentRuns);
+    const reportedTokens = usage.hasTokenData
+      ? fmtInt(usage.inputTokens + usage.outputTokens) + " reported tokens from completed calls. "
+      : "Token use for the active call will appear when that provider reports it. ";
+    const notice = el("div", {
+      id: "live-activity-notice",
+      class: "live-activity-notice",
+      text: "This call has crossed your " + fmtDurationMs(Number(notifyAfterSeconds) * 1000)
+        + " notice threshold. " + reportedTokens
+        + "It is still running; abort it only if the remaining time or cost is no longer worthwhile.",
+    });
+    const startedMs = parseIsoMs(active.started_at);
+    notice.hidden = startedMs === null
+      || (Date.now() - startedMs) < Number(notifyAfterSeconds) * 1000;
+    inner.appendChild(notice);
+  }
 
   // Round progress line
   if (round !== null) {
@@ -3068,7 +3381,7 @@ function renderLiveActivity(task, agentRuns) {
       const agentName = r.agent_name || "?";
       const role = r.role || "";
       const rn = Number.isFinite(Number(r.round_number)) ? Number(r.round_number) : null;
-      const dur = Number.isFinite(Number(r.duration_ms)) ? Number(r.duration_ms) : null;
+      const dur = Number.isFinite((r.duration_ms == null ? NaN : Number(r.duration_ms))) ? (r.duration_ms == null ? NaN : Number(r.duration_ms)) : null;
       let suffix;
       if (r.status === "completed") {
         suffix = dur !== null ? "completed in " + fmtDurationMs(dur) : "completed";
@@ -3103,6 +3416,7 @@ function aggregateUsage(agentRuns) {
     hasTokenData: false,
     cost: 0,
     hasCostData: false,
+    fullTokenCoverage: true,
     fullCostCoverage: true,   // false if at least one run lacks cost_usd
     totalDurationMs: 0,
     hasDuration: false,
@@ -3111,10 +3425,11 @@ function aggregateUsage(agentRuns) {
   for (const r of agentRuns) {
     if (!r) continue;
     result.runs += 1;
-    const inp = Number(r.input_tokens);
-    const out = Number(r.output_tokens);
+    const inp = (r.input_tokens == null ? NaN : Number(r.input_tokens));
+    const out = (r.output_tokens == null ? NaN : Number(r.output_tokens));
     if (Number.isFinite(inp)) { result.inputTokens += inp; result.hasTokenData = true; }
     if (Number.isFinite(out)) { result.outputTokens += out; result.hasTokenData = true; }
+    if (!Number.isFinite(inp) || !Number.isFinite(out)) result.fullTokenCoverage = false;
     const cost = Number(r.cost_usd);
     if (r.cost_usd !== null && r.cost_usd !== undefined && Number.isFinite(cost)) {
       result.cost += cost;
@@ -3122,7 +3437,7 @@ function aggregateUsage(agentRuns) {
     } else {
       result.fullCostCoverage = false;
     }
-    const dur = Number(r.duration_ms);
+    const dur = (r.duration_ms == null ? NaN : Number(r.duration_ms));
     if (Number.isFinite(dur)) { result.totalDurationMs += dur; result.hasDuration = true; }
   }
   return result;
@@ -3133,10 +3448,10 @@ function aggregateUsage(agentRuns) {
 function formatRunDetails(run) {
   if (!run) return "";
   const parts = [];
-  const dur = Number(run.duration_ms);
+  const dur = (run.duration_ms == null ? NaN : Number(run.duration_ms));
   if (Number.isFinite(dur)) parts.push(fmtDurationMs(dur));
-  const inp = Number(run.input_tokens);
-  const out = Number(run.output_tokens);
+  const inp = (run.input_tokens == null ? NaN : Number(run.input_tokens));
+  const out = (run.output_tokens == null ? NaN : Number(run.output_tokens));
   if (Number.isFinite(inp) || Number.isFinite(out)) {
     const inT = Number.isFinite(inp) ? fmtInt(inp) : "?";
     const outT = Number.isFinite(out) ? fmtInt(out) : "?";
@@ -3175,8 +3490,6 @@ function findRunForMessage(agentRuns, message) {
 function renderUsageSummary(task, agentRuns) {
   // Returns a node to append to the detail header, or null if there's nothing
   // meaningful to show yet (e.g., pre-terminal with no data).
-  const isTerminal = task && task.status && State.terminalStatuses.has(task.status);
-  if (!isTerminal) return null;
   if (!Array.isArray(agentRuns) || agentRuns.length === 0) return null;
   const agg = aggregateUsage(agentRuns);
   if (agg.runs === 0) return null;
@@ -3185,7 +3498,7 @@ function renderUsageSummary(task, agentRuns) {
   const parts = [];
   if (agg.hasTokenData) {
     parts.push(fmtInt(agg.inputTokens) + " input + "
-      + fmtInt(agg.outputTokens) + " output tokens");
+      + fmtInt(agg.outputTokens) + " output tokens" + (agg.fullTokenCoverage ? "" : " (partial coverage)"));
   }
   if (agg.hasCostData) {
     const costStr = "~" + fmtUsd(agg.cost)
@@ -3377,6 +3690,9 @@ async function onSubmitDecision(ev) {
 }
 
 function resetNewTaskForm() {
+  State.selectedEvidenceIds.clear();
+  const evidenceList = $("#project-evidence-list");
+  if (evidenceList) evidenceList.textContent = "Select a project to inspect frozen sources.";
   $("#question").value = "";
   clearAttachments();
   setProjectPath("");
@@ -3502,6 +3818,13 @@ function onSubmitFollowup() {
     setIncludeSandbox(true);
   }
 
+  const projectSelect = $("#decision-project");
+  if (projectSelect) projectSelect.value = task.decision_project_id || "";
+  State.selectedEvidenceIds = new Set(parentExtra?.evidence_snapshot_ids || []);
+  loadProjectEvidence(false);
+  for (const [selector, key] of [["#judge-agent", "judge_agent"], ["#synthesis-agent", "synthesis_agent"]]) {
+    const field = $(selector); if (field) field.value = task[key] || "";
+  }
   switchView("new");
   const q = $("#question");
   if (q) {
@@ -4217,6 +4540,17 @@ function renderArtifactPanel(task, artifacts) {
       href: `/api/tasks/${task.id}/artifacts/${artifact.id}/download`,
       text: "Download",
     });
+    download.addEventListener("click", async (event) => {
+      event.preventDefault();
+      try {
+        const response = await authenticatedFetch(download.getAttribute("href"));
+        if (!response.ok) throw new Error(`Download failed: HTTP ${response.status}`);
+        const url = URL.createObjectURL(await response.blob());
+        const link = el("a", { href: url, download: artifact.filename || "artifact" });
+        document.body.appendChild(link); link.click(); link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (error) { alert(error.message); }
+    });
     actions.appendChild(download);
     const canApply = metadata.apply_mode === "write_file" || metadata.apply_mode === "search_replace";
     if (canApply) {
@@ -4227,15 +4561,27 @@ function renderArtifactPanel(task, artifacts) {
       });
       applyBtn.addEventListener("click", async () => {
         const target = metadata.target_path || artifact.filename || artifact.id;
-        const ok = window.confirm("Apply this draft artifact to " + target + "?");
-        if (!ok) return;
         applyBtn.disabled = true;
-        applyBtn.textContent = "Applying...";
+        applyBtn.textContent = "Reviewing...";
         try {
-          await Api.applyArtifact(task.id, artifact.id);
+          const preview = await Api.previewArtifactApply(task.id, artifact.id);
+          const overwriteWarning = preview.will_overwrite
+            ? "\n\nThis will overwrite an existing file. A backup will be retained."
+            : "";
+          const diffText = preview.diff ? "\n\nProposed diff:\n" + preview.diff.slice(0, 5000) : "";
+          const ok = window.confirm("Apply this draft artifact to " + target + "?"
+            + overwriteWarning + diffText);
+          if (!ok) return;
+          applyBtn.textContent = "Applying...";
+          await Api.applyArtifact(task.id, artifact.id, {
+            confirm: true,
+            expected_target_sha256: preview.expected_target_sha256,
+            allow_overwrite: preview.will_overwrite,
+          });
           await refreshDetail();
         } catch (e) {
           alert("Apply failed: " + e.message);
+        } finally {
           applyBtn.disabled = false;
           applyBtn.textContent = metadata.applied_at ? "Apply again" : "Apply to project";
         }
@@ -4292,6 +4638,31 @@ function renderFinalResult(fr) {
     el("div", { class: "field-label", text: "FINAL ANSWER" }),
     el("div", { class: "final-answer-block", text: fr.final_answer || "(no final answer)" }),
   ]));
+
+  if (Array.isArray(fr.citations) && fr.citations.length > 0) {
+    const sources = el("div", { class: "field" });
+    sources.appendChild(el("div", { class: "field-label", text: "CITED EVIDENCE" }));
+    const list = el("ol", { class: "citation-list" });
+    for (const citation of fr.citations) {
+      const item = el("li");
+      item.appendChild(el("a", {
+        href: citation.url, target: "_blank", rel: "noopener noreferrer",
+        text: citation.title || citation.url,
+      }));
+      item.appendChild(el("span", {
+        class: "muted", text: ` [${citation.evidence_id}] · frozen ${fmtTime(citation.retrieved_at)}`,
+      }));
+      list.appendChild(item);
+    }
+    sources.appendChild(list);
+    if (fr.citation_coverage) {
+      sources.appendChild(el("div", {
+        class: "hint",
+        text: `${fr.citation_coverage.cited_sources || 0} of ${fr.citation_coverage.available_sources || 0} evidence snapshots cited`,
+      }));
+    }
+    grid.appendChild(sources);
+  }
 
   // Disagreements - never summarize away
   if (Array.isArray(fr.disagreements) && fr.disagreements.length > 0) {
@@ -4384,7 +4755,9 @@ function renderErrors(fr) {
 // ------------------------------------------------------------
 async function onCancelTask() {
   if (!State.currentTaskId) return;
-  const ok = window.confirm("Cancel this task?");
+  const ok = window.confirm(
+    "Abort this task now? The active agent call will be interrupted and no final synthesis will be written."
+  );
   if (!ok) return;
   try {
     await Api.cancelTask(State.currentTaskId);
@@ -4544,7 +4917,7 @@ async function onDownloadDetail() {
   if (btn) { btn.disabled = true; btn.dataset.originalText = btn.dataset.originalText || btn.textContent; btn.textContent = "Preparing…"; }
 
   try {
-    const resp = await fetch(`/api/tasks/${encodeURIComponent(State.currentTaskId)}/download?format=${encodeURIComponent(fmt)}`);
+    const resp = await authenticatedFetch(`/api/tasks/${encodeURIComponent(State.currentTaskId)}/download?format=${encodeURIComponent(fmt)}`);
     if (!resp.ok) {
       let detail = `HTTP ${resp.status}`;
       try { const j = await resp.json(); if (j && j.detail) detail = j.detail; } catch (e) { /* not json */ }
@@ -4791,6 +5164,7 @@ async function loadUsage() {
   try {
     const data = await Api.usageSummary();
     renderUsage(data);
+    renderValueMetrics(await Api.metrics(), content);
   } catch (e) {
     const msg = e && e.message ? e.message : String(e);
     content.innerHTML = '<p class="loading">Failed to load: ' + escapeHtml(msg) + "</p>";
@@ -4914,6 +5288,7 @@ function _fmtTok(n) {
 // Wire-up
 // ------------------------------------------------------------
 function init() {
+  setupConnectionSettings();
   applyTheme();
   renderSidebar();
   // renderSidebar created the theme button — refresh its glyph now.
@@ -4944,6 +5319,7 @@ function init() {
   setupAttachmentsUI();
   setupPermissionsUI();
   setupProjectSourceUI();
+  setupDecisionProjectsUI();
   setupGitDiffUI();
   setupInboxFiltersUI();
   const startNewBtn = $("#start-new-btn");
@@ -4961,6 +5337,7 @@ function init() {
   if (usageRefreshBtn) usageRefreshBtn.addEventListener("click", loadUsage);
 
   loadAgents();
+  loadDecisionProjects();
   setupHealthIndicator();
   setupPricingTableHeaders();
   pollHealth();

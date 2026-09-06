@@ -2,7 +2,8 @@
 
 Modes:
 - resolve: open-ended loop until primary returns RESOLVED/CANNOT_RESOLVE,
-  pauses on NEEDS_USER_INPUT, backstopped by max_seconds + max_rounds + repetition.
+  pauses on NEEDS_USER_INPUT, backstopped by max_rounds + repetition. Elapsed
+  time is visible to the user, who may abort explicitly.
 - consult: bounded primary → consultant(s) → primary final.
 
 Resumption: run_resolve seeds prior_messages from the agent_messages table,
@@ -11,6 +12,7 @@ so a task that paused for user input can be re-entered after the user answers.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from typing import Any, Optional
@@ -24,6 +26,7 @@ from app.protocol.validators import (
     ConclaveTurn,
     ConsultantCritique,
     Disagreement,
+    EvidenceCitation,
     ErrorCode,
     FinalResult,
     MessageType,
@@ -40,7 +43,8 @@ from app.services.action_plan import compile_action_plan
 from app.services.artifacts import capture_from_final_result, list_artifacts
 from app.services.judge import judge_convergence
 from app.services.sandbox import cleanup_sandbox, prepare_sandbox
-from app.utils.ids import message_id, result_id, run_id
+from app.services.synthesis import ConclaveSynthesis, synthesize_conclave
+from app.utils.ids import log_id, message_id, result_id, run_id
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +101,27 @@ def _record_message(
         )
 
 
+def _record_log(
+    task_id: str,
+    event_type: str,
+    message: str,
+    metadata: Optional[dict[str, Any]] = None,
+    *,
+    level: str = "info",
+) -> None:
+    """Persist a task-scoped audit event."""
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO logs
+               (id, task_id, level, event_type, message, metadata_json, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                log_id(), task_id, level, event_type, message,
+                json.dumps(metadata or {}, sort_keys=True), now_iso(),
+            ),
+        )
+
+
 def _record_run_start(task_id: str, agent_name: str, role: AgentRole, round_number: int) -> str:
     rid = run_id()
     with connect() as conn:
@@ -149,8 +174,9 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
             (id, task_id, final_answer, agreement_level, resolution_status,
              disagreements_json, recommended_actions_json, action_plan_json, risks_json,
              commands_requiring_approval_json, patches_requiring_approval_json,
-             errors_json, confidence_aggregate_json, failure_cause_tags_json, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             errors_json, confidence_aggregate_json, failure_cause_tags_json,
+             citations_json, citation_coverage_json, synthesis_agent, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 result_id(),
@@ -169,6 +195,9 @@ def _save_final_result(task_id: str, result: FinalResult) -> None:
                 # Tags are stamped post-hoc by services.trace_analyzer once the
                 # row + status are settled; insert empty so the column is never NULL.
                 json.dumps([t.value for t in (result.failure_cause_tags or [])]),
+                json.dumps([citation.model_dump(mode="json") for citation in result.citations], sort_keys=True),
+                json.dumps(result.citation_coverage, sort_keys=True) if result.citation_coverage else None,
+                result.synthesis_agent,
                 now_iso(),
             ),
         )
@@ -439,9 +468,41 @@ def _make_context(task: TaskRequest, task_id: str, prior: list[dict]) -> Adapter
         task_id=task_id,
         prior_messages=prior,
         permissions=task.permissions,
-        timeout_seconds=task.limits.timeout_seconds,
+        # Time thresholds are for user notification, not automatic failure.
+        timeout_seconds=None,
         working_directory=task.project_path or ".",
     )
+
+
+def _record_adapter_audit(
+    adapter: BaseAdapter,
+    task_id: str,
+    run_id_value: str,
+    role: AgentRole,
+    *,
+    include_raw: bool = True,
+) -> None:
+    """Store the exact outbound prompt and raw agent text for this call."""
+    prompt = getattr(adapter, "_last_prompt", None)
+    raw_response = getattr(adapter, "_last_raw_response", None)
+    if prompt:
+        _record_message(
+            task_id, run_id_value, adapter.name, role.value,
+            _SyntheticType("agent_prompt"), "to_agent", prompt, None,
+        )
+    if include_raw and raw_response:
+        _record_message(
+            task_id, run_id_value, adapter.name, role.value,
+            _SyntheticType("agent_raw_response"), "from_agent", raw_response, None,
+        )
+    # Clearing prevents a later persistence exception from duplicating rows in
+    # the adapter-error path. These are context-local on real adapters.
+    try:
+        adapter._last_prompt = None
+        if include_raw:
+            adapter._last_raw_response = None
+    except (AttributeError, TypeError):
+        pass
 
 
 async def _call_adapter_method(
@@ -457,6 +518,8 @@ async def _call_adapter_method(
     try:
         adapter._last_usage = {}  # reset before call
         adapter._last_tool_events = []  # DR0015 — reset tool-loop accumulator
+        adapter._last_prompt = None
+        adapter._last_raw_response = None
         result = await getattr(adapter, method)(ctx)
         duration_ms = int((time.perf_counter() - start) * 1000)
         usage = getattr(adapter, "_last_usage", None) or {}
@@ -466,6 +529,7 @@ async def _call_adapter_method(
             output_tokens=usage.get("output_tokens"),
             cost_usd=usage.get("cost_usd"),
         )
+        _record_adapter_audit(adapter, task_id, rid, role, include_raw=False)
         # DR0015: persist tool-loop events (tool_call / tool_result) BEFORE the
         # final structured turn so the transcript reads in the order the events
         # actually happened. All linked to the same agent_run via rid.
@@ -484,6 +548,16 @@ async def _call_adapter_method(
                 content=event.get("content"),
                 structured=event.get("structured"),
             )
+            if event.get("message_type") == MessageType.TOOL_RESULT.value:
+                structured = event.get("structured") or {}
+                _record_log(
+                    task_id,
+                    "sandbox_tool_result",
+                    f"{adapter.name} completed sandbox tool {structured.get('function', 'unknown')}",
+                    {"agent_name": adapter.name, **structured},
+                    level="info" if structured.get("ok") else "warn",
+                )
+        _record_adapter_audit(adapter, task_id, rid, role)
         _record_message(
             task_id=task_id,
             agent_run_id=rid,
@@ -495,12 +569,22 @@ async def _call_adapter_method(
             structured=result.model_dump(mode="json"),
         )
         return result, None
+    except asyncio.CancelledError:
+        duration_ms = int((time.perf_counter() - start) * 1000)
+        _record_adapter_audit(adapter, task_id, rid, role)
+        _record_run_end(
+            rid, "cancelled", duration_ms,
+            error_message="Cancelled by user while agent call was active.",
+        )
+        raise
     except AdapterError as e:
         duration_ms = int((time.perf_counter() - start) * 1000)
+        _record_adapter_audit(adapter, task_id, rid, role)
         _record_run_end(rid, "failed", duration_ms, e.code.value, e.message)
         return None, ProtocolError(code=e.code, message=e.message, details=e.details)
     except Exception as e:  # noqa: BLE001 — adapters can raise unexpected types
         duration_ms = int((time.perf_counter() - start) * 1000)
+        _record_adapter_audit(adapter, task_id, rid, role)
         _record_run_end(rid, "failed", duration_ms, ErrorCode.AGENT_ERROR.value, str(e))
         return None, ProtocolError(
             code=ErrorCode.AGENT_ERROR,
@@ -670,8 +754,6 @@ async def run_resolve(
     errors: list[ProtocolError] = []
     primary = agent_registry.get(task.primary_agent or "")
 
-    start_time = time.time()
-    max_seconds = task.limits.max_seconds or 600
     max_rounds_backstop = task.limits.max_rounds
 
     prior: list[dict] = list(prior_messages or [])
@@ -686,18 +768,6 @@ async def run_resolve(
     while True:
         round_num += 1
         _raise_if_cancelled(task_id)
-
-        if (time.time() - start_time) > max_seconds:
-            errors.append(ProtocolError(
-                code=ErrorCode.RESOLVE_TIMEOUT,
-                message=f"Resolve loop exceeded max_seconds ({max_seconds}).",
-            ))
-            return _assemble_final(
-                task=task, task_id=task_id,
-                primary_resp=last_primary_resp, critiques=last_critiques,
-                errors=errors,
-                resolution_status=ResolutionStatus.CANNOT_RESOLVE,
-            )
 
         if round_num > max_rounds_backstop:
             errors.append(ProtocolError(
@@ -849,8 +919,6 @@ async def run_conclave(
         ))
         return await _assemble_conclave_final(task, task_id, [], errors, "failed")
 
-    start_time = time.time()
-    max_seconds = task.limits.max_seconds or 600
     max_rounds_backstop = task.limits.max_rounds
     threshold = task.limits.convergence_threshold
 
@@ -875,13 +943,6 @@ async def run_conclave(
     while True:
         round_num += 1
         _raise_if_cancelled(task_id)
-
-        if (time.time() - start_time) > max_seconds:
-            errors.append(ProtocolError(
-                code=ErrorCode.RESOLVE_TIMEOUT,
-                message=f"Conclave exceeded max_seconds ({max_seconds}).",
-            ))
-            return await _assemble_conclave_final(task, task_id, last_turns, errors, "completed")
 
         if round_num > max_rounds_backstop:
             errors.append(ProtocolError(
@@ -1035,7 +1096,47 @@ async def _assemble_conclave_final(
             )
         status = TaskStatus.COMPLETED if status_label == "completed" else TaskStatus.FAILED
 
-    # Conclave produces no commands/patches in MVP (participants don't have recommended_actions).
+    synthesis = await _run_independent_synthesis(
+        task, task_id, last_turns, agreement_level,
+    )
+    actions = synthesis.recommended_actions if synthesis else []
+    risks = synthesis.risks if synthesis else []
+    if synthesis:
+        final_answer = synthesis.final_answer
+    citation_responses: list[Any] = list(last_turns)
+    if synthesis:
+        citation_responses.append(synthesis)
+    citations, citation_coverage = _citation_bundle(task, citation_responses)
+    # Keep verbatim divergent positions independently of a model's synthesis.
+    disagreements = []
+    if last_turns and agreement_level != AgreementLevel.CONSENSUS:
+        baseline = last_turns[0]
+        for turn in last_turns[1:]:
+            if _normalize(turn.position) != _normalize(baseline.position):
+                disagreements.append(Disagreement(
+                    topic=f"Participant positions: {baseline.agent} / {turn.agent}",
+                    primary_position=baseline.position, consultant_position=turn.position,
+                ))
+    if synthesis:
+        if synthesis.preserved_disagreements and agreement_level == AgreementLevel.CONSENSUS:
+            agreement_level = AgreementLevel.MINOR_DISAGREEMENT
+        for text in synthesis.preserved_disagreements:
+            disagreements.append(Disagreement(
+                topic="Synthesizer-reported disagreement",
+                primary_position=text, consultant_position="",
+            ))
+    if disagreements:
+        final_answer += "\n\nPreserved disagreements:\n" + "\n\n".join(
+            f"{d.topic}:\n{d.primary_position}\n{d.consultant_position}" for d in disagreements
+        )
+    commands = [
+        action.payload["command"] for action in actions
+        if action.kind == "run_command" and isinstance(action.payload.get("command"), str)
+    ]
+    patches = [
+        action.payload["patch"] for action in actions
+        if action.kind == "apply_patch" and isinstance(action.payload.get("patch"), str)
+    ]
     return FinalResult(
         protocol_version=PROTOCOL_VERSION,
         task_id=task_id,
@@ -1046,13 +1147,17 @@ async def _assemble_conclave_final(
         final_answer=final_answer,
         agreement_level=agreement_level,
         resolution_status=None,
-        disagreements=[],
-        recommended_actions=[],
-        commands_requiring_approval=[],
-        patches_requiring_approval=[],
-        risks=[],
+        disagreements=disagreements,
+        action_plan=compile_action_plan(actions, task.permissions),
+        recommended_actions=actions,
+        commands_requiring_approval=commands,
+        patches_requiring_approval=patches,
+        risks=risks,
         errors=errors,
         confidence_aggregate=_compute_confidence_aggregate(last_turns),
+        citations=citations,
+        citation_coverage=citation_coverage,
+        synthesis_agent=task.synthesis_agent if synthesis else None,
     )
 
 
@@ -1061,7 +1166,7 @@ async def _run_convergence_judge(
     task_id: str,
     last_turns: list[ConclaveTurn],
 ) -> Optional[dict]:
-    """Invoke one available participant as a semantic-equivalence judge.
+    """Invoke the explicitly configured non-participant equivalence judge.
 
     Returns the judge verdict dict, or None if no judge could be picked /
     nothing to judge. The verdict is also persisted as a synthetic
@@ -1072,21 +1177,44 @@ async def _run_convergence_judge(
     if len(positions) < 2:
         return None
 
-    # Pick the first available participant as judge.
-    judge_adapter = None
-    for name in task.consultants or []:
-        try:
-            judge_adapter = agent_registry.get(name)
-            break
-        except KeyError:
-            continue
-    if judge_adapter is None:
+    if not task.judge_agent:
+        return None
+    try:
+        judge_adapter = agent_registry.get(task.judge_agent)
+    except KeyError:
         return None
 
-    verdict = await judge_convergence(positions, task, task_id, judge_adapter)
+    rid = _record_run_start(task_id, judge_adapter.name, AgentRole.JUDGE, 0)
+    started = time.perf_counter()
+    judge_adapter._last_usage = {}
+    judge_adapter._last_tool_events = []
+    judge_adapter._last_prompt = None
+    judge_adapter._last_raw_response = None
+    try:
+        verdict = await judge_convergence(positions, task, task_id, judge_adapter)
+    except asyncio.CancelledError:
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        _record_adapter_audit(judge_adapter, task_id, rid, AgentRole.JUDGE)
+        _record_run_end(
+            rid, "cancelled", duration_ms,
+            error_message="Cancelled by user while judge call was active.",
+        )
+        raise
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    usage = getattr(judge_adapter, "_last_usage", None) or {}
+    judge_failed = str(verdict.get("reasoning", "")).startswith("judge_failed:")
+    _record_run_end(
+        rid, "failed" if judge_failed else "completed", duration_ms,
+        error_code=ErrorCode.AGENT_ERROR.value if judge_failed else None,
+        error_message=verdict.get("reasoning") if judge_failed else None,
+        input_tokens=usage.get("input_tokens"),
+        output_tokens=usage.get("output_tokens"),
+        cost_usd=usage.get("cost_usd"),
+    )
+    _record_adapter_audit(judge_adapter, task_id, rid, AgentRole.JUDGE)
     _record_message(
         task_id=task_id,
-        agent_run_id=None,
+        agent_run_id=rid,
         agent_name=judge_adapter.name,
         role="judge",
         message_type=_SyntheticType("judge_verdict"),
@@ -1101,8 +1229,99 @@ async def _run_convergence_judge(
     return verdict
 
 
+async def _run_independent_synthesis(
+    task: TaskRequest,
+    task_id: str,
+    last_turns: list[ConclaveTurn],
+    agreement_level: AgreementLevel,
+) -> Optional[ConclaveSynthesis]:
+    if not task.synthesis_agent or not last_turns:
+        return None
+    try:
+        adapter = agent_registry.get(task.synthesis_agent)
+    except KeyError:
+        return None
+    rid = _record_run_start(task_id, adapter.name, AgentRole.SYNTHESIZER, 0)
+    started = time.perf_counter()
+    adapter._last_usage = {}
+    adapter._last_tool_events = []
+    adapter._last_prompt = None
+    adapter._last_raw_response = None
+    positions = [{
+        "agent": turn.agent,
+        "position": turn.position,
+        "summary": turn.summary,
+        "convergence": turn.convergence.value,
+        "citation_ids": turn.citation_ids,
+        "agreement_level": agreement_level.value,
+    } for turn in last_turns]
+    try:
+        synthesis = await synthesize_conclave(task, positions, adapter)
+    except asyncio.CancelledError:
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        _record_adapter_audit(adapter, task_id, rid, AgentRole.SYNTHESIZER)
+        _record_run_end(rid, "cancelled", duration_ms, error_message="Synthesis cancelled.")
+        raise
+    except Exception as e:  # noqa: BLE001
+        duration_ms = int((time.perf_counter() - started) * 1000)
+        _record_adapter_audit(adapter, task_id, rid, AgentRole.SYNTHESIZER)
+        _record_run_end(
+            rid, "failed", duration_ms, ErrorCode.AGENT_ERROR.value, str(e),
+        )
+        return None
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    usage = getattr(adapter, "_last_usage", None) or {}
+    _record_run_end(
+        rid, "completed", duration_ms,
+        input_tokens=usage.get("input_tokens"), output_tokens=usage.get("output_tokens"),
+        cost_usd=usage.get("cost_usd"),
+    )
+    _record_adapter_audit(adapter, task_id, rid, AgentRole.SYNTHESIZER)
+    _record_message(
+        task_id, rid, adapter.name, AgentRole.SYNTHESIZER.value,
+        _SyntheticType("conclave_synthesis"), "from_agent", synthesis.final_answer,
+        synthesis.model_dump(mode="json"),
+    )
+    return synthesis
+
+
 def _normalize(s: str) -> str:
     return " ".join(s.lower().split())
+
+
+def _citation_bundle(task: TaskRequest, responses: list[Any]) -> tuple[list[EvidenceCitation], dict[str, Any] | None]:
+    snapshots = task.context.extra.get("evidence_snapshots") or []
+    available = {str(item.get("id")): item for item in snapshots if isinstance(item, dict)}
+    cited_ids: list[str] = []
+    for response in responses:
+        for value in getattr(response, "citation_ids", []) or []:
+            if value not in cited_ids:
+                cited_ids.append(value)
+    if not snapshots and not cited_ids:
+        return [], None
+    invalid = [value for value in cited_ids if value not in available]
+    valid = [value for value in cited_ids if value in available]
+    citations = [EvidenceCitation(
+        evidence_id=value,
+        url=available[value]["url"],
+        title=available[value].get("title"),
+        publisher=available[value].get("publisher"),
+        retrieved_at=available[value]["retrieved_at"],
+        content_sha256=available[value]["content_sha256"],
+        quality=available[value].get("quality") or {},
+    ) for value in valid]
+    from app.services.evidence_views import evidence_manifest
+    exposure = evidence_manifest(snapshots)
+    coverage = {
+        "unseen_citation_ids": [v["evidence_id"] for v in exposure if v["omitted"] and v["evidence_id"] in cited_ids],
+        "presented_excerpts": exposure,
+        "available_sources": len(available),
+        "cited_sources": len(valid),
+        "source_coverage_ratio": round(len(valid) / len(available), 3) if available else None,
+        "uncited_source_ids": [value for value in available if value not in valid],
+        "invalid_citation_ids": invalid,
+    }
+    return citations, coverage
 
 
 # ---------------------------------------------------------------------------
@@ -1146,6 +1365,10 @@ def _assemble_final(
         if action.kind == "apply_patch" and isinstance(action.payload.get("patch"), str):
             patches.append(action.payload["patch"])
 
+    citations, citation_coverage = _citation_bundle(
+        task, [response for response in [primary_resp, *critiques] if response is not None]
+    )
+
     return FinalResult(
         protocol_version=PROTOCOL_VERSION,
         task_id=task_id,
@@ -1163,6 +1386,8 @@ def _assemble_final(
         patches_requiring_approval=patches,
         risks=risks,
         errors=errors,
+        citations=citations,
+        citation_coverage=citation_coverage,
     )
 
 
@@ -1194,6 +1419,9 @@ def _load_task(task_id: str) -> Optional[TaskRequest]:
         permissions=json.loads(row["permissions_json"]),
         limits=json.loads(row["limits_json"]),
         parent_task_id=parent_id,
+        decision_project_id=(row["decision_project_id"] if "decision_project_id" in row.keys() else None),
+        judge_agent=(row["judge_agent"] if "judge_agent" in row.keys() else None),
+        synthesis_agent=(row["synthesis_agent"] if "synthesis_agent" in row.keys() else None),
     )
 
 
@@ -1253,6 +1481,14 @@ def _load_prior_messages(task_id: str) -> list[dict]:
         ).fetchall()
     out: list[dict] = []
     for r in rows:
+        # Keep audit and tool rows in the transcript/trajectory, but do not
+        # recursively feed full prompts, raw responses, or tool envelopes into
+        # the next deliberation prompt.
+        if r["message_type"] in {
+            "agent_prompt", "agent_raw_response",
+            MessageType.TOOL_CALL.value, MessageType.TOOL_RESULT.value,
+        }:
+            continue
         if r["structured_json"]:
             out.append(json.loads(r["structured_json"]))
         else:
@@ -1267,68 +1503,83 @@ def _load_prior_messages(task_id: str) -> list[dict]:
 
 async def run_task(task_id: str) -> None:
     """Top-level entry. Loads the task, dispatches to mode-specific flow, persists result."""
-    task = _load_task(task_id)
-    if task is None:
-        return
-    if _is_task_cancelled(task_id):
-        return
+    task: Optional[TaskRequest] = None
+    try:
+        task = _load_task(task_id)
+        if task is None:
+            return
+        if _is_task_cancelled(task_id):
+            return
 
     # If this task is part of a thread, attach the ancestry to context.extra so
     # the prompt builder can surface it. The orchestrator does the DB walk so
     # the prompt builder stays DB-unaware.
-    if task.parent_task_id:
-        ancestors = _load_thread_ancestors(task_id)
-        if ancestors:
-            task.context.extra["thread_ancestors"] = ancestors
+        if task.parent_task_id:
+            ancestors = _load_thread_ancestors(task_id)
+            if ancestors:
+                task.context.extra["thread_ancestors"] = ancestors
 
     # Phase 2.5: surface Prior Art (TF-IDF-matched past decisions) computed at
     # task-creation time. Same pattern as thread_ancestors — orchestrator reads
     # from DB, prompt builder formats from context.extra.
-    with connect() as conn:
-        row = conn.execute(
-            "SELECT prior_art_json FROM tasks WHERE id = ?", (task_id,)
-        ).fetchone()
-    if row is not None:
-        try:
-            pa_raw = row["prior_art_json"]
-        except (IndexError, KeyError):
-            pa_raw = None
-        if pa_raw:
+        with connect() as conn:
+            row = conn.execute(
+                "SELECT prior_art_json FROM tasks WHERE id = ?", (task_id,)
+            ).fetchone()
+        if row is not None:
             try:
-                task.context.extra["prior_art"] = json.loads(pa_raw)
-            except (ValueError, TypeError):
-                pass
+                pa_raw = row["prior_art_json"]
+            except (IndexError, KeyError):
+                pa_raw = None
+            if pa_raw:
+                try:
+                    task.context.extra["prior_art"] = json.loads(pa_raw)
+                except (ValueError, TypeError):
+                    pass
 
-    prior_artifacts = list_artifacts(task_id)
-    if prior_artifacts:
-        task.context.extra["prior_artifacts"] = [
-            {
-                "id": a["id"],
-                "kind": a["kind"],
-                "title": a.get("title"),
-                "filename": a["filename"],
-                "target_path": (a.get("metadata") or {}).get("target_path"),
-                "apply_mode": (a.get("metadata") or {}).get("apply_mode"),
-            }
-            for a in prior_artifacts
-        ]
+        prior_artifacts = list_artifacts(task_id)
+        if prior_artifacts:
+            task.context.extra["prior_artifacts"] = [
+                {
+                    "id": a["id"],
+                    "kind": a["kind"],
+                    "title": a.get("title"),
+                    "filename": a["filename"],
+                    "target_path": (a.get("metadata") or {}).get("target_path"),
+                    "apply_mode": (a.get("metadata") or {}).get("apply_mode"),
+                }
+                for a in prior_artifacts
+            ]
+
+        evidence_ids = task.context.extra.get("evidence_snapshot_ids") or []
+        if evidence_ids:
+            from app.services.evidence import list_snapshots
+            task.context.extra["evidence_snapshots"] = list_snapshots(ids=evidence_ids)
+            from app.services.evidence_views import evidence_manifest
+            manifest = evidence_manifest(task.context.extra["evidence_snapshots"])
+            task.context.extra["evidence_excerpts"] = manifest
+            with connect() as conn:
+                row = conn.execute("SELECT context_json FROM tasks WHERE id = ?", (task_id,)).fetchone()
+                context = json.loads(row["context_json"])
+                context.setdefault("extra", {})["evidence_excerpts"] = manifest
+                conn.execute("UPDATE tasks SET context_json = ? WHERE id = ?",
+                             (json.dumps(context), task_id))
 
     # If the task requested a project sandbox, prepare it (or reuse an existing
     # one for a resumed task). Path is stashed on context.extra so adapters can
     # find it and so the prompt builder can render the manifest.
-    if (task.context.extra.get("include_sandbox")
-            and task.project_path
-            and task.permissions.can_read_files):
-        sandbox = prepare_sandbox(task.project_path, task_id, task.permissions)
-        if sandbox is not None:
-            task.context.extra["sandbox_path"] = str(sandbox.resolve())
+        if (task.context.extra.get("include_sandbox")
+                and task.project_path
+                and task.permissions.can_read_files):
+            sandbox = prepare_sandbox(task.project_path, task_id, task.permissions)
+            if sandbox is not None:
+                task.context.extra["sandbox_path"] = str(sandbox.resolve())
 
-    if _is_task_cancelled(task_id):
-        if task.context.extra.get("sandbox_path"):
-            cleanup_sandbox(task_id)
-        return
-    _set_task_status(task_id, TaskStatus.RUNNING)
-    try:
+        if _is_task_cancelled(task_id):
+            if task.context.extra.get("sandbox_path"):
+                cleanup_sandbox(task_id)
+            return
+        _set_task_status(task_id, TaskStatus.RUNNING)
         _raise_if_cancelled(task_id)
         if task.mode == TaskMode.RESOLVE:
             prior = _load_prior_messages(task_id)
@@ -1381,12 +1632,24 @@ async def run_task(task_id: str) -> None:
         # Cancellation is cooperative: the active adapter call may have just
         # returned and recorded its run/message, but no further rounds or final
         # result should be written. Leave the task row as cancelled.
-        if task.context.extra.get("sandbox_path"):
+        if task is not None and task.context.extra.get("sandbox_path"):
             cleanup_sandbox(task_id)
         return
+    except asyncio.CancelledError:
+        # The cancel endpoint sets durable state before interrupting this
+        # coroutine. Consume that expected cancellation so the worker keeps
+        # processing future tasks; propagate service-shutdown cancellation.
+        if task is not None and task.context.extra.get("sandbox_path"):
+            cleanup_sandbox(task_id)
+        if _is_task_cancelled(task_id):
+            return
+        raise
     except Exception as e:  # noqa: BLE001
+        # Task reconstruction is inside this boundary deliberately. A legacy or
+        # corrupt row that no longer validates must still leave the durable queue
+        # in a terminal state instead of stranding the worker claim as `running`.
         _set_task_status(task_id, TaskStatus.FAILED, error_message=str(e))
         # Best-effort cleanup on unexpected failure
-        if task.context.extra.get("sandbox_path"):
+        if task is not None and task.context.extra.get("sandbox_path"):
             cleanup_sandbox(task_id)
         raise

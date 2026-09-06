@@ -12,11 +12,11 @@ Parse:
 The shell command below already submitted the answer. The task transitions from `awaiting_user_input` back to `pending` and the worker re-claims it. The conclave continues from where it paused.
 
 After confirming the submission, tell the user they can watch the resumed deliberation finish with:
-  python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini wait <task_id>
+  python -m switchboard_conclave --invoked-by gemini wait <task_id>
 
 Or open the dashboard at http://127.0.0.1:8787/ and find the task in the Inbox.
 
-Hard rule: this slash command submits text only. If the user actually wanted to run a shell command and submit its output (e.g., `pytest 2>&1 | switchboard.py answer latest -`), they should do that from a real shell, not /answer.
+Hard rule: this slash command submits text only. If the user actually wanted to run a shell command and submit its output (e.g., `pytest 2>&1 | python -m switchboard_conclave answer latest -`), they should do that from a real shell, not /answer.
 
-!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini answer {{args}}}
+!{python -m switchboard_conclave --invoked-by gemini answer {{args}}}
 """

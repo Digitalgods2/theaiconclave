@@ -11,5 +11,5 @@ If the first token doesn't match a known agent, treat it as part of the question
 
 The shell command below already ran the consult with gemini as primary. Render the result. Lead with the final answer (gemini's response after considering the consultant's critique), then surface where the consultant disagreed.
 
-!{python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by gemini run consult gemini,codex "{{args}}"}
+!{python -m switchboard_conclave --invoked-by gemini run consult gemini,codex "{{args}}"}
 """

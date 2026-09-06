@@ -9,8 +9,19 @@ from typing import Optional
 from app.config import Config
 from app.database import connect, now_iso, with_retry
 from app.services.orchestrator import run_task
+from app.services import task_control
 
 logger = logging.getLogger(__name__)
+
+
+def _mark_claim_failed(task_id: str, error: Exception) -> None:
+    """Last-resort terminal transition for exceptions escaping run_task."""
+    with connect() as conn:
+        conn.execute(
+            """UPDATE tasks SET status = 'failed', error_message = ?, updated_at = ?
+               WHERE id = ? AND status = 'running'""",
+            (str(error), now_iso(), task_id),
+        )
 
 
 def _claim_next_pending() -> Optional[str]:
@@ -48,12 +59,19 @@ async def worker_loop(config: Config) -> None:
             tid = _claim_next_pending()
             if tid:
                 logger.info("Picked up task %s", tid)
-                await run_task(tid)
+                active = asyncio.create_task(run_task(tid), name=f"conclave-task-{tid}")
+                task_control.register(tid, active)
+                try:
+                    await active
+                finally:
+                    task_control.unregister(tid, active)
             else:
                 await asyncio.sleep(interval)
         except asyncio.CancelledError:
             logger.info("Worker cancelled.")
             return
         except Exception as e:  # noqa: BLE001
+            if "tid" in locals() and tid:
+                _mark_claim_failed(tid, e)
             logger.exception("Worker error: %s", e)
             await asyncio.sleep(interval)

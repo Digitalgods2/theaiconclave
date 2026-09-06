@@ -16,7 +16,7 @@ Parse `$ARGUMENTS`:
 Run:
 
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code continue <parent_task_id> "<question>"
+python -m switchboard_conclave --invoked-by claude-code continue <parent_task_id> "<question>"
 ```
 
 The new task automatically inherits the parent's mode and agents — if the parent was a 3-AI conclave, the follow-up is too. To override (e.g., follow up a conclave with just a consult), the user should use `/conclave` or `/consult` directly and reference the parent in their question text.

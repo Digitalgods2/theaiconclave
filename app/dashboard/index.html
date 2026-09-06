@@ -56,6 +56,17 @@
           </div>
 
           <div class="form-row">
+            <label for="synthesis-agent">Neutral review seats</label>
+            <div class="project-source-field">
+              <label for="judge-agent" class="project-source-sublabel">Equivalence judge</label>
+              <select id="judge-agent"><option value="">None</option></select>
+              <label for="synthesis-agent" class="project-source-sublabel">Final synthesizer</label>
+              <select id="synthesis-agent"><option value="">None</option></select>
+            </div>
+            <p class="hint">Optional conclave-only seats. A neutral seat cannot also participate in the debate.</p>
+          </div>
+
+          <div class="form-row">
             <label for="permissions-details">Permissions</label>
             <details id="permissions-details" class="permissions-details">
               <summary id="permissions-summary" class="permissions-summary">Permissions: read-only (default)</summary>
@@ -128,6 +139,29 @@
                 </p>
               </div>
             </details>
+          </div>
+
+          <div class="form-row">
+            <label for="decision-project">Decision project</label>
+            <div class="project-source-field">
+              <select id="decision-project" name="decision_project_id">
+                <option value="">No persistent project</option>
+              </select>
+              <button type="button" class="btn btn-secondary" id="create-decision-project">New project</button>
+              <button type="button" class="btn btn-secondary" id="edit-decision-project">Inspect / edit</button>
+              <label><input type="checkbox" id="show-archived-projects"> Show archived</label>
+            </div>
+            <p class="hint">Projects preserve instructions, evidence, and related decisions across tasks.</p>
+          </div>
+
+          <div id="project-editor" hidden></div>
+          <fieldset id="project-evidence"><legend>Reusable evidence</legend><div id="project-evidence-list">Select a project to inspect frozen sources.</div></fieldset>
+          <div class="form-row">
+            <label for="evidence-urls">Evidence URLs</label>
+            <textarea id="evidence-urls" rows="3"
+              placeholder="One public HTTPS URL per line (optional)"></textarea>
+            <p class="hint">Sources are fetched once, safety-checked, hashed, and frozen so every agent sees the same evidence. Enable network access in Permissions.</p>
+            <p class="form-status" id="evidence-status"></p>
           </div>
 
           <div class="form-row">
@@ -377,9 +411,10 @@
           </section>
 
           <section class="actions-row">
-            <button class="btn btn-secondary" id="cancel-btn" hidden>Cancel task</button>
+            <button class="btn btn-secondary" id="cancel-btn" hidden>Abort task</button>
           </section>
 
+          <section id="task-feedback" class="review-card" hidden></section>
           <section class="decision-panel" id="decision-panel" hidden>
             <div class="decision-panel-inner" id="decision-panel-inner"></div>
           </section>

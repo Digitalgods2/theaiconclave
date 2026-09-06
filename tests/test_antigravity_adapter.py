@@ -81,6 +81,11 @@ def test_timeout_rendered_as_go_duration():
     assert args[args.index("--print-timeout") + 1] == "42s"
 
 
+def test_no_timeout_omits_print_timeout():
+    args = AntigravityAdapter()._build_args("agy", None, [])
+    assert "--print-timeout" not in args
+
+
 def test_model_effort_and_workspace_dirs():
     a = AntigravityAdapter(model="gemini-3.1-pro-high", effort="high")
     args = a._build_args("agy", 60, ["C:/sandbox", "C:/images"])

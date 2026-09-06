@@ -13,6 +13,7 @@ critique, etc.) so that nuance survives the snapshot.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -143,6 +144,11 @@ def _render_final_result(final_result: dict | None) -> str:
         lines.append(f"- **Agreement level:** {final_result['agreement_level']}")
     if final_result.get("resolution_status"):
         lines.append(f"- **Resolution status:** {final_result['resolution_status']}")
+
+    for key in ("synthesis_agent", "citations", "citation_coverage"):
+        if final_result.get(key):
+            lines.extend(["", "### " + key.replace("_", " ").title(), "",
+                          _fenced(json.dumps(final_result[key], ensure_ascii=False, indent=2))])
 
     action_plan = final_result.get("action_plan") or []
     if action_plan:

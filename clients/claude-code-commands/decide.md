@@ -13,7 +13,7 @@ If `$ARGUMENTS` is empty or only contains the task_id, ask the user briefly what
 Run:
 
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code decide <task_id> "<decision text>"
+python -m switchboard_conclave --invoked-by claude-code decide <task_id> "<decision text>"
 ```
 
 The decision must be free-form text (the user's own words). The Conclave Charter §Decision Records suggests a structure (what was chosen, why, what was rejected, known risks, open questions, who keeps continuity) — if the user gave a one-liner, that's fine; if they gave a structured record, that's better.

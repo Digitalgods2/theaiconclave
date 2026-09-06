@@ -17,64 +17,57 @@ once so the user has a starting config they can edit.
 from __future__ import annotations
 
 import logging
+import ipaddress
 import os
 import shutil
 from pathlib import Path
 from typing import Optional
 
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 logger = logging.getLogger("switchboard.config")
 
 
-class ServerConfig(BaseModel):
+class ConfigModel(BaseModel):
+    """Strict base so misspelled configuration never disappears silently."""
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ServerConfig(ConfigModel):
     host: str = "127.0.0.1"
-    port: int = 8787
+    port: int = Field(default=8787, ge=1, le=65535)
+    allow_remote: bool = False
+    api_token: Optional[str] = Field(default=None, min_length=16)
 
 
-class DatabaseConfig(BaseModel):
+class DatabaseConfig(ConfigModel):
     # `None` means "use default_db_path() at resolution time". An explicit
     # string in config.yaml still wins. See DR0016 — the old default of
     # "data/switchboard.db" was CWD-relative and broke packaged launches.
     path: Optional[str] = None
 
 
-class LoggingConfig(BaseModel):
+class LoggingConfig(ConfigModel):
     level: str = "info"
 
-
-class DefaultsConfig(BaseModel):
-    mode: str = "resolve"
-    primary_agent: str = "codex"
-    consultant: str = "claude-code"
-    max_rounds: int = 50               # backstop in resolve mode
-    timeout_seconds: int = 180         # per agent call
-    max_seconds: int = 600             # total task time ceiling (resolve mode)
-    task_type: str = "general_consultation"
+    @field_validator("level")
+    @classmethod
+    def _valid_level(cls, value: str) -> str:
+        normalized = value.lower()
+        if normalized not in {"debug", "info", "warning", "warn", "error", "critical"}:
+            raise ValueError("logging.level must be debug, info, warning, warn, error, or critical")
+        return normalized
 
 
-class PermissionsConfig(BaseModel):
-    can_read_files: bool = True
-    can_write_files: bool = False
-    can_run_commands: bool = False
-    can_access_network: bool = False
-    can_install_packages: bool = False
-    can_apply_patches: bool = False
-    can_read_env_files: bool = False
-    can_read_secrets: bool = False
+class OrchestrationConfig(ConfigModel):
+    worker_poll_interval_seconds: int = Field(default=2, ge=1, le=3600)
+    judge_agent: Optional[str] = None
+    synthesis_agent: Optional[str] = None
 
 
-class ApprovalRequiredConfig(BaseModel):
-    patches: bool = True
-    commands: bool = True
-
-
-class OrchestrationConfig(BaseModel):
-    worker_poll_interval_seconds: int = 2
-
-
-class RetentionConfig(BaseModel):
+class RetentionConfig(ConfigModel):
     """DB retention per decision 0003 — operational trigger + tier-based selection."""
     enabled: bool = True
     max_db_size_mb: int = 2048
@@ -89,13 +82,8 @@ class RetentionConfig(BaseModel):
     trim_tier2_after_export: bool = False
 
 
-class DashboardConfig(BaseModel):
-    enabled: bool = True
-
-
-class AgentConfig(BaseModel):
+class AgentConfig(ConfigModel):
     enabled: bool = False
-    command: str = ""
     # Absolute path override for the CLI binary. When set, the adapter uses it
     # in preference to `shutil.which(command)`. Useful in packaged apps where
     # GUI launches don't inherit the user's shell PATH, or when the CLI is
@@ -111,11 +99,9 @@ class AgentConfig(BaseModel):
     # Reasoning effort for CLIs that expose one as a per-session flag
     # (Antigravity's `--effort low|medium|high`). None = the CLI's default.
     effort: Optional[str] = None
-    endpoint: Optional[str] = None
-    timeout_seconds: int = 180
 
 
-class OpenRouterModel(BaseModel):
+class OpenRouterModel(ConfigModel):
     """One model exposed as a council seat via OpenRouter (pay-per-token gateway).
 
     `name` is the friendly council/checkbox name (e.g. "deepseek"); `model_slug`
@@ -131,7 +117,7 @@ class OpenRouterModel(BaseModel):
     tool_loop: bool = False
 
 
-class OpenRouterConfig(BaseModel):
+class OpenRouterConfig(ConfigModel):
     """Pluggable OpenRouter-backed council seats — pay-per-token, no subscription.
 
     Auth is via the OPENROUTER_API_KEY env var, or the database-stored key set
@@ -149,19 +135,61 @@ class OpenRouterConfig(BaseModel):
     models: list[OpenRouterModel] = Field(default_factory=list)
 
 
-class Config(BaseModel):
-    protocol_version: str = "1.0"
+class EvidenceConfig(ConfigModel):
+    """Provider-neutral evidence acquisition limits and optional search endpoint."""
+
+    enabled: bool = True
+    require_https: bool = True
+    max_urls_per_request: int = Field(default=5, ge=1, le=20)
+    max_document_bytes: int = Field(default=1_000_000, ge=10_000, le=10_000_000)
+    max_document_chars: int = Field(default=80_000, ge=1_000, le=500_000)
+    timeout_seconds: float = Field(default=12.0, ge=1.0, le=60.0)
+    search_endpoint: Optional[str] = None
+    search_api_key_env: Optional[str] = None
+    search_api_key_header: str = "Authorization"
+
+
+class Config(ConfigModel):
     server: ServerConfig = Field(default_factory=ServerConfig)
     database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
-    defaults: DefaultsConfig = Field(default_factory=DefaultsConfig)
-    permissions: PermissionsConfig = Field(default_factory=PermissionsConfig)
-    approval_required: ApprovalRequiredConfig = Field(default_factory=ApprovalRequiredConfig)
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     retention: RetentionConfig = Field(default_factory=RetentionConfig)
-    dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
     agents: dict[str, AgentConfig] = Field(default_factory=dict)
     openrouter: OpenRouterConfig = Field(default_factory=OpenRouterConfig)
+    evidence: EvidenceConfig = Field(default_factory=EvidenceConfig)
+
+
+def is_loopback_host(host: str) -> bool:
+    """Return whether a configured bind host is limited to this machine."""
+    normalized = host.strip().strip("[]").lower()
+    if normalized == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(normalized).is_loopback
+    except ValueError:
+        return False
+
+
+def api_token(config: Config) -> Optional[str]:
+    """Resolve API authentication token; environment takes precedence."""
+    return os.environ.get("CONCLAVE_API_TOKEN") or config.server.api_token
+
+
+def validate_server_boundary(config: Config) -> None:
+    """Refuse accidental unauthenticated LAN or Internet exposure."""
+    if is_loopback_host(config.server.host):
+        return
+    if not config.server.allow_remote:
+        raise ValueError(
+            "server.host is non-loopback; set server.allow_remote=true and configure "
+            "server.api_token (or CONCLAVE_API_TOKEN) to acknowledge remote exposure"
+        )
+    token = api_token(config)
+    if not token or len(token) < 16:
+        raise ValueError(
+            "remote binding requires CONCLAVE_API_TOKEN or server.api_token with at least 16 characters"
+        )
 
 
 def _resolve_config_path() -> Optional[Path]:

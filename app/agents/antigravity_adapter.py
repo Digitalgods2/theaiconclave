@@ -53,7 +53,7 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
-from app.agents._spawn import SPAWN_KWARGS
+from app.agents._spawn import SPAWN_KWARGS, communicate_with_cleanup
 from app.agents.cli_adapter_base import CliAdapterBase
 from app.agents.base import (
     AdapterError,
@@ -143,7 +143,7 @@ class AntigravityAdapter(CliAdapterBase):
                 stderr=asyncio.subprocess.PIPE,
                 **SPAWN_KWARGS,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            stdout, _ = await communicate_with_cleanup(proc, timeout=15)
             return AdapterTestResult(
                 available=True,
                 version=stdout.decode("utf-8", errors="replace").strip(),
@@ -161,7 +161,7 @@ class AntigravityAdapter(CliAdapterBase):
     def _build_args(
         self,
         cmd_path: str,
-        timeout_seconds: int,
+        timeout_seconds: Optional[int],
         workspace_dirs: list[str],
     ) -> list[str]:
         """Assemble the argv for one print-mode run.
@@ -176,8 +176,9 @@ class AntigravityAdapter(CliAdapterBase):
             "--input-format", "stream-json",
             "--output-format", "stream-json",
             "--mode", "plan",
-            "--print-timeout", f"{timeout_seconds}s",
         ]
+        if timeout_seconds is not None:
+            args.extend(["--print-timeout", f"{timeout_seconds}s"])
         if self.model:
             args.extend(["--model", self.model])
         if self.effort:
@@ -190,7 +191,7 @@ class AntigravityAdapter(CliAdapterBase):
     async def _invoke(
         self,
         prompt: str,
-        timeout_seconds: int,
+        timeout_seconds: Optional[int],
         image_paths: list = None,
         sandbox_path: str = None,
     ) -> str:
@@ -252,15 +253,16 @@ class AntigravityAdapter(CliAdapterBase):
             )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(input=stdin_payload.encode("utf-8")),
-                timeout=timeout_seconds + _TIMEOUT_GRACE_SECONDS,
+            stdout_bytes, stderr_bytes = await communicate_with_cleanup(
+                proc,
+                input=stdin_payload.encode("utf-8"),
+                timeout=(
+                    timeout_seconds + _TIMEOUT_GRACE_SECONDS
+                    if timeout_seconds is not None
+                    else None
+                ),
             )
         except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
             raise AdapterError(
                 ErrorCode.AGENT_TIMEOUT,
                 f"agy exceeded timeout of {timeout_seconds}s",

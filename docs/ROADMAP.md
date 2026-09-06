@@ -43,6 +43,8 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 
 ## Next (in priority order)
 
+> **Active planning:** Measure whether added deliberation earns its cost before introducing automatic escalation. See [`ADAPTIVE_DELIBERATION_PLAN.md`](ADAPTIVE_DELIBERATION_PLAN.md). Milestone 1 adds feedback and compute telemetry only; it must produce zero additional model calls.
+
 1. **Re-draft DR0013 (pre-fetched URL attachments) as a narrower v2 spec** — the v1 proposal was pressure-tested in `tsk_01KRR4B0MWTCN95TEAPYQ2RS4M` (conclave mode, 3 AIs, minor_disagreement) and unanimously refused as written. The conclave's load-bearing critiques to fold into v2:
    - Strike the Multimodal Disagreement transfer argument. Image perceptual divergence is incompatible perception of a fixed artifact; search-result divergence is resolvable retrieval divergence. The analogy doesn't hold.
    - Scope v1 down to **1 URL per task, API-only (no dashboard UI), no `readability-lxml`** — many docs / package registries / API pages don't expose evidence in static HTML; treat extraction as best-effort with raw-source metadata preserved for audit.
@@ -59,6 +61,16 @@ This document tracks what's shipped, what's next, and what's been *intentionally
 4. **Docs polish: tool-loop mode coverage + sandbox requirement** *(small, batch into the next doc pass)* — README's "pluggable open-weight council seats" bullet and `help.html` §11.8 currently describe the tool-loop in general terms. Two clarifications worth adding when the next doc edit comes around: (a) explicitly state that the tool-loop works in **all three modes** (`conclave`, `consult`, `resolve`) — every adapter method (`run_primary` / `run_consultant` / `run_final` / `run_conclave_turn`) routes through `_invoke_dispatch` and gets the same flag treatment, so it's not conclave-only; (b) call out the **sandbox-required silent fallback** — if a seat has `tool_loop: true` but the task has no sandbox attached (`include_sandbox` unchecked or no `project_path`), the adapter silently uses the prompt-only path. Intentional (so a misconfigured task doesn't fail) but easy to overlook when the value isn't materializing on a task.
 
 5. **Decision Memory: partial-supersession / amendment tracking** *(only if observed in practice)* — the current supersession detector handles a binary state: a record is either superseded outright (a `**Status: SUPERSEDED**` banner at the head) or live. Real-world experience after shipping Phase 2.5 already surfaced a subtler case: Decision 11 (OpenRouter seats) is *operationally live for OpenRouter*, but its incidental references to "Ollama Cloud stays in the codebase, disabled by default" are now factually wrong (Decision 14 deleted the adapter entirely). The append-only Charter rule means we don't rewrite ratified records — so the natural fix is a third state. Possible shapes: a `**Status: PARTIALLY AMENDED**` banner convention with an `**Amended by**:` line pointing to the superseding records, plus a "partial" rendering tier on the dashboard (e.g. amber badge, summary excerpt prefixed with "⚠ partially amended"), plus a `partial=true` flag in the retrieval output so prompts can include the record with an explicit "X is no longer accurate; consult Decision N" caveat. Out of scope until Glen actually hits agent confusion on a real task; tracked here so it's not lost.
+
+6. **User-literature positioning pass** *(README, dashboard help, and landing pages)* — lead with governed, cross-vendor decision review rather than "multiple agents," which is increasingly a baseline orchestration capability. Translate the distinction into concrete feature highlights:
+   - Independent opinions from different providers, not multiple instances controlled by one provider.
+   - Structured challenge and disagreement, not a pile of parallel answers.
+   - Preserved minority positions, with the human retaining final authority.
+   - The same frozen evidence shown to every participant, with attributable citations.
+   - An auditable decision history and cautious, explicitly approved artifact application.
+   - Local-first handling of private source code, evidence, and decisions.
+
+   Suggested source paragraph to adapt per surface: *"The AI Conclave is a local, vendor-neutral review board for consequential AI-assisted decisions. Independent models examine the same frozen evidence, challenge one another through structured deliberation, preserve material dissent, and leave an auditable decision record. You remain the final authority, and proposed file changes remain reviewable until you explicitly apply them."* Avoid naming competitors in primary user copy or claiming that multi-agent orchestration itself is unique; competitor context belongs in internal positioning material.
 
 ## Considered and Intentionally Not Built
 
@@ -112,3 +124,13 @@ When you consider a feature and decide *not* to build it, add it to "Considered 
 - A "reconsider if" condition
 
 This prevents the same proposal from cycling back without new information.
+
+
+## September 2026 implementation
+
+The repository improvement milestones in `IMPLEMENTATION_PLAN.md` add final-result
+and export fidelity, authenticated clients, restart recovery/retry, pinned evidence
+transport, exact evidence exposure records, feedback/value metrics, project inspection
+and evidence selection, cross-platform CI/browser verification, hashed dependency locks,
+and an editable `landing/src` build. Automatic routing and escalation remain deferred
+until outcome feedback justifies changing the user's chosen deliberation mode.

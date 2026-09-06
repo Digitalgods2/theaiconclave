@@ -20,7 +20,7 @@ from typing import Any, Optional
 
 from pathlib import Path
 
-from app.agents._spawn import SPAWN_KWARGS
+from app.agents._spawn import SPAWN_KWARGS, communicate_with_cleanup
 from app.agents.cli_adapter_base import CliAdapterBase
 from app.agents.base import (
     AdapterError,
@@ -90,7 +90,7 @@ class ClaudeCodeAdapter(CliAdapterBase):
                 stderr=asyncio.subprocess.PIPE,
                 **SPAWN_KWARGS,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15)
+            stdout, _ = await communicate_with_cleanup(proc, timeout=15)
             return AdapterTestResult(
                 available=True,
                 version=stdout.decode("utf-8", errors="replace").strip(),
@@ -105,7 +105,7 @@ class ClaudeCodeAdapter(CliAdapterBase):
 
     # ------------------------------------------------------------------
 
-    async def _invoke(self, prompt: str, timeout_seconds: int, image_paths: list = None, sandbox_path: str = None) -> str:
+    async def _invoke(self, prompt: str, timeout_seconds: Optional[int], image_paths: list = None, sandbox_path: str = None) -> str:
         """Run claude in headless mode with the prompt on stdin.
 
         When images are attached OR a project sandbox is provided, enable the
@@ -185,15 +185,12 @@ class ClaudeCodeAdapter(CliAdapterBase):
             )
 
         try:
-            stdout_bytes, stderr_bytes = await asyncio.wait_for(
-                proc.communicate(input=prompt.encode("utf-8")),
+            stdout_bytes, stderr_bytes = await communicate_with_cleanup(
+                proc,
+                input=prompt.encode("utf-8"),
                 timeout=timeout_seconds,
             )
         except asyncio.TimeoutError:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
             raise AdapterError(
                 ErrorCode.AGENT_TIMEOUT,
                 f"claude exceeded timeout of {timeout_seconds}s",

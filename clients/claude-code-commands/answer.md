@@ -20,7 +20,7 @@ If ambiguous, ask the user in one short sentence which they meant.
 ## Mode A: Submit text directly
 
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code answer <task_id> "<text>"
+python -m switchboard_conclave --invoked-by claude-code answer <task_id> "<text>"
 ```
 
 Use this when the answer is a sentence or two the user typed.
@@ -30,12 +30,12 @@ Use this when the answer is a sentence or two the user typed.
 Use your **Bash tool** to run the user's command. Capture combined stdout + stderr. Pipe to the helper's `-` stdin mode:
 
 ```bash
-<their-command> 2>&1 | python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code answer <task_id> -
+<their-command> 2>&1 | python -m switchboard_conclave --invoked-by claude-code answer <task_id> -
 ```
 
 For example, if `$ARGUMENTS` is `latest pytest -v tests/`:
 ```bash
-pytest -v tests/ 2>&1 | python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code answer latest -
+pytest -v tests/ 2>&1 | python -m switchboard_conclave --invoked-by claude-code answer latest -
 ```
 
 If the command fails (non-zero exit, command not found, etc.), still submit whatever output you captured — the conclave needs to see the failure too.
@@ -46,7 +46,7 @@ The task transitions from `awaiting_user_input` back to `pending` and the worker
 
 To watch the resumed deliberation finish:
 ```bash
-python "C:/Users/gosmo/.claude/skills/switchboard-conclave/switchboard.py" --invoked-by claude-code wait <task_id>
+python -m switchboard_conclave --invoked-by claude-code wait <task_id>
 ```
 
 Or open the dashboard at http://127.0.0.1:8787/ and find the task in the Inbox.

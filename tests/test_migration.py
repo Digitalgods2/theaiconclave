@@ -180,3 +180,88 @@ def test_migration_partial_source(tmp_path, monkeypatch):
     assert result is not None
     assert paths.default_db_path().exists()
     assert result["subdirs"] == {}
+
+
+def test_staging_failure_leaves_no_partial_destination_and_retries(tmp_path, monkeypatch):
+    """A late copy failure must not commit the already-staged DB or subdirs."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_old_data(repo)
+    monkeypatch.chdir(repo)
+
+    real_copytree = migration.shutil.copytree
+
+    def fail_on_exports(src, dst, *args, **kwargs):
+        if Path(src).name == "exports":
+            raise OSError("injected copy failure")
+        return real_copytree(src, dst, *args, **kwargs)
+
+    monkeypatch.setattr(migration.shutil, "copytree", fail_on_exports)
+    with pytest.raises(OSError, match="injected copy failure"):
+        migration.maybe_migrate()
+
+    dst_root = paths.user_data_root()
+    assert not (dst_root / "switchboard.db").exists()
+    assert not (dst_root / "sandboxes").exists()
+    assert not (dst_root / "exports").exists()
+    assert not (dst_root / migration._STAGING_DIR_NAME).exists()
+
+    # The source is intact and remains a complete retry source.
+    monkeypatch.setattr(migration.shutil, "copytree", real_copytree)
+    result = migration.maybe_migrate()
+    assert result is not None
+    assert (dst_root / "switchboard.db").exists()
+    assert (dst_root / "sandboxes" / "tsk_abc" / "main.py").exists()
+    assert (dst_root / "exports" / "tsk_xyz.md").exists()
+
+
+def test_commit_failure_rolls_back_already_committed_artifacts(tmp_path, monkeypatch):
+    """A rename failure after DB commit rolls the entire visible batch back."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_old_data(repo)
+    monkeypatch.chdir(repo)
+
+    real_commit = migration._commit_staged_artifact
+
+    def fail_on_sandboxes(staging_root, dst_root, name):
+        if name == "sandboxes":
+            raise OSError("injected commit failure")
+        return real_commit(staging_root, dst_root, name)
+
+    monkeypatch.setattr(migration, "_commit_staged_artifact", fail_on_sandboxes)
+    with pytest.raises(OSError, match="injected commit failure"):
+        migration.maybe_migrate()
+
+    dst_root = paths.user_data_root()
+    assert not (dst_root / "switchboard.db").exists()
+    assert not (dst_root / "sandboxes").exists()
+    assert not (dst_root / migration._STAGING_DIR_NAME).exists()
+
+    monkeypatch.setattr(migration, "_commit_staged_artifact", real_commit)
+    assert migration.maybe_migrate() is not None
+    assert (dst_root / "switchboard.db").exists()
+
+
+def test_recovery_rolls_back_journaled_partial_commit(tmp_path, monkeypatch):
+    """A process crash after the DB rename cannot make the next run skip."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _seed_old_data(repo)
+    monkeypatch.chdir(repo)
+
+    dst_root = paths.user_data_root()
+    staging = dst_root / migration._STAGING_DIR_NAME
+    staging.mkdir()
+    # Simulate: DB committed, sandboxes remained staged, then process died.
+    (dst_root / "switchboard.db").write_bytes(b"partial")
+    (staging / "sandboxes").mkdir()
+    (staging / migration._STAGING_MANIFEST_NAME).write_text(
+        '{"artifacts":["switchboard.db","sandboxes"]}', encoding="utf-8"
+    )
+
+    result = migration.maybe_migrate()
+    assert result is not None
+    with sqlite3.connect(str(dst_root / "switchboard.db")) as conn:
+        assert conn.execute("SELECT v FROM smoke WHERE k='hello'").fetchone() == ("world",)
+    assert not staging.exists()
