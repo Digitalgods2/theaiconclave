@@ -1115,6 +1115,18 @@ body.theme-dark .seat-indicator.seat-unknown { color: #6b7280; }
 }
 .answer-prompt h3 { color: #8a5a00; margin-bottom: 8px; }
 .answer-prompt textarea { background: #fff; }
+/* The two dark-theme panel-background lists further down set .answer-prompt's
+   background without !important, so the light-mode !important above always
+   won and left this panel stuck cream-on-dark (pale-yellow question text on
+   a pale-yellow box — unreadable). Force the win here instead. */
+body.theme-dark .answer-prompt {
+  background: #1c2030 !important;
+}
+body.theme-dark .answer-prompt h3 { color: #fbbf24; }
+body.theme-dark .answer-prompt textarea { background: #11151f; color: #e5e7eb; border-color: #3a4258; }
+body.theme-dark #answer-context-text {
+  background: #11151f; color: #cbd5e1; border-color: #3a4258;
+}
 .answer-questionnaire {
   display: grid;
   gap: 10px;
@@ -4414,12 +4426,109 @@ body.theme-dark .failure-cause-chip {
 
 
 /* Connection, decision feedback, and reusable evidence controls. */
-.connection-settings { margin: 8px 24px 8px 80px; padding: 8px; position: relative; z-index: 10; }
-.connection-settings form { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.connection-settings {
+  margin: 8px 24px 8px 80px;
+  padding: 4px 12px;
+  position: relative;
+  z-index: 10;
+  background: #fff;
+  border: 1px solid #e3e6ed;
+  border-radius: 8px;
+}
+.connection-settings summary { padding: 6px 0; cursor: pointer; font-weight: 500; }
+.connection-settings form { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; padding-bottom: 10px; }
+.connection-settings input[type="password"] { padding: 7px 10px; border: 1px solid #d0d5dd; border-radius: 6px; }
+.connection-settings button { padding: 7px 14px; border: 1px solid #d0d5dd; border-radius: 6px; background: #fff; }
+.connection-settings button[type="submit"] { background: #2a66e3; color: #fff; border-color: transparent; }
 .review-card, #project-editor, #project-evidence { padding: 18px; margin: 16px 0; border: 1px solid currentColor; border-radius: 8px; }
 .review-card label, #project-editor label { display: grid; gap: 6px; margin: 12px 0; }
 .review-card select, .review-card textarea, #project-editor input, #project-editor textarea { width: 100%; max-width: 640px; }
 #project-evidence pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 280px; overflow: auto; }
 #project-editor button { margin: 6px; }
 #value-metrics { overflow-x: auto; }
+
+body.theme-dark .connection-settings {
+  background: #161b26;
+  border-color: #2d3548;
+  color: #e5e7eb;
+}
+body.theme-dark .connection-settings input[type="password"] {
+  background: #11151f; color: #e5e7eb; border-color: #3a4258;
+}
+body.theme-dark .connection-settings button {
+  background: #1c2233; color: #e5e7eb; border-color: #3a4258;
+}
+body.theme-dark .connection-settings button[type="submit"] {
+  background: #2a66e3; color: #fff; border-color: transparent;
+}
+body.theme-dark .review-card,
+body.theme-dark #project-editor,
+body.theme-dark #project-evidence {
+  background: #161b26;
+  border-color: #2d3548;
+  color: #e5e7eb;
+}
 #value-metrics th, #value-metrics td { padding: 8px; text-align: left; }
+
+/* =================================================================
+   Dark-theme gap sweep (2026-09-06). Every selector below sets a
+   hardcoded light-mode background with no body.theme-dark counterpart
+   anywhere in the file — the same defect class as .review-card and
+   .answer-prompt above/nearby. Severity varies (some are permanent
+   unreadable-text bugs, others are transient hover-state flashes) but
+   all are fixed here in one pass rather than waiting to be reported
+   screen-by-screen.
+   ================================================================= */
+
+/* Help doc callouts — text already goes light-gray via
+   body.theme-dark .help-doc-content, so the unthemed light callout
+   backgrounds (.help-callout yellow, -info blue, -danger red) were
+   pale-gray-on-pale-color, same failure mode as .answer-prompt. */
+body.theme-dark .help-doc-content .help-callout {
+  background: rgba(245,158,11,0.10);
+  border-left-color: #f59e0b;
+}
+body.theme-dark .help-doc-content .help-callout-info {
+  background: rgba(59,130,246,0.10);
+  border-left-color: #60a5fa;
+}
+body.theme-dark .help-doc-content .help-callout-danger {
+  background: rgba(239,68,68,0.10);
+  border-left-color: #ef4444;
+}
+
+/* Attachment pills (New Task upload list) — light chip on a dark page. */
+body.theme-dark .attachment-pill { background: #232a3d; border-color: #3a4258; color: #e5e7eb; }
+body.theme-dark .attachment-pill .att-remove:hover { background: #3a4258; color: #fecaca; }
+
+/* Dropzone drag-over highlight — only the light static/hover states were
+   themed; the dragover flash itself wasn't. */
+body.theme-dark .dropzone.dragover { background: #1c2a4a; border-color: #60a5fa; }
+
+/* Copy / delete row buttons — icon-only and transparent at rest (already
+   fine in both themes), but :hover / .copied / .copy-failed set light
+   backgrounds unconditionally, flashing white on every hover in dark mode. */
+body.theme-dark .copy-btn:hover,
+body.theme-dark .copy-btn-prominent:hover,
+body.theme-dark .copyable-box > .copy-btn:hover,
+body.theme-dark .copy-btn-card:hover { background: #262b3b; color: #e5e7eb; }
+body.theme-dark .copy-btn.copied { background: rgba(16,185,129,0.15); color: #6ee7b7; }
+body.theme-dark .copy-btn.copy-failed { background: rgba(239,68,68,0.15); color: #fca5a5; }
+body.theme-dark .row-delete-btn:hover { background: rgba(239,68,68,0.15); color: #fca5a5; }
+
+/* Eyeball "reveal API key" toggle — the .revealed accent color never
+   showed in dark mode because body.theme-dark .eyeball-btn's own
+   background rule outranks it on specificity. */
+body.theme-dark .eyeball-btn.revealed { background: #1d3a6e; border-color: #3b5fa0; }
+
+/* Disabled controls — a light-gray disabled state reads as broken on a
+   dark page even though it's intentionally muted. */
+body.theme-dark .inbox-filter-field select:disabled { background: #1a1e29; color: #5b6272; }
+body.theme-dark .inbox-bulk-export-btn:disabled { background: #1a1e29; color: #5b6272; border-color: #2d3142; }
+
+/* Detail-view task-ID badge (the very first thing every task view shows),
+   the export-record file-path chip, and the prominent copy button next to
+   the ID — all plain white/light-gray chips with no dark counterpart. */
+body.theme-dark .detail-id-code { background: #1c2233; color: #e5e7eb; border-color: #3a4258; }
+body.theme-dark .export-feedback-path { background: #1c2233; color: #e5e7eb; border-color: #3a4258; }
+body.theme-dark .copy-btn-prominent { background: #1c2233; border-color: #3a4258; }

@@ -18,9 +18,9 @@
         <span class="health" id="health-indicator" title="service health">checking...</span>
       </div>
       <nav class="tabs" role="tablist">
-        <button class="tab" data-view="new" role="tab">New Task</button>
-        <button class="tab" data-view="inbox" role="tab">Inbox</button>
-        <button class="tab" data-view="detail" role="tab">Detail</button>
+        <button class="tab" data-view="new" role="tab" title="Submit a new task to the conclave">New Task</button>
+        <button class="tab" data-view="inbox" role="tab" title="Browse and filter every submitted task">Inbox</button>
+        <button class="tab" data-view="detail" role="tab" title="View the transcript and result of the currently open task">Detail</button>
       </nav>
     </header>
 
@@ -39,7 +39,7 @@
         <form id="new-task-form" class="form">
           <div class="form-row">
             <label for="mode">Mode</label>
-            <select id="mode" name="mode">
+            <select id="mode" name="mode" title="How the selected agents deliberate: conclave (equal voices), consult (one primary + critics), or resolve (one drives, others advise)">
               <option value="conclave" selected>conclave — peer deliberation (equal voices)</option>
               <option value="consult">consult — one primary + critics</option>
               <option value="resolve">resolve — one decides, others advise</option>
@@ -59,9 +59,9 @@
             <label for="synthesis-agent">Neutral review seats</label>
             <div class="project-source-field">
               <label for="judge-agent" class="project-source-sublabel">Equivalence judge</label>
-              <select id="judge-agent"><option value="">None</option></select>
+              <select id="judge-agent" title="Optional seat that arbitrates semantic equivalence when the conclave converges weakly. Cannot also be a participant."><option value="">None</option></select>
               <label for="synthesis-agent" class="project-source-sublabel">Final synthesizer</label>
-              <select id="synthesis-agent"><option value="">None</option></select>
+              <select id="synthesis-agent" title="Optional non-participant seat that writes the final synthesis, preserving material dissent. Cannot also be a participant."><option value="">None</option></select>
             </div>
             <p class="hint">Optional conclave-only seats. A neutral seat cannot also participate in the debate.</p>
           </div>
@@ -72,62 +72,70 @@
               <summary id="permissions-summary" class="permissions-summary">Permissions: read-only (default)</summary>
               <div class="permissions-body">
                 <div class="permissions-presets">
-                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_only">Read-only</button>
-                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_env">Read + .env</button>
-                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_all">Read everything</button>
+                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_only" title="Grant only can_read_files — the default, safest option">Read-only</button>
+                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_env" title="Grant can_read_files plus can_read_env_files, for tasks that need .env values">Read + .env</button>
+                  <button type="button" class="btn btn-secondary permission-preset" data-preset="read_all" title="Grant every read permission, including secrets — use only when the task genuinely needs it">Read everything</button>
                 </div>
                 <div class="permissions-list" id="permissions-list">
                   <label class="permission-check">
-                    <input type="checkbox" id="perm-can_read_files" data-perm="can_read_files" checked />
+                    <input type="checkbox" id="perm-can_read_files" data-perm="can_read_files" checked
+                      title="Allow agents to read files inside project_path" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_read_files</span>
                       <small>Read files inside project_path (default ON)</small>
                     </span>
                   </label>
                   <label class="permission-check permission-future">
-                    <input type="checkbox" id="perm-can_write_files" data-perm="can_write_files" />
+                    <input type="checkbox" id="perm-can_write_files" data-perm="can_write_files"
+                      title="Not yet wired to any adapter — recorded on the task for future use only" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_write_files</span>
                       <small>Modify files (currently no adapter uses this; defer to Layer 2)</small>
                     </span>
                   </label>
                   <label class="permission-check permission-future">
-                    <input type="checkbox" id="perm-can_run_commands" data-perm="can_run_commands" />
+                    <input type="checkbox" id="perm-can_run_commands" data-perm="can_run_commands"
+                      title="Not yet wired to any adapter — recorded on the task for future use only" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_run_commands</span>
                       <small>Execute commands (currently no adapter uses this; defer to Layer 2)</small>
                     </span>
                   </label>
                   <label class="permission-check">
-                    <input type="checkbox" id="perm-can_access_network" data-perm="can_access_network" />
+                    <input type="checkbox" id="perm-can_access_network" data-perm="can_access_network"
+                      title="Required for evidence-URL capture — allows the task to fetch outbound HTTP/HTTPS" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_access_network</span>
                       <small>Outbound HTTP/HTTPS</small>
                     </span>
                   </label>
                   <label class="permission-check permission-future">
-                    <input type="checkbox" id="perm-can_install_packages" data-perm="can_install_packages" />
+                    <input type="checkbox" id="perm-can_install_packages" data-perm="can_install_packages"
+                      title="Not yet wired to any adapter — implies run + network; recorded for future use only" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_install_packages</span>
                       <small>Install dependencies (implies run + network)</small>
                     </span>
                   </label>
                   <label class="permission-check permission-future">
-                    <input type="checkbox" id="perm-can_apply_patches" data-perm="can_apply_patches" />
+                    <input type="checkbox" id="perm-can_apply_patches" data-perm="can_apply_patches"
+                      title="Currently surfaced for approval only — no adapter applies patches automatically" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_apply_patches</span>
                       <small>Apply patches (currently surfaced for approval only)</small>
                     </span>
                   </label>
                   <label class="permission-check">
-                    <input type="checkbox" id="perm-can_read_env_files" data-perm="can_read_env_files" />
+                    <input type="checkbox" id="perm-can_read_env_files" data-perm="can_read_env_files"
+                      title="Allow agents to read .env, .env.*, and .envrc files" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_read_env_files</span>
                       <small>Read .env, .env.*, .envrc</small>
                     </span>
                   </label>
                   <label class="permission-check">
-                    <input type="checkbox" id="perm-can_read_secrets" data-perm="can_read_secrets" />
+                    <input type="checkbox" id="perm-can_read_secrets" data-perm="can_read_secrets"
+                      title="Allow agents to read *.key, *.pem, credentials*, and similar files" />
                     <span class="permission-label-text">
                       <span class="permission-name">can_read_secrets</span>
                       <small>Read *.key, *.pem, credentials*, etc.</small>
@@ -144,12 +152,12 @@
           <div class="form-row">
             <label for="decision-project">Decision project</label>
             <div class="project-source-field">
-              <select id="decision-project" name="decision_project_id">
+              <select id="decision-project" name="decision_project_id" title="Group this task under a persistent Decision Project, carrying its instructions and reusable evidence">
                 <option value="">No persistent project</option>
               </select>
-              <button type="button" class="btn btn-secondary" id="create-decision-project">New project</button>
-              <button type="button" class="btn btn-secondary" id="edit-decision-project">Inspect / edit</button>
-              <label><input type="checkbox" id="show-archived-projects"> Show archived</label>
+              <button type="button" class="btn btn-secondary" id="create-decision-project" title="Create a new Decision Project">New project</button>
+              <button type="button" class="btn btn-secondary" id="edit-decision-project" title="View or edit the selected project's name, instructions, and evidence">Inspect / edit</button>
+              <label><input type="checkbox" id="show-archived-projects" title="Include archived projects in the list above"> Show archived</label>
             </div>
             <p class="hint">Projects preserve instructions, evidence, and related decisions across tasks.</p>
           </div>
@@ -159,6 +167,7 @@
           <div class="form-row">
             <label for="evidence-urls">Evidence URLs</label>
             <textarea id="evidence-urls" rows="3"
+              title="Public HTTPS URLs to fetch once and freeze as evidence before deliberation, one per line"
               placeholder="One public HTTPS URL per line (optional)"></textarea>
             <p class="hint">Sources are fetched once, safety-checked, hashed, and frozen so every agent sees the same evidence. Enable network access in Permissions.</p>
             <p class="form-status" id="evidence-status"></p>
@@ -170,11 +179,13 @@
               <div class="project-source-field">
                 <label for="project-path" class="project-source-sublabel">Project path (for sandbox scoping)</label>
                 <input type="text" id="project-path" name="project_path"
+                       title="Local path to your project — used for permission scoping and, if enabled, sandbox population"
                        placeholder="C:/path/to/your/project (optional)" autocomplete="off" />
                 <p class="hint">When set, the orchestrator uses this for permission scoping and (if enabled below) sandbox population.</p>
               </div>
               <label class="permission-check project-source-check">
-                <input type="checkbox" id="include-sandbox" />
+                <input type="checkbox" id="include-sandbox"
+                  title="Copy project_path into a per-task read-only sandbox so agents can browse source via their native file tools" />
                 <span class="permission-label-text">
                   <span class="permission-name">Provide a read-only sandbox copy to the agents</span>
                   <small>When enabled, the orchestrator copies the project at <code>project_path</code> to a per-task sandbox dir. Each agent gets read-only access to that snapshot via its native CLI tools (Codex shell read-only, Gemini included-directories, Claude Read tool). Skips: .git, __pycache__, node_modules, .venv, dist, data, binaries. Requires <code>can_read_files</code>. The original project is never modified.</small>
@@ -188,12 +199,15 @@
             <div class="question-label-row">
               <label for="question">Question</label>
               <button type="button" class="btn btn-secondary git-diff-btn" id="attach-git-diff-btn"
+                title="Run git diff on Project path and append the result to your question"
                 disabled>Attach git diff (current changes)</button>
             </div>
             <p class="hint git-diff-caption" id="git-diff-caption">
               Attaches a <code>git diff</code> of your in-progress changes (uncommitted + staged) to the question. Set <strong>Project path</strong> above to enable.
             </p>
-            <textarea id="question" name="question" rows="10" placeholder="Describe the problem or question for the agents..." required></textarea>
+            <textarea id="question" name="question" rows="10"
+              title="The problem or question every selected agent will deliberate on"
+              placeholder="Describe the problem or question for the agents..." required></textarea>
             <p class="form-status" id="git-diff-status"></p>
           </div>
 
@@ -202,7 +216,7 @@
             <div class="dropzone" id="dropzone" tabindex="0">
               <p class="dropzone-prompt">
                 <strong>Drop files here</strong> or
-                <button type="button" class="link-btn" id="browse-btn">browse</button>
+                <button type="button" class="link-btn" id="browse-btn" title="Open the file picker">browse</button>
               </p>
               <p class="hint">Supported: .txt, .md, .pdf, .json, .py, .js, .ts, .png, .jpg, .jpeg, .gif, .webp and other text/code files. Max 20 MiB per file. Or drop an entire project folder &mdash; standard ignore patterns (.git, node_modules, etc.) are applied automatically.</p>
               <p class="hint dropzone-keyboard-hint" style="font-size: 11.5px; margin-top: 2px; opacity: 0;">
@@ -217,7 +231,7 @@
           </div>
 
           <div class="form-row form-actions">
-            <button type="submit" class="btn btn-primary" id="submit-btn">Submit task</button>
+            <button type="submit" class="btn btn-primary" id="submit-btn" title="Submit this task to the conclave">Submit task</button>
             <span class="form-status" id="form-status"></span>
           </div>
         </form>
@@ -232,7 +246,7 @@
         <div class="inbox-filters" id="inbox-filters">
           <div class="inbox-filter-field">
             <label for="filter-status">Status</label>
-            <select id="filter-status">
+            <select id="filter-status" title="Show only tasks in this status">
               <option value="">(all statuses)</option>
               <option value="pending">Pending</option>
               <option value="running">Running</option>
@@ -244,7 +258,7 @@
           </div>
           <div class="inbox-filter-field">
             <label for="filter-mode">Mode</label>
-            <select id="filter-mode">
+            <select id="filter-mode" title="Show only tasks run in this mode">
               <option value="">(all modes)</option>
               <option value="conclave">Conclave (peer deliberation)</option>
               <option value="consult">Consult (one + critics)</option>
@@ -277,14 +291,15 @@
           <div class="inbox-filter-field inbox-filter-search">
             <label for="filter-search">Search</label>
             <div class="inbox-search-row">
-              <input type="text" id="filter-search" placeholder="Search ID / question / decision / final answer..." autocomplete="off" />
+              <input type="text" id="filter-search" title="Search task ID, question, decision, or final answer text"
+                placeholder="Search ID / question / decision / final answer..." autocomplete="off" />
               <button type="button" class="btn btn-secondary inbox-clear-btn" id="inbox-clear-btn"
                 title="Reset all filters to defaults" aria-label="Clear all filters">Clear filters</button>
             </div>
           </div>
           <div class="inbox-filter-field">
             <label for="filter-limit">Show last</label>
-            <select id="filter-limit">
+            <select id="filter-limit" title="Maximum number of tasks to load from the inbox">
               <option value="50">50</option>
               <option value="100">100</option>
               <option value="500">500</option>
@@ -376,9 +391,10 @@
               Your reply unblocks the deliberation and is sent to every agent currently waiting on you.
             </p>
             <form id="answer-form">
-              <textarea id="answer-text" rows="5" placeholder="Type your reply for the council..." required></textarea>
+              <textarea id="answer-text" rows="5" title="Your reply is sent to every agent currently waiting on you"
+                placeholder="Type your reply for the council..." required></textarea>
               <div class="form-actions">
-                <button type="submit" class="btn btn-primary">Send answer</button>
+                <button type="submit" class="btn btn-primary" title="Send this reply and resume the deliberation">Send answer</button>
                 <span class="form-status" id="answer-status"></span>
                 <a href="#transcript-container" class="answer-jump-transcript">Jump to transcript ↓</a>
               </div>
@@ -411,7 +427,7 @@
           </section>
 
           <section class="actions-row">
-            <button class="btn btn-secondary" id="cancel-btn" hidden>Abort task</button>
+            <button class="btn btn-secondary" id="cancel-btn" hidden title="Cancel this running task; its transcript so far is preserved">Abort task</button>
           </section>
 
           <section id="task-feedback" class="review-card" hidden></section>
@@ -439,7 +455,7 @@
               <span class="export-last-info" id="export-last-info" hidden></span>
               <span class="download-detail-group">
                 <label for="download-format" class="download-detail-label">Download a copy</label>
-                <select id="download-format" class="download-detail-select">
+                <select id="download-format" class="download-detail-select" title="File format for the downloaded task detail">
                   <option value="pdf">PDF (.pdf)</option>
                   <option value="docx">Word (.docx)</option>
                   <option value="md">Markdown (.md)</option>
@@ -532,6 +548,7 @@
             <label for="openrouter-key-input">OpenRouter API key</label>
             <div class="api-key-input-group">
               <input type="password" id="openrouter-key-input" autocomplete="off" spellcheck="false"
+                title="Your OpenRouter API key — stored in the local database, not in any config file"
                 placeholder="(not set)" />
               <button type="button" class="eyeball-btn" id="openrouter-key-eyeball"
                 title="Show / hide the API key in plain text" aria-label="Show or hide the API key" aria-pressed="false">
@@ -540,8 +557,8 @@
             </div>
             <p class="api-key-status" id="openrouter-key-status">Loading…</p>
             <div class="api-key-actions">
-              <button type="button" class="btn btn-primary" id="openrouter-key-save">Save</button>
-              <button type="button" class="btn btn-secondary" id="openrouter-key-clear">Clear stored key</button>
+              <button type="button" class="btn btn-primary" id="openrouter-key-save" title="Store this key in the local database">Save</button>
+              <button type="button" class="btn btn-secondary" id="openrouter-key-clear" title="Remove the stored key from the local database">Clear stored key</button>
             </div>
             <p class="hint">
               Used by the OpenRouter council seats (<code>deepseek</code> / <code>glm</code> / <code>qwen</code> by

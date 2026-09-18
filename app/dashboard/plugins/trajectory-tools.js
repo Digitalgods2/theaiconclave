@@ -58,6 +58,7 @@
             type: "button",
             class: "btn btn-primary",
             text: "Export all terminal-task trajectories",
+            title: "Write a versioned JSON trajectory dump for every completed, failed, or cancelled task",
           });
           const statusLine = api.el("div", {
             class: "muted",

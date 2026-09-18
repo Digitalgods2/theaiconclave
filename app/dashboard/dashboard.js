@@ -379,11 +379,12 @@ function setupConnectionSettings() {
   panel.appendChild(el("summary", { text: "Connection access" }));
   const form = el("form");
   const label = el("label", { text: "API token (saved for this tab) " });
-  const input = el("input", { type: "password", id: "connection-token", autocomplete: "off" });
+  const input = el("input", { type: "password", id: "connection-token", autocomplete: "off",
+    title: "API token to authenticate requests from this browser tab" });
   label.appendChild(input);
   form.appendChild(label);
-  form.appendChild(el("button", { type: "submit", text: "Connect" }));
-  const clear = el("button", { type: "button", text: "Clear token" });
+  form.appendChild(el("button", { type: "submit", text: "Connect", title: "Save this token for the current tab" }));
+  const clear = el("button", { type: "button", text: "Clear token", title: "Remove the saved token from this tab" });
   form.appendChild(clear);
   const status = el("span", { role: "status" });
   form.appendChild(status);
@@ -902,6 +903,7 @@ function setupPricingTableHeaders() {
     const key = th.dataset.sort;
     if (!key) continue;
     th.style.cursor = "pointer";
+    th.title = "Sort by " + th.textContent.trim();
     th.addEventListener("click", () => {
       if (PricingState.sortKey === key) {
         PricingState.sortDir = (PricingState.sortDir === "asc") ? "desc" : "asc";
@@ -1278,7 +1280,7 @@ function renderAgentsList() {
     const position = checked ? State.selectedAgents.indexOf(name) + 1 : 0;
     const isPrimary = orderMatters && checked && position === 1;
     const label = el("label", { class: "agent-check" + (isPrimary ? " primary" : "") });
-    const cb = el("input", { type: "checkbox", value: name });
+    const cb = el("input", { type: "checkbox", value: name, title: "Include " + name + " as a conclave participant" });
     cb.checked = checked;
     cb.addEventListener("change", () => {
       if (cb.checked) {
@@ -1618,7 +1620,8 @@ async function loadProjectEvidence(reset = false) {
       const row = el("details");
       const summary = el("summary");
       const label = el("label");
-      const checkbox = el("input", { type: "checkbox", "aria-label": "Use " + (source.title || source.url) });
+      const checkbox = el("input", { type: "checkbox", "aria-label": "Use " + (source.title || source.url),
+        title: "Attach this frozen evidence source to the task being submitted" });
       checkbox.checked = State.selectedEvidenceIds.has(source.id);
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) State.selectedEvidenceIds.add(source.id); else State.selectedEvidenceIds.delete(source.id);
@@ -1651,7 +1654,7 @@ async function editDecisionProject() {
       label.appendChild(field); host.appendChild(label); fields[key] = field;
     }
     const status = el("p", { role: "status" });
-    const save = el("button", { type: "button", class: "btn", text: "Save project" });
+    const save = el("button", { type: "button", class: "btn btn-primary", text: "Save project", title: "Save changes to this project's name, description, instructions, and default evidence URLs" });
     save.addEventListener("click", async () => {
       try {
         await Api.updateProject(id, { name: fields.name.value, description: fields.description.value,
@@ -1659,7 +1662,9 @@ async function editDecisionProject() {
         await loadDecisionProjects(); status.textContent = "Project saved.";
       } catch (error) { status.textContent = error.message; }
     });
-    const archive = el("button", { type: "button", class: "btn btn-secondary", text: project.archived_at ? "Restore project" : "Archive project" });
+    const archive = el("button", { type: "button", class: "btn btn-secondary",
+      text: project.archived_at ? "Restore project" : "Archive project",
+      title: project.archived_at ? "Make this project selectable again for new tasks" : "Hide this project from the active project list without deleting it" });
     archive.addEventListener("click", async () => {
       try {
         await Api.updateProject(id, { archived: !project.archived_at });
@@ -1668,13 +1673,15 @@ async function editDecisionProject() {
     });
     host.append(save, archive, status);
     if (project.default_evidence_urls.length) {
-      const use = el("button", { type: "button", text: "Use suggested URLs for next capture" });
+      const use = el("button", { type: "button", text: "Use suggested URLs for next capture",
+        title: "Fill the Evidence URLs field with this project's default sources" });
       use.addEventListener("click", () => { $("#evidence-urls").value = project.default_evidence_urls.join("\n"); });
       host.appendChild(use);
     }
     host.appendChild(el("h4", { text: "Related decisions" }));
     for (const task of response.tasks || []) {
-      const button = el("button", { type: "button", text: task.user_request + " · " + task.status });
+      const button = el("button", { type: "button", text: task.user_request + " · " + task.status,
+        title: "Open this task's detail view" });
       button.addEventListener("click", () => openDetail(task.id)); host.appendChild(button);
     }
   } catch (error) { host.textContent = error.message; }
@@ -1695,15 +1702,15 @@ function renderTaskFeedback(data) {
   const form = el("form");
   for (const [name, title] of [["decision_changed", "Did it change or refine your decision?"], ["material_risk_found", "Did it identify a risk you had missed?"], ["extra_review_worth_it", "Was the extra review worth its time and compute?"]]) {
     const label = el("label", { text: title });
-    const select = el("select", { name, "aria-label": title });
+    const select = el("select", { name, "aria-label": title, title });
     for (const [value, text] of [["", "Not rated"], ["true", "Yes"], ["false", "No"]]) select.appendChild(el("option", { value, text }));
     select.value = data.feedback?.[name] == null ? "" : String(data.feedback[name]);
     label.appendChild(select); form.appendChild(label);
   }
   const noteLabel = el("label", { text: "Optional note" });
-  const note = el("textarea", { name: "note", maxlength: "4000" });
+  const note = el("textarea", { name: "note", maxlength: "4000", title: "Free-text note kept alongside your feedback ratings" });
   note.value = data.feedback?.note || ""; noteLabel.appendChild(note); form.appendChild(noteLabel);
-  form.appendChild(el("button", { type: "submit", text: "Save feedback", class: "btn" }));
+  form.appendChild(el("button", { type: "submit", text: "Save feedback", class: "btn btn-primary", title: "Save your ratings and note for this task" }));
   const status = el("span", { role: "status" }); form.appendChild(status);
   form.addEventListener("submit", async (event) => {
     event.preventDefault(); const values = new FormData(form); const body = { note: values.get("note") };
@@ -2763,11 +2770,13 @@ async function onBulkExportUnexported() {
   yes.type = "button";
   yes.className = "btn btn-primary";
   yes.textContent = "Continue";
+  yes.title = "Proceed with the bulk export";
   yes.style.cssText = "padding: 3px 12px; margin-left: 6px; font-size: 12px;";
   const no = document.createElement("button");
   no.type = "button";
   no.className = "btn btn-secondary";
   no.textContent = "Cancel";
+  no.title = "Cancel — no tasks will be exported";
   no.style.cssText = "padding: 3px 12px; margin-left: 4px; font-size: 12px;";
   no.addEventListener("click", () => {
     statusEl.hidden = true;
@@ -2979,7 +2988,8 @@ function renderDetail(data) {
   header.appendChild(titleRow);
   header.appendChild(metaRow);
   if (["failed", "cancelled"].includes(task.status)) {
-    const retry = el("button", { type: "button", class: "btn btn-secondary", text: "Retry as linked task", id: "retry-task" });
+    const retry = el("button", { type: "button", class: "btn btn-secondary", text: "Retry as linked task", id: "retry-task",
+      title: "Start a new task threaded to this one, reusing its context" });
     retry.addEventListener("click", async () => {
       retry.disabled = true;
       try { const next = await Api.retryTask(task.id); openDetail(next.task_id); }
@@ -3569,6 +3579,7 @@ function renderDecisionForm(inner, task, existing) {
     id: "decision-text",
     class: "decision-textarea",
     rows: 5,
+    title: "Your authoritative decision on this task, in your own words",
     placeholder: "Record your decision...",
     required: true,
   });
@@ -3583,6 +3594,7 @@ function renderDecisionForm(inner, task, existing) {
     type: "submit",
     class: "btn btn-decision",
     text: State.decisionEditing && existing ? "Update Decision" : "Record Decision",
+    title: State.decisionEditing && existing ? "Save changes to your recorded decision" : "Save this as your authoritative decision on the task",
   });
   actions.appendChild(submitBtn);
 
@@ -3591,6 +3603,7 @@ function renderDecisionForm(inner, task, existing) {
       type: "button",
       class: "btn btn-secondary",
       text: "Cancel",
+      title: "Discard changes and keep the existing decision",
     });
     cancelBtn.addEventListener("click", () => {
       State.decisionEditing = false;
@@ -3623,6 +3636,7 @@ function renderDecisionDisplay(inner, task, decisionText) {
     class: "decision-edit-btn",
     text: "Edit",
     "aria-label": "Edit decision",
+    title: "Edit your recorded decision",
   });
   editBtn.addEventListener("click", () => {
     State.decisionEditing = true;
@@ -3925,6 +3939,7 @@ function renderQuestionnaire(container, questionText) {
       class: "answer-questionnaire-input",
       rows: "2",
       "data-question-index": String(idx + 1),
+      title: "Your answer to: " + question,
       placeholder: "Answer question " + (idx + 1),
     }));
     row.appendChild(body);
@@ -4539,6 +4554,7 @@ function renderArtifactPanel(task, artifacts) {
       class: "btn btn-secondary",
       href: `/api/tasks/${task.id}/artifacts/${artifact.id}/download`,
       text: "Download",
+      title: "Download this draft artifact — it is never written to your project until you apply it",
     });
     download.addEventListener("click", async (event) => {
       event.preventDefault();
@@ -4558,6 +4574,7 @@ function renderArtifactPanel(task, artifacts) {
         type: "button",
         class: "btn btn-primary",
         text: metadata.applied_at ? "Apply again" : "Apply to project",
+        title: "Preview and, on confirmation, write this artifact into your project (a backup is kept if it overwrites a file)",
       });
       applyBtn.addEventListener("click", async () => {
         const target = metadata.target_path || artifact.filename || artifact.id;
